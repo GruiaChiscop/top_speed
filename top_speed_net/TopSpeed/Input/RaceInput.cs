@@ -7,6 +7,7 @@ namespace TopSpeed.Input
     {
         private readonly RaceSettings _settings;
         private readonly InputState _lastState;
+        private readonly InputState _prevState;
         private JoystickAxisOrButton _left;
         private JoystickAxisOrButton _right;
         private JoystickAxisOrButton _throttle;
@@ -56,7 +57,9 @@ namespace TopSpeed.Input
         private Key _kbFlush;
         private JoystickStateSnapshot _center;
         private JoystickStateSnapshot _lastJoystick;
+        private JoystickStateSnapshot _prevJoystick;
         private bool _hasCenter;
+        private bool _hasPrevJoystick;
         private bool _joystickAvailable;
         private bool UseJoystick => _deviceMode != InputDeviceMode.Keyboard && _joystickAvailable;
         private bool UseKeyboard => _deviceMode != InputDeviceMode.Joystick || !_joystickAvailable;
@@ -65,6 +68,7 @@ namespace TopSpeed.Input
         {
             _settings = settings;
             _lastState = new InputState();
+            _prevState = new InputState();
             Initialize();
         }
 
@@ -114,17 +118,25 @@ namespace TopSpeed.Input
 
         public void Run(InputState input, JoystickStateSnapshot? joystick)      
         {
+            _prevState.CopyFrom(_lastState);
             _lastState.CopyFrom(input);
             if (joystick.HasValue)
             {
+                if (_hasPrevJoystick)
+                    _prevJoystick = _lastJoystick;
                 _lastJoystick = joystick.Value;
                 if (!_hasCenter)
                 {
                     _center = joystick.Value;
                     _hasCenter = true;
                 }
+                if (!_hasPrevJoystick)
+                    _prevJoystick = joystick.Value;
+                _hasPrevJoystick = true;
             }
             _joystickAvailable = joystick.HasValue;
+            if (!joystick.HasValue)
+                _hasPrevJoystick = false;
         }
 
         public void SetLeft(JoystickAxisOrButton a)
@@ -350,47 +362,47 @@ namespace TopSpeed.Input
 
         public bool GetRequestInfo() => (UseKeyboard && _lastState.IsDown(_kbRequestInfo)) || (UseJoystick && GetAxis(_requestInfo) > 50);
 
-        public bool GetCurrentGear() => (UseKeyboard && _lastState.IsDown(_kbCurrentGear)) || (UseJoystick && GetAxis(_currentGear) > 50);
+        public bool GetCurrentGear() => (UseKeyboard && WasPressed(_kbCurrentGear)) || AxisPressed(_currentGear);
 
-        public bool GetCurrentLapNr() => (UseKeyboard && _lastState.IsDown(_kbCurrentLapNr)) || (UseJoystick && GetAxis(_currentLapNr) > 50);
+        public bool GetCurrentLapNr() => (UseKeyboard && WasPressed(_kbCurrentLapNr)) || AxisPressed(_currentLapNr);
 
-        public bool GetCurrentRacePerc() => (UseKeyboard && _lastState.IsDown(_kbCurrentRacePerc)) || (UseJoystick && GetAxis(_currentRacePerc) > 50);
+        public bool GetCurrentRacePerc() => (UseKeyboard && WasPressed(_kbCurrentRacePerc)) || AxisPressed(_currentRacePerc);
 
-        public bool GetCurrentLapPerc() => (UseKeyboard && _lastState.IsDown(_kbCurrentLapPerc)) || (UseJoystick && GetAxis(_currentLapPerc) > 50);
+        public bool GetCurrentLapPerc() => (UseKeyboard && WasPressed(_kbCurrentLapPerc)) || AxisPressed(_currentLapPerc);
 
-        public bool GetCurrentRaceTime() => (UseKeyboard && _lastState.IsDown(_kbCurrentRaceTime)) || (UseJoystick && GetAxis(_currentRaceTime) > 50);
+        public bool GetCurrentRaceTime() => (UseKeyboard && WasPressed(_kbCurrentRaceTime)) || AxisPressed(_currentRaceTime);
 
         public bool TryGetPlayerInfo(out int player)
         {
-            if (_lastState.IsDown(_kbPlayer1)) { player = 0; return true; }
-            if (_lastState.IsDown(_kbPlayer2)) { player = 1; return true; }
-            if (_lastState.IsDown(_kbPlayer3)) { player = 2; return true; }
-            if (_lastState.IsDown(_kbPlayer4)) { player = 3; return true; }
-            if (_lastState.IsDown(_kbPlayer5)) { player = 4; return true; }
-            if (_lastState.IsDown(_kbPlayer6)) { player = 5; return true; }
-            if (_lastState.IsDown(_kbPlayer7)) { player = 6; return true; }
-            if (_lastState.IsDown(_kbPlayer8)) { player = 7; return true; }
+            if (WasPressed(_kbPlayer1)) { player = 0; return true; }
+            if (WasPressed(_kbPlayer2)) { player = 1; return true; }
+            if (WasPressed(_kbPlayer3)) { player = 2; return true; }
+            if (WasPressed(_kbPlayer4)) { player = 3; return true; }
+            if (WasPressed(_kbPlayer5)) { player = 4; return true; }
+            if (WasPressed(_kbPlayer6)) { player = 5; return true; }
+            if (WasPressed(_kbPlayer7)) { player = 6; return true; }
+            if (WasPressed(_kbPlayer8)) { player = 7; return true; }
             player = 0;
             return false;
         }
 
         public bool TryGetPlayerPosition(out int player)
         {
-            if (_lastState.IsDown(_kbPlayerPos1)) { player = 0; return true; }
-            if (_lastState.IsDown(_kbPlayerPos2)) { player = 1; return true; }
-            if (_lastState.IsDown(_kbPlayerPos3)) { player = 2; return true; }
-            if (_lastState.IsDown(_kbPlayerPos4)) { player = 3; return true; }
-            if (_lastState.IsDown(_kbPlayerPos5)) { player = 4; return true; }
-            if (_lastState.IsDown(_kbPlayerPos6)) { player = 5; return true; }
-            if (_lastState.IsDown(_kbPlayerPos7)) { player = 6; return true; }
-            if (_lastState.IsDown(_kbPlayerPos8)) { player = 7; return true; }
+            if (WasPressed(_kbPlayerPos1)) { player = 0; return true; }
+            if (WasPressed(_kbPlayerPos2)) { player = 1; return true; }
+            if (WasPressed(_kbPlayerPos3)) { player = 2; return true; }
+            if (WasPressed(_kbPlayerPos4)) { player = 3; return true; }
+            if (WasPressed(_kbPlayerPos5)) { player = 4; return true; }
+            if (WasPressed(_kbPlayerPos6)) { player = 5; return true; }
+            if (WasPressed(_kbPlayerPos7)) { player = 6; return true; }
+            if (WasPressed(_kbPlayerPos8)) { player = 7; return true; }
             player = 0;
             return false;
         }
 
-        public bool GetTrackName() => _lastState.IsDown(_kbTrackName);
+        public bool GetTrackName() => WasPressed(_kbTrackName);
 
-        public bool GetPlayerNumber() => _lastState.IsDown(_kbPlayerNumber);
+        public bool GetPlayerNumber() => WasPressed(_kbPlayerNumber);
 
         public bool GetPause() => _lastState.IsDown(_kbPause);
 
@@ -398,127 +410,146 @@ namespace TopSpeed.Input
 
         private int GetAxis(JoystickAxisOrButton axis)
         {
+            return GetAxis(axis, _lastJoystick);
+        }
+
+        private int GetAxis(JoystickAxisOrButton axis, JoystickStateSnapshot state)
+        {
             switch (axis)
             {
                 case JoystickAxisOrButton.AxisNone:
                     return 0;
                 case JoystickAxisOrButton.AxisXNeg:
-                    if (_center.X - _lastJoystick.X > 0)
-                        return Math.Min(_center.X - _lastJoystick.X, 100);
+                    if (_center.X - state.X > 0)
+                        return Math.Min(_center.X - state.X, 100);
                     break;
                 case JoystickAxisOrButton.AxisXPos:
-                    if (_lastJoystick.X - _center.X > 0)
-                        return Math.Min(_lastJoystick.X - _center.X, 100);
+                    if (state.X - _center.X > 0)
+                        return Math.Min(state.X - _center.X, 100);
                     break;
                 case JoystickAxisOrButton.AxisYNeg:
-                    if (_center.Y - _lastJoystick.Y > 0)
-                        return Math.Min(_center.Y - _lastJoystick.Y, 100);
+                    if (_center.Y - state.Y > 0)
+                        return Math.Min(_center.Y - state.Y, 100);
                     break;
                 case JoystickAxisOrButton.AxisYPos:
-                    if (_lastJoystick.Y - _center.Y > 0)
-                        return Math.Min(_lastJoystick.Y - _center.Y, 100);
+                    if (state.Y - _center.Y > 0)
+                        return Math.Min(state.Y - _center.Y, 100);
                     break;
                 case JoystickAxisOrButton.AxisZNeg:
-                    if (_center.Z - _lastJoystick.Z > 0)
-                        return Math.Min(_center.Z - _lastJoystick.Z, 100);
+                    if (_center.Z - state.Z > 0)
+                        return Math.Min(_center.Z - state.Z, 100);
                     break;
                 case JoystickAxisOrButton.AxisZPos:
-                    if (_lastJoystick.Z - _center.Z > 0)
-                        return Math.Min(_lastJoystick.Z - _center.Z, 100);
+                    if (state.Z - _center.Z > 0)
+                        return Math.Min(state.Z - _center.Z, 100);
                     break;
                 case JoystickAxisOrButton.AxisRxNeg:
-                    if (_center.Rx - _lastJoystick.Rx > 0)
-                        return Math.Min(_center.Rx - _lastJoystick.Rx, 100);
+                    if (_center.Rx - state.Rx > 0)
+                        return Math.Min(_center.Rx - state.Rx, 100);
                     break;
                 case JoystickAxisOrButton.AxisRxPos:
-                    if (_lastJoystick.Rx - _center.Rz > 0)
-                        return Math.Min(_lastJoystick.Rx - _center.Rx, 100);
+                    if (state.Rx - _center.Rz > 0)
+                        return Math.Min(state.Rx - _center.Rx, 100);
                     break;
                 case JoystickAxisOrButton.AxisRyNeg:
-                    if (_center.Ry - _lastJoystick.Ry > 0)
-                        return Math.Min(_center.Ry - _lastJoystick.Ry, 100);
+                    if (_center.Ry - state.Ry > 0)
+                        return Math.Min(_center.Ry - state.Ry, 100);
                     break;
                 case JoystickAxisOrButton.AxisRyPos:
-                    if (_lastJoystick.Ry - _center.Ry > 0)
-                        return Math.Min(_lastJoystick.Ry - _center.Ry, 100);
+                    if (state.Ry - _center.Ry > 0)
+                        return Math.Min(state.Ry - _center.Ry, 100);
                     break;
                 case JoystickAxisOrButton.AxisRzNeg:
-                    if (_center.Rz - _lastJoystick.Rz > 0)
-                        return Math.Min(_center.Rz - _lastJoystick.Rz, 100);
+                    if (_center.Rz - state.Rz > 0)
+                        return Math.Min(_center.Rz - state.Rz, 100);
                     break;
                 case JoystickAxisOrButton.AxisRzPos:
-                    if (_lastJoystick.Rz - _center.Rz > 0)
-                        return Math.Min(_lastJoystick.Rz - _center.Rz, 100);
+                    if (state.Rz - _center.Rz > 0)
+                        return Math.Min(state.Rz - _center.Rz, 100);
                     break;
                 case JoystickAxisOrButton.AxisSlider1Neg:
-                    if (_center.Slider1 - _lastJoystick.Slider1 > 0)
-                        return Math.Min(_center.Slider1 - _lastJoystick.Slider1, 100);
+                    if (_center.Slider1 - state.Slider1 > 0)
+                        return Math.Min(_center.Slider1 - state.Slider1, 100);
                     break;
                 case JoystickAxisOrButton.AxisSlider1Pos:
-                    if (_lastJoystick.Slider1 - _center.Slider1 > 0)
-                        return Math.Min(_lastJoystick.Slider1 - _center.Slider1, 100);
+                    if (state.Slider1 - _center.Slider1 > 0)
+                        return Math.Min(state.Slider1 - _center.Slider1, 100);
                     break;
                 case JoystickAxisOrButton.AxisSlider2Neg:
-                    if (_center.Slider2 - _lastJoystick.Slider2 > 0)
-                        return Math.Min(_center.Slider2 - _lastJoystick.Slider2, 100);
+                    if (_center.Slider2 - state.Slider2 > 0)
+                        return Math.Min(_center.Slider2 - state.Slider2, 100);
                     break;
                 case JoystickAxisOrButton.AxisSlider2Pos:
-                    if (_lastJoystick.Slider2 - _center.Slider2 > 0)
-                        return Math.Min(_lastJoystick.Slider2 - _center.Slider2, 100);
+                    if (state.Slider2 - _center.Slider2 > 0)
+                        return Math.Min(state.Slider2 - _center.Slider2, 100);
                     break;
                 case JoystickAxisOrButton.Button1:
-                    return _lastJoystick.B1 ? 100 : 0;
+                    return state.B1 ? 100 : 0;
                 case JoystickAxisOrButton.Button2:
-                    return _lastJoystick.B2 ? 100 : 0;
+                    return state.B2 ? 100 : 0;
                 case JoystickAxisOrButton.Button3:
-                    return _lastJoystick.B3 ? 100 : 0;
+                    return state.B3 ? 100 : 0;
                 case JoystickAxisOrButton.Button4:
-                    return _lastJoystick.B4 ? 100 : 0;
+                    return state.B4 ? 100 : 0;
                 case JoystickAxisOrButton.Button5:
-                    return _lastJoystick.B5 ? 100 : 0;
+                    return state.B5 ? 100 : 0;
                 case JoystickAxisOrButton.Button6:
-                    return _lastJoystick.B6 ? 100 : 0;
+                    return state.B6 ? 100 : 0;
                 case JoystickAxisOrButton.Button7:
-                    return _lastJoystick.B7 ? 100 : 0;
+                    return state.B7 ? 100 : 0;
                 case JoystickAxisOrButton.Button8:
-                    return _lastJoystick.B8 ? 100 : 0;
+                    return state.B8 ? 100 : 0;
                 case JoystickAxisOrButton.Button9:
-                    return _lastJoystick.B9 ? 100 : 0;
+                    return state.B9 ? 100 : 0;
                 case JoystickAxisOrButton.Button10:
-                    return _lastJoystick.B10 ? 100 : 0;
+                    return state.B10 ? 100 : 0;
                 case JoystickAxisOrButton.Button11:
-                    return _lastJoystick.B11 ? 100 : 0;
+                    return state.B11 ? 100 : 0;
                 case JoystickAxisOrButton.Button12:
-                    return _lastJoystick.B12 ? 100 : 0;
+                    return state.B12 ? 100 : 0;
                 case JoystickAxisOrButton.Button13:
-                    return _lastJoystick.B13 ? 100 : 0;
+                    return state.B13 ? 100 : 0;
                 case JoystickAxisOrButton.Button14:
-                    return _lastJoystick.B14 ? 100 : 0;
+                    return state.B14 ? 100 : 0;
                 case JoystickAxisOrButton.Button15:
-                    return _lastJoystick.B15 ? 100 : 0;
+                    return state.B15 ? 100 : 0;
                 case JoystickAxisOrButton.Button16:
-                    return _lastJoystick.B16 ? 100 : 0;
+                    return state.B16 ? 100 : 0;
                 case JoystickAxisOrButton.Pov1:
-                    return _lastJoystick.Pov1 ? 100 : 0;
+                    return state.Pov1 ? 100 : 0;
                 case JoystickAxisOrButton.Pov2:
-                    return _lastJoystick.Pov2 ? 100 : 0;
+                    return state.Pov2 ? 100 : 0;
                 case JoystickAxisOrButton.Pov3:
-                    return _lastJoystick.Pov3 ? 100 : 0;
+                    return state.Pov3 ? 100 : 0;
                 case JoystickAxisOrButton.Pov4:
-                    return _lastJoystick.Pov4 ? 100 : 0;
+                    return state.Pov4 ? 100 : 0;
                 case JoystickAxisOrButton.Pov5:
-                    return _lastJoystick.Pov5 ? 100 : 0;
+                    return state.Pov5 ? 100 : 0;
                 case JoystickAxisOrButton.Pov6:
-                    return _lastJoystick.Pov6 ? 100 : 0;
+                    return state.Pov6 ? 100 : 0;
                 case JoystickAxisOrButton.Pov7:
-                    return _lastJoystick.Pov7 ? 100 : 0;
+                    return state.Pov7 ? 100 : 0;
                 case JoystickAxisOrButton.Pov8:
-                    return _lastJoystick.Pov8 ? 100 : 0;
+                    return state.Pov8 ? 100 : 0;
                 default:
                     return 0;
             }
 
             return 0;
+        }
+
+        private bool WasPressed(Key key)
+        {
+            return _lastState.IsDown(key) && !_prevState.IsDown(key);
+        }
+
+        private bool AxisPressed(JoystickAxisOrButton axis)
+        {
+            if (!UseJoystick)
+                return false;
+            var current = GetAxis(axis, _lastJoystick);
+            var previous = _hasPrevJoystick ? GetAxis(axis, _prevJoystick) : 0;
+            return current > 50 && previous <= 50;
         }
 
         private void ReadFromSettings()

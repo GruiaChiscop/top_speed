@@ -169,53 +169,46 @@ namespace TopSpeed.Race
             {
                 _acceptCurrentRaceInfo = false;
                 var perc = (_car.PositionY / (float)(_track.Length * _nrOfLaps)) * 100.0f;
-                var units = (int)perc;
-                var decs = (int)((perc - units) * 100.0f);
+                var clampedPerc = Math.Max(0.0f, Math.Min(100.0f, perc));
+                var units = (int)clampedPerc;
+                var decs = (int)((clampedPerc - units) * 100.0f);
+
                 QueueSound(_soundNumbers[units]);
+                var time = _soundNumbers[units].GetLengthSeconds();
+
                 if (decs > 0)
                 {
-                    var time = _soundNumbers[units].GetLengthSeconds();
-                    PushEvent(RaceEventType.PlaySound, time, _soundPoint);
+                    QueueSound(_soundPoint);
                     time += _soundPoint.GetLengthSeconds();
                     if (decs < 10)
                     {
-                        PushEvent(RaceEventType.PlaySound, time, _soundNumbers[0]);
+                        QueueSound(_soundNumbers[0]);
                         time += _soundNumbers[0].GetLengthSeconds();
-                        PushEvent(RaceEventType.PlaySound, time, _soundNumbers[decs]);
+                        QueueSound(_soundNumbers[decs]);
                         time += _soundNumbers[decs].GetLengthSeconds();
-                        PushEvent(RaceEventType.PlaySound, time, _soundPercent);
-                        time += _soundPercent.GetLengthSeconds();
-                        PushEvent(RaceEventType.AcceptCurrentRaceInfo, time);
                     }
                     else
                     {
                         if (decs % 10 == 0)
                             decs /= 10;
-                        PushEvent(RaceEventType.PlaySound, time, _soundNumbers[decs]);
+                        QueueSound(_soundNumbers[decs]);
                         time += _soundNumbers[decs].GetLengthSeconds();
-                        PushEvent(RaceEventType.PlaySound, time, _soundPercent);
-                        time += _soundPercent.GetLengthSeconds();
-                        PushEvent(RaceEventType.AcceptCurrentRaceInfo, time);
                     }
                 }
-                else
-                {
-                    var time = _soundNumbers[units].GetLengthSeconds();
-                    PushEvent(RaceEventType.PlaySound, time, _soundPercent);
-                    time += _soundPercent.GetLengthSeconds();
-                    PushEvent(RaceEventType.AcceptCurrentRaceInfo, time);
-                }
+
+                QueueSound(_soundPercent);
+                time += _soundPercent.GetLengthSeconds();
+                PushEvent(RaceEventType.AcceptCurrentRaceInfo, time);
             }
 
             if (_input.GetCurrentLapPerc() && _started && _acceptCurrentRaceInfo && _lap <= _nrOfLaps)
             {
                 _acceptCurrentRaceInfo = false;
                 var perc = ((_car.PositionY - (_track.Length * (_lap - 1))) / (float)_track.Length) * 100.0f;
-                var units = (int)perc;
+                var units = Math.Max(0, Math.Min(100, (int)perc));
                 QueueSound(_soundNumbers[units]);
-                var time = _soundNumbers[units].GetLengthSeconds();
-                PushEvent(RaceEventType.PlaySound, time, _soundPercent);
-                time += _soundPercent.GetLengthSeconds();
+                QueueSound(_soundPercent);
+                var time = _soundNumbers[units].GetLengthSeconds() + _soundPercent.GetLengthSeconds();
                 PushEvent(RaceEventType.AcceptCurrentRaceInfo, time);
             }
 
