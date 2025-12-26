@@ -8,6 +8,7 @@ using TopSpeed.Common;
 using TopSpeed.Core;
 using TopSpeed.Data;
 using TopSpeed.Input;
+using TopSpeed.Speech;
 using TopSpeed.Tracks;
 using TopSpeed.Vehicles;
 using TS.Audio;
@@ -43,6 +44,7 @@ namespace TopSpeed.Race
         }
 
         protected readonly AudioManager _audio;
+        protected readonly SpeechService _speech;
         protected readonly RaceSettings _settings;
         protected readonly RaceInput _input;
         protected readonly JoystickDevice? _joystick;
@@ -54,6 +56,8 @@ namespace TopSpeed.Race
         protected readonly AudioSourceHandle?[][] _randomSounds;
         protected readonly int[] _totalRandomSounds;
         private readonly SoundQueue _soundQueue;
+        private readonly List<RaceEvent> _dueEvents;
+        private long _eventSequence;
 
         protected bool _manualTransmission;
         protected int _nrOfLaps;
@@ -91,9 +95,11 @@ namespace TopSpeed.Race
 
         protected bool ExitRequested { get; set; }
         protected bool PauseRequested { get; set; }
+        private bool _exitWhenQueueIdle;
 
         protected Level(
             AudioManager audio,
+            SpeechService speech,
             RaceSettings settings,
             RaceInput input,
             string track,
@@ -104,12 +110,14 @@ namespace TopSpeed.Race
             JoystickDevice? joystick)
         {
             _audio = audio;
+            _speech = speech;
             _settings = settings;
             _input = input;
             _joystick = joystick;
             _events = new List<RaceEvent>();
             _stopwatch = new Stopwatch();
             _soundQueue = new SoundQueue();
+            _dueEvents = new List<RaceEvent>();
 
             _manualTransmission = !automaticTransmission;
             _nrOfLaps = nrOfLaps;
@@ -219,6 +227,21 @@ namespace TopSpeed.Race
             _track.FinalizeTrack();
         }
 
+        protected void RequestExitWhenQueueIdle()
+        {
+            _exitWhenQueueIdle = true;
+        }
+
+        protected bool UpdateExitWhenQueueIdle()
+        {
+            if (!_exitWhenQueueIdle)
+                return false;
+            if (!_soundQueue.IsIdle)
+                return false;
+            ExitRequested = true;
+            return true;
+        }
+
         protected void SayTime(int raceTime, bool detailed = true)
         {
             var minutes = raceTime / 60000;
@@ -302,11 +325,37 @@ namespace TopSpeed.Race
             {
                 Type = type,
                 Time = _elapsedTotal + time,
-                Sound = sound
+                Sound = sound,
+                Sequence = _eventSequence++
             });
         }
 
-        protected void Speak(AudioSourceHandle sound, bool unKey = false)
+        protected List<RaceEvent> CollectDueEvents()
+        {
+            _dueEvents.Clear();
+            for (var i = _events.Count - 1; i >= 0; i--)
+            {
+                var e = _events[i];
+                if (e.Time <= _elapsedTotal)
+                {
+                    _events.RemoveAt(i);
+                    _dueEvents.Add(e);
+                }
+            }
+
+            if (_dueEvents.Count > 1)
+            {
+                _dueEvents.Sort((a, b) =>
+                {
+                    var timeCompare = a.Time.CompareTo(b.Time);
+                    return timeCompare != 0 ? timeCompare : a.Sequence.CompareTo(b.Sequence);
+                });
+            }
+
+            return _dueEvents;
+        }
+
+        protected void Speak(AudioSourceHandle sound, bool unKey = false)       
         {
             if (sound == null)
                 return;
@@ -320,6 +369,110 @@ namespace TopSpeed.Race
                 _unkeyQueue++;
                 PushEvent(RaceEventType.PlayRadioSound, length);
             }
+        }
+
+        protected void SpeakText(string text)
+        {
+            _speech.Speak(text, interrupt: true);
+        }
+
+        protected static string FormatTimeText(int raceTimeMs, bool detailed)
+        {
+            if (raceTimeMs < 0)
+                raceTimeMs = 0;
+            var minutes = raceTimeMs / 60000;
+            var seconds = (raceTimeMs % 60000) / 1000;
+            var parts = new List<string>();
+            if (minutes > 0)
+                parts.Add($"{minutes} {(minutes == 1 ? "minute" : "minutes")}");
+            parts.Add($"{seconds} {(seconds == 1 ? "second" : "seconds")}");
+            if (detailed)
+            {
+                var millis = raceTimeMs % 1000;
+                parts.Add($"point {millis:D3}");
+            }
+            return string.Join(" ", parts);
+        }
+
+        protected static string FormatPercentageText(string label, int percent)
+        {
+            var clamped = Math.Max(0, Math.Min(100, percent));
+            return string.IsNullOrWhiteSpace(label)
+                ? $"{clamped} percent"
+                : $"{label} {clamped} percent";
+        }
+
+        protected static string FormatVehicleName(string? name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return "Vehicle";
+            return name!.Replace('_', ' ').Replace('-', ' ').Trim();
+        }
+
+        protected static string FormatTrackName(string trackName)
+        {
+            switch (trackName)
+            {
+                case "america":
+                    return "America";
+                case "austria":
+                    return "Austria";
+                case "belgium":
+                    return "Belgium";
+                case "brazil":
+                    return "Brazil";
+                case "china":
+                    return "China";
+                case "england":
+                    return "England";
+                case "finland":
+                    return "Finland";
+                case "france":
+                    return "France";
+                case "germany":
+                    return "Germany";
+                case "ireland":
+                    return "Ireland";
+                case "italy":
+                    return "Italy";
+                case "netherlands":
+                    return "Netherlands";
+                case "portugal":
+                    return "Portugal";
+                case "russia":
+                    return "Russia";
+                case "spain":
+                    return "Spain";
+                case "sweden":
+                    return "Sweden";
+                case "switserland":
+                    return "Switzerland";
+                case "advHills":
+                    return "Rally hills";
+                case "advCoast":
+                    return "French coast";
+                case "advCountry":
+                    return "English country";
+                case "advAirport":
+                    return "Ride airport";
+                case "advDesert":
+                    return "Rally desert";
+                case "advRush":
+                    return "Rush hour";
+                case "advEscape":
+                    return "Polar escape";
+                case "custom":
+                    return "Custom track";
+            }
+
+            var baseName = trackName;
+            if (trackName.IndexOfAny(new[] { '\\', '/' }) >= 0)
+                baseName = Path.GetFileNameWithoutExtension(trackName) ?? trackName;
+            else if (trackName.Length > 4)
+                baseName = Path.GetFileNameWithoutExtension(trackName) ?? trackName;
+            if (string.IsNullOrWhiteSpace(baseName))
+                baseName = "Track";
+            return FormatVehicleName(baseName);
         }
 
         protected void LoadRandomSounds(RandomSound pos, string baseName)
@@ -379,9 +532,9 @@ namespace TopSpeed.Race
             }
         }
 
-        protected AudioSourceHandle LoadLanguageSound(string key)
+        protected AudioSourceHandle LoadLanguageSound(string key, bool streamFromDisk = true)
         {
-            var sound = TryLoadLanguageSound(key, allowFallback: true);
+            var sound = TryLoadLanguageSound(key, allowFallback: true, streamFromDisk: streamFromDisk);
             if (sound != null)
                 return sound;
             var errorPath = GetLegacySoundPath("error.wav");
@@ -390,17 +543,21 @@ namespace TopSpeed.Race
             throw new FileNotFoundException($"Missing language sound {key}.");
         }
 
-        protected AudioSourceHandle? TryLoadLanguageSound(string key, bool allowFallback)
+        protected AudioSourceHandle? TryLoadLanguageSound(string key, bool allowFallback, bool streamFromDisk = true)
         {
             var path = ResolveLanguageSoundPath(_settings.Language, key);
             if (path != null)
-                return _audio.CreateSource(path, streamFromDisk: true);
+                return streamFromDisk
+                    ? _audio.CreateSource(path, streamFromDisk: true)
+                    : _audio.CreateLoopingSource(path);
 
             if (allowFallback && !string.Equals(_settings.Language, "en", StringComparison.OrdinalIgnoreCase))
             {
                 path = ResolveLanguageSoundPath("en", key);
                 if (path != null)
-                    return _audio.CreateSource(path, streamFromDisk: true);
+                    return streamFromDisk
+                        ? _audio.CreateSource(path, streamFromDisk: true)
+                        : _audio.CreateLoopingSource(path);
             }
             return null;
         }
@@ -566,6 +723,7 @@ namespace TopSpeed.Race
             public RaceEventType Type { get; set; }
             public float Time { get; set; }
             public AudioSourceHandle? Sound { get; set; }
+            public long Sequence { get; set; }
         }
 
         protected enum RaceEventType
@@ -602,6 +760,15 @@ namespace TopSpeed.Race
                 {
                     _queue.Clear();
                     _current = null;
+                }
+            }
+
+            public bool IsIdle
+            {
+                get
+                {
+                    lock (_lock)
+                        return _current == null && _queue.Count == 0;
                 }
             }
 

@@ -116,7 +116,6 @@ namespace TopSpeed.Core
             AppendValue(lines, settings.NrOfComputers);
             AppendValue(lines, (int)settings.Difficulty);
             AppendValue(lines, settings.ThreeDSound ? 1 : 0);
-            AppendValue(lines, settings.HardwareAcceleration ? 1 : 0);
             AppendValue(lines, settings.ReverseStereo ? 1 : 0);
             AppendValue(lines, settings.RandomCustomTracks ? 1 : 0);
             AppendValue(lines, settings.RandomCustomVehicles ? 1 : 0);
@@ -141,6 +140,7 @@ namespace TopSpeed.Core
         private static void ApplyValues(RaceSettings settings, List<int> values)
         {
             var index = 0;
+            var hasHardwareAcceleration = values.Count >= 50;
             if (TryNext(values, ref index, out var value)) settings.JoystickLeft = AsJoystick(value, settings.JoystickLeft);
             if (TryNext(values, ref index, out value)) settings.JoystickRight = AsJoystick(value, settings.JoystickRight);
             if (TryNext(values, ref index, out value)) settings.JoystickThrottle = AsJoystick(value, settings.JoystickThrottle);
@@ -185,7 +185,10 @@ namespace TopSpeed.Core
             if (TryNext(values, ref index, out value)) settings.NrOfComputers = Math.Max(1, Math.Min(7, value));
             if (TryNext(values, ref index, out value)) settings.Difficulty = AsDifficulty(value, settings.Difficulty);
             if (TryNext(values, ref index, out value)) settings.ThreeDSound = value != 0;
-            if (TryNext(values, ref index, out value)) settings.HardwareAcceleration = value != 0;
+            if (hasHardwareAcceleration)
+            {
+                if (TryNext(values, ref index, out value)) { }
+            }
             if (TryNext(values, ref index, out value)) settings.ReverseStereo = value != 0;
             if (TryNext(values, ref index, out value)) settings.RandomCustomTracks = value != 0;
             if (TryNext(values, ref index, out value)) settings.RandomCustomVehicles = value != 0;

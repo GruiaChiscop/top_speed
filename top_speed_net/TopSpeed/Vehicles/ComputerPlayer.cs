@@ -134,11 +134,11 @@ namespace TopSpeed.Vehicles
             _steeringFactor = definition.SteeringFactor;
             _frequency = _idleFreq;
 
-            _soundEngine = CreateRequiredSound(definition.EngineSound, "engine");
+            _soundEngine = CreateRequiredSound(definition.EngineSound, "engine", looped: true);
             _soundStart = CreateRequiredSound(definition.StartSound, "start");
-            _soundHorn = CreateRequiredSound(definition.HornSound, "horn");
+            _soundHorn = CreateRequiredSound(definition.HornSound, "horn", looped: true);
             _soundCrash = CreateRequiredSound(definition.CrashSound, "crash");
-            _soundBrake = CreateRequiredSound(definition.BrakeSound, "brake");
+            _soundBrake = CreateRequiredSound(definition.BrakeSound, "brake", looped: true);
             _soundMiniCrash = CreateRequiredSound(Path.Combine(_legacyRoot, "crashshort.wav"), "mini crash");
             _soundBump = CreateRequiredSound(Path.Combine(_legacyRoot, "bump.wav"), "bump");
             _soundBackfire = TryCreateSound(definition.BackfireSound);
@@ -709,24 +709,28 @@ namespace TopSpeed.Vehicles
             sound.SetVolumePercent(volume);
         }
 
-        private AudioSourceHandle CreateRequiredSound(string? path, string label)
+        private AudioSourceHandle CreateRequiredSound(string? path, string label, bool looped = false)
         {
             if (string.IsNullOrWhiteSpace(path))
                 throw new InvalidOperationException($"Sound path not provided for {label}.");
             var resolved = path!.Trim();
             if (!File.Exists(resolved))
                 throw new FileNotFoundException("Sound file not found.", resolved);
-            return _audio.CreateSource(resolved, streamFromDisk: true, useHrtf: false);
+            return looped
+                ? _audio.CreateLoopingSource(resolved, useHrtf: false)
+                : _audio.CreateSource(resolved, streamFromDisk: true, useHrtf: false);
         }
 
-        private AudioSourceHandle? TryCreateSound(string? path)
+        private AudioSourceHandle? TryCreateSound(string? path, bool looped = false)
         {
             if (string.IsNullOrWhiteSpace(path))
                 return null;
             var resolved = path!.Trim();
             if (!File.Exists(resolved))
                 return null;
-            return _audio.CreateSource(resolved, streamFromDisk: true, useHrtf: false);
+            return looped
+                ? _audio.CreateLoopingSource(resolved, useHrtf: false)
+                : _audio.CreateSource(resolved, streamFromDisk: true, useHrtf: false);
         }
 
         private sealed class BotEvent

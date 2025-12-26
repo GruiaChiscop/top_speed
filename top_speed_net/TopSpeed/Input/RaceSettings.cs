@@ -86,7 +86,6 @@ namespace TopSpeed.Input
         public int ServerNumber { get; set; }
         public float MusicVolume { get; set; }
         public bool ThreeDSound { get; set; }
-        public bool HardwareAcceleration { get; set; }
         public bool ReverseStereo { get; set; }
         public bool RandomCustomTracks { get; set; }
         public bool RandomCustomVehicles { get; set; }
@@ -141,7 +140,6 @@ namespace TopSpeed.Input
             ServerNumber = Algorithm.RandomInt(4999) + 1000;
             MusicVolume = 0.6f;
             ThreeDSound = true;
-            HardwareAcceleration = true;
             ReverseStereo = false;
             RandomCustomTracks = false;
             RandomCustomVehicles = false;

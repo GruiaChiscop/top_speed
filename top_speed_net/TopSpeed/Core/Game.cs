@@ -1303,7 +1303,7 @@ namespace TopSpeed.Core
                 case RaceMode.TimeTrial:
                     _timeTrial?.FinalizeLevelTimeTrial();
                     _timeTrial?.Dispose();
-                    _timeTrial = new LevelTimeTrial(_audio, _settings, _raceInput, track, automatic, _settings.NrOfLaps, vehicleIndex, vehicleFile, _input.Joystick);
+                    _timeTrial = new LevelTimeTrial(_audio, _speech, _settings, _raceInput, track, automatic, _settings.NrOfLaps, vehicleIndex, vehicleFile, _input.Joystick);
                     _timeTrial.Initialize();
                     _state = AppState.TimeTrial;
                     _speech.Speak("Time trial.", interrupt: true);
@@ -1312,7 +1312,7 @@ namespace TopSpeed.Core
                 case RaceMode.SingleRace:
                     _singleRace?.FinalizeLevelSingleRace();
                     _singleRace?.Dispose();
-                    _singleRace = new LevelSingleRace(_audio, _settings, _raceInput, track, automatic, _settings.NrOfLaps, vehicleIndex, vehicleFile, _input.Joystick);
+                    _singleRace = new LevelSingleRace(_audio, _speech, _settings, _raceInput, track, automatic, _settings.NrOfLaps, vehicleIndex, vehicleFile, _input.Joystick);
                     _singleRace.Initialize(Algorithm.RandomInt(_settings.NrOfComputers + 1));
                     _state = AppState.SingleRace;
                     _speech.Speak(mode == RaceMode.QuickStart ? "Quick start." : "Single race.", interrupt: true);

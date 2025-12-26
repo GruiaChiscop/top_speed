@@ -17,7 +17,7 @@ namespace TopSpeed.Vehicles
                 vehicleIndex = 0;
 
             var parameters = VehicleCatalog.Vehicles[vehicleIndex];
-            var legacyRoot = Path.Combine(AssetPaths.SoundsRoot, "Legacy");
+            var vehiclesRoot = Path.Combine(AssetPaths.SoundsRoot, "Vehicles");
 
             return new VehicleDefinition
             {
@@ -33,13 +33,13 @@ namespace TopSpeed.Vehicles
                 Steering = parameters.Steering,
                 SteeringFactor = parameters.SteeringFactor,
                 HasWipers = parameters.HasWipers == 1 && weather == TrackWeather.Rain ? 1 : 0,
-                EngineSound = CombineSound(legacyRoot, parameters.EngineSound),
-                StartSound = CombineSound(legacyRoot, parameters.StartSound),
-                HornSound = CombineSound(legacyRoot, parameters.HornSound),
-                ThrottleSound = CombineSound(legacyRoot, parameters.ThrottleSound),
-                CrashSound = CombineSound(legacyRoot, parameters.CrashSound),
-                BrakeSound = CombineSound(legacyRoot, parameters.BrakeSound),
-                BackfireSound = CombineSound(legacyRoot, parameters.BackfireSound)
+                EngineSound = CombineSound(vehiclesRoot, parameters.EngineSound),
+                StartSound = CombineSound(vehiclesRoot, parameters.StartSound),
+                HornSound = CombineSound(vehiclesRoot, parameters.HornSound),
+                ThrottleSound = CombineSound(vehiclesRoot, parameters.ThrottleSound),
+                CrashSound = CombineSound(vehiclesRoot, parameters.CrashSound),
+                BrakeSound = CombineSound(vehiclesRoot, parameters.BrakeSound),
+                BackfireSound = CombineSound(vehiclesRoot, parameters.BackfireSound)
             };
         }
 
@@ -49,8 +49,8 @@ namespace TopSpeed.Vehicles
                 ? vehicleFile
                 : Path.Combine(AssetPaths.Root, vehicleFile);
             var settings = ReadVehicleFile(filePath);
-            var legacyRoot = Path.Combine(AssetPaths.SoundsRoot, "Legacy");
-            var vehiclesRoot = Path.Combine(AssetPaths.Root, "Vehicles");
+            var builtinRoot = Path.Combine(AssetPaths.SoundsRoot, "Vehicles");
+            var customVehiclesRoot = Path.Combine(AssetPaths.Root, "Vehicles");
 
             var acceleration = ReadInt(settings, "acceleration", 10);
             var deceleration = ReadInt(settings, "deceleration", 40);
@@ -89,13 +89,13 @@ namespace TopSpeed.Vehicles
                 Steering = steering,
                 SteeringFactor = steeringFactor,
                 HasWipers = hasWipers,
-                EngineSound = ResolveSound(engineSound, legacyRoot, vehiclesRoot, p => p.EngineSound),
-                StartSound = ResolveSound(startSound, legacyRoot, vehiclesRoot, p => p.StartSound),
-                HornSound = ResolveSound(hornSound, legacyRoot, vehiclesRoot, p => p.HornSound),
-                ThrottleSound = ResolveSound(throttleSound, legacyRoot, vehiclesRoot, p => p.ThrottleSound),
-                CrashSound = ResolveSound(crashSound, legacyRoot, vehiclesRoot, p => p.CrashSound),
-                BrakeSound = ResolveSound(brakeSound, legacyRoot, vehiclesRoot, p => p.BrakeSound),
-                BackfireSound = ResolveSound(backfireSound, legacyRoot, vehiclesRoot, p => p.BackfireSound)
+                EngineSound = ResolveSound(engineSound, builtinRoot, customVehiclesRoot, p => p.EngineSound),
+                StartSound = ResolveSound(startSound, builtinRoot, customVehiclesRoot, p => p.StartSound),
+                HornSound = ResolveSound(hornSound, builtinRoot, customVehiclesRoot, p => p.HornSound),
+                ThrottleSound = ResolveSound(throttleSound, builtinRoot, customVehiclesRoot, p => p.ThrottleSound),
+                CrashSound = ResolveSound(crashSound, builtinRoot, customVehiclesRoot, p => p.CrashSound),
+                BrakeSound = ResolveSound(brakeSound, builtinRoot, customVehiclesRoot, p => p.BrakeSound),
+                BackfireSound = ResolveSound(backfireSound, builtinRoot, customVehiclesRoot, p => p.BackfireSound)
             };
         }
 
@@ -106,7 +106,7 @@ namespace TopSpeed.Vehicles
             return Path.Combine(root, file);
         }
 
-        private static string? ResolveSound(string? value, string legacyRoot, string vehiclesRoot, Func<VehicleParameters, string?> selector)
+        private static string? ResolveSound(string? value, string builtinRoot, string customVehiclesRoot, Func<VehicleParameters, string?> selector)
         {
             if (string.IsNullOrWhiteSpace(value))
                 return null;
@@ -120,10 +120,10 @@ namespace TopSpeed.Vehicles
                     return null;
                 var parameters = VehicleCatalog.Vehicles[index];
                 var file = selector(parameters);
-                return CombineSound(legacyRoot, file);
+                return CombineSound(builtinRoot, file);
             }
 
-            return Path.Combine(vehiclesRoot, value);
+            return Path.Combine(customVehiclesRoot, value);
         }
 
         private static Dictionary<string, string> ReadVehicleFile(string filePath)

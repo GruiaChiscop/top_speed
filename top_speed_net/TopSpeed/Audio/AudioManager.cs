@@ -28,6 +28,11 @@ namespace TopSpeed.Audio
             return _output.CreateSource(path, streamFromDisk, useHrtf && _useHrtf);
         }
 
+        public AudioSourceHandle CreateLoopingSource(string path, bool useHrtf = false)
+        {
+            return CreateSource(path, streamFromDisk: false, useHrtf: useHrtf);
+        }
+
         public void Update()
         {
             _system.Update();

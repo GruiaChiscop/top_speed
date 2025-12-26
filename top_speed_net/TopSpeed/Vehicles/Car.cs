@@ -174,25 +174,25 @@ namespace TopSpeed.Vehicles
             _steeringFactor = definition.SteeringFactor;
             _frequency = _idleFreq;
 
-            _soundEngine = CreateRequiredSound(definition.EngineSound);
+            _soundEngine = CreateRequiredSound(definition.EngineSound, looped: true);
             _soundStart = CreateRequiredSound(definition.StartSound);
-            _soundHorn = CreateRequiredSound(definition.HornSound);
-            _soundThrottle = TryCreateSound(definition.ThrottleSound);
+            _soundHorn = CreateRequiredSound(definition.HornSound, looped: true);
+            _soundThrottle = TryCreateSound(definition.ThrottleSound, looped: true);
             _soundCrash = CreateRequiredSound(definition.CrashSound);
-            _soundBrake = CreateRequiredSound(definition.BrakeSound);
+            _soundBrake = CreateRequiredSound(definition.BrakeSound, looped: true);
             _soundBackfire = TryCreateSound(definition.BackfireSound);
 
             if (definition.HasWipers == 1)
                 _hasWipers = 1;
 
             if (_hasWipers == 1)
-                _soundWipers = CreateRequiredSound(Path.Combine(_legacyRoot, "wipers.wav"));
+                _soundWipers = CreateRequiredSound(Path.Combine(_legacyRoot, "wipers.wav"), looped: true);
 
-            _soundAsphalt = CreateRequiredSound(Path.Combine(_legacyRoot, "asphalt.wav"));
-            _soundGravel = CreateRequiredSound(Path.Combine(_legacyRoot, "gravel.wav"));
-            _soundWater = CreateRequiredSound(Path.Combine(_legacyRoot, "water.wav"));
-            _soundSand = CreateRequiredSound(Path.Combine(_legacyRoot, "sand.wav"));
-            _soundSnow = CreateRequiredSound(Path.Combine(_legacyRoot, "snow.wav"));
+            _soundAsphalt = CreateRequiredSound(Path.Combine(_legacyRoot, "asphalt.wav"), looped: true);
+            _soundGravel = CreateRequiredSound(Path.Combine(_legacyRoot, "gravel.wav"), looped: true);
+            _soundWater = CreateRequiredSound(Path.Combine(_legacyRoot, "water.wav"), looped: true);
+            _soundSand = CreateRequiredSound(Path.Combine(_legacyRoot, "sand.wav"), looped: true);
+            _soundSnow = CreateRequiredSound(Path.Combine(_legacyRoot, "snow.wav"), looped: true);
             _soundMiniCrash = CreateRequiredSound(Path.Combine(_legacyRoot, "crashshort.wav"));
             _soundBump = CreateRequiredSound(Path.Combine(_legacyRoot, "bump.wav"));
             _soundBadSwitch = CreateRequiredSound(Path.Combine(_legacyRoot, "badswitch.wav"));
@@ -489,7 +489,10 @@ namespace TopSpeed.Vehicles
                         {
                             if (!_soundThrottle.IsPlaying)
                             {
+                                if (_throttleVolume < 80.0f)
+                                    _throttleVolume = 80.0f;
                                 _soundThrottle.SetVolumePercent((int)_throttleVolume);
+                                _prevThrottleVolume = _throttleVolume;
                                 _soundThrottle.Play(loop: true);
                             }
                             else
@@ -1195,20 +1198,20 @@ namespace TopSpeed.Vehicles
             return (int)pan;
         }
 
-        private AudioSourceHandle CreateRequiredSound(string? path)
+        private AudioSourceHandle CreateRequiredSound(string? path, bool looped = false)
         {
             if (string.IsNullOrWhiteSpace(path))
                 throw new InvalidOperationException("Sound path not provided.");
             if (!File.Exists(path))
                 throw new FileNotFoundException("Sound file not found.", path);
-            return _audio.CreateSource(path!, streamFromDisk: true);
+            return looped ? _audio.CreateLoopingSource(path!) : _audio.CreateSource(path!, streamFromDisk: true);
         }
 
-        private AudioSourceHandle? TryCreateSound(string? path)
+        private AudioSourceHandle? TryCreateSound(string? path, bool looped = false)
         {
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                 return null;
-            return _audio.CreateSource(path!, streamFromDisk: true);
+            return looped ? _audio.CreateLoopingSource(path!) : _audio.CreateSource(path!, streamFromDisk: true);
         }
 
         private sealed class CarEvent

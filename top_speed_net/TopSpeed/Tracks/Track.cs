@@ -435,7 +435,7 @@ namespace TopSpeed.Tracks
             var path = Path.Combine(root, file);
             if (!File.Exists(path))
                 return null;
-            return _audio.CreateSource(path, streamFromDisk: true);
+            return _audio.CreateLoopingSource(path);
         }
 
         private int UpdateCenter(int center, TrackDefinition definition)

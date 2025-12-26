@@ -87,7 +87,7 @@ namespace TopSpeed.Menu
                 var themePath = Path.Combine(_musicRoot, MusicFile!);
                 if (File.Exists(themePath))
                 {
-                    _music = _audio.CreateSource(themePath, streamFromDisk: true);
+                    _music = _audio.CreateLoopingSource(themePath);
                     _music.SetVolume(_musicVolume);
                     _music.Play(loop: true);
                 }

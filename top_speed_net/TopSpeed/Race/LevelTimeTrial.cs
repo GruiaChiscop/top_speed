@@ -4,6 +4,7 @@ using System.IO;
 using TopSpeed.Common;
 using TopSpeed.Audio;
 using TopSpeed.Input;
+using TopSpeed.Speech;
 using TopSpeed.Tracks;
 using TopSpeed.Vehicles;
 using TS.Audio;
@@ -13,11 +14,11 @@ namespace TopSpeed.Race
     internal sealed class LevelTimeTrial : Level
     {
         private const string HighscoreFile = "highscore.cfg";
-        private AudioSourceHandle? _soundVehicle;
         private bool _pauseKeyReleased = true;
 
         public LevelTimeTrial(
             AudioManager audio,
+            SpeechService speech,
             RaceSettings settings,
             RaceInput input,
             string track,
@@ -26,26 +27,14 @@ namespace TopSpeed.Race
             int vehicle,
             string? vehicleFile,
             JoystickDevice? joystick)
-            : base(audio, settings, input, track, automaticTransmission, nrOfLaps, vehicle, vehicleFile, joystick)
+            : base(audio, speech, settings, input, track, automaticTransmission, nrOfLaps, vehicle, vehicleFile, joystick)
         {
-            if (!_car.UserDefined)
-            {
-                var file = $"vehicles\\vehicle{(int)_car.CarType + 1}";
-                _soundVehicle = LoadLanguageSound(file);
-            }
-            else if (!string.IsNullOrWhiteSpace(_car.CustomFile))
-            {
-                var file = _car.CustomFile!;
-                if (!file.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
-                    file += ".wav";
-                _soundVehicle = LoadCustomSound(file);
-            }
         }
 
         public void Initialize()
         {
             InitializeLevel();
-            _soundTheme4 = LoadLanguageSound("music\\theme4");
+            _soundTheme4 = LoadLanguageSound("music\\theme4", streamFromDisk: false);
             _soundPause = LoadLanguageSound("race\\pause");
             _soundUnpause = LoadLanguageSound("race\\unpause");
             _soundTheme4.SetVolumePercent(50);
@@ -65,61 +54,57 @@ namespace TopSpeed.Race
                 _soundStart.Play(loop: false);
             }
 
-            for (var i = _events.Count - 1; i >= 0; i--)
+            var dueEvents = CollectDueEvents();
+            foreach (var e in dueEvents)
             {
-                var e = _events[i];
-                if (e.Time <= _elapsedTotal)
+                switch (e.Type)
                 {
-                    _events.RemoveAt(i);
-                    switch (e.Type)
-                    {
-                        case RaceEventType.CarStart:
-                            _car.Start();
-                            break;
-                        case RaceEventType.RaceStart:
-                            _raceTime = 0;
-                            _stopwatch.Restart();
-                            _lap = 0;
-                            _started = true;
-                            break;
-                        case RaceEventType.RaceFinish:
-                            PushEvent(RaceEventType.PlaySound, _sayTimeLength, _soundYourTime);
-                            _sayTimeLength += _soundYourTime.GetLengthSeconds() + 0.5f;
-                            SayTime(_raceTime);
-                            _highscore = ReadHighScore();
-                            if ((_raceTime < _highscore) || (_highscore == 0))
-                            {
-                                WriteHighScore();
-                                PushEvent(RaceEventType.PlaySound, _sayTimeLength, _soundNewTime);
-                                _sayTimeLength += _soundNewTime.GetLengthSeconds();
-                            }
-                            else
-                            {
-                                PushEvent(RaceEventType.PlaySound, _sayTimeLength, _soundBestTime);
-                                _sayTimeLength += _soundBestTime.GetLengthSeconds() + 0.5f;
-                                SayTime(_highscore);
-                            }
-                            PushEvent(RaceEventType.RaceTimeFinalize, _sayTimeLength);
-                            break;
-                        case RaceEventType.PlaySound:
-                            QueueSound(e.Sound);
-                            break;
-                        case RaceEventType.RaceTimeFinalize:
-                            _sayTimeLength = 0.0f;
-                            ExitRequested = true;
-                            return;
-                        case RaceEventType.PlayRadioSound:
-                            _unkeyQueue--;
-                            if (_unkeyQueue == 0)
-                                Speak(_soundUnkey[Algorithm.RandomInt(MaxUnkeys)]);
-                            break;
-                        case RaceEventType.AcceptPlayerInfo:
-                            _acceptPlayerInfo = true;
-                            break;
-                        case RaceEventType.AcceptCurrentRaceInfo:
-                            _acceptCurrentRaceInfo = true;
-                            break;
-                    }
+                    case RaceEventType.CarStart:
+                        _car.Start();
+                        break;
+                    case RaceEventType.RaceStart:
+                        _raceTime = 0;
+                        _stopwatch.Restart();
+                        _lap = 0;
+                        _started = true;
+                        break;
+                    case RaceEventType.RaceFinish:
+                        PushEvent(RaceEventType.PlaySound, _sayTimeLength, _soundYourTime);
+                        _sayTimeLength += _soundYourTime.GetLengthSeconds() + 0.5f;
+                        SayTime(_raceTime);
+                        _highscore = ReadHighScore();
+                        if ((_raceTime < _highscore) || (_highscore == 0))
+                        {
+                            WriteHighScore();
+                            PushEvent(RaceEventType.PlaySound, _sayTimeLength, _soundNewTime);
+                            _sayTimeLength += _soundNewTime.GetLengthSeconds();
+                        }
+                        else
+                        {
+                            PushEvent(RaceEventType.PlaySound, _sayTimeLength, _soundBestTime);
+                            _sayTimeLength += _soundBestTime.GetLengthSeconds() + 0.5f;
+                            SayTime(_highscore);
+                        }
+                        PushEvent(RaceEventType.RaceTimeFinalize, _sayTimeLength);
+                        break;
+                    case RaceEventType.PlaySound:
+                        QueueSound(e.Sound);
+                        break;
+                    case RaceEventType.RaceTimeFinalize:
+                        _sayTimeLength = 0.0f;
+                        RequestExitWhenQueueIdle();
+                        break;
+                    case RaceEventType.PlayRadioSound:
+                        _unkeyQueue--;
+                        if (_unkeyQueue == 0)
+                            Speak(_soundUnkey[Algorithm.RandomInt(MaxUnkeys)]);
+                        break;
+                    case RaceEventType.AcceptPlayerInfo:
+                        _acceptPlayerInfo = true;
+                        break;
+                    case RaceEventType.AcceptCurrentRaceInfo:
+                        _acceptCurrentRaceInfo = true;
+                        break;
                 }
             }
 
@@ -154,51 +139,24 @@ namespace TopSpeed.Race
             {
                 _acceptCurrentRaceInfo = false;
                 var gear = _car.Gear;
-                QueueSound(_soundNumbers[gear]);
-                PushEvent(RaceEventType.AcceptCurrentRaceInfo, _soundNumbers[gear].GetLengthSeconds());
+                SpeakText($"Gear {gear}");
+                PushEvent(RaceEventType.AcceptCurrentRaceInfo, 0.5f);
             }
 
             if (_input.GetCurrentLapNr() && _started && _acceptCurrentRaceInfo && _lap <= _nrOfLaps)
             {
                 _acceptCurrentRaceInfo = false;
-                QueueSound(_soundNumbers[_lap]);
-                PushEvent(RaceEventType.AcceptCurrentRaceInfo, _soundNumbers[_lap].GetLengthSeconds());
+                SpeakText($"Lap {_lap}");
+                PushEvent(RaceEventType.AcceptCurrentRaceInfo, 0.5f);
             }
 
             if (_input.GetCurrentRacePerc() && _started && _acceptCurrentRaceInfo && _lap <= _nrOfLaps)
             {
                 _acceptCurrentRaceInfo = false;
                 var perc = (_car.PositionY / (float)(_track.Length * _nrOfLaps)) * 100.0f;
-                var clampedPerc = Math.Max(0.0f, Math.Min(100.0f, perc));
-                var units = (int)clampedPerc;
-                var decs = (int)((clampedPerc - units) * 100.0f);
-
-                QueueSound(_soundNumbers[units]);
-                var time = _soundNumbers[units].GetLengthSeconds();
-
-                if (decs > 0)
-                {
-                    QueueSound(_soundPoint);
-                    time += _soundPoint.GetLengthSeconds();
-                    if (decs < 10)
-                    {
-                        QueueSound(_soundNumbers[0]);
-                        time += _soundNumbers[0].GetLengthSeconds();
-                        QueueSound(_soundNumbers[decs]);
-                        time += _soundNumbers[decs].GetLengthSeconds();
-                    }
-                    else
-                    {
-                        if (decs % 10 == 0)
-                            decs /= 10;
-                        QueueSound(_soundNumbers[decs]);
-                        time += _soundNumbers[decs].GetLengthSeconds();
-                    }
-                }
-
-                QueueSound(_soundPercent);
-                time += _soundPercent.GetLengthSeconds();
-                PushEvent(RaceEventType.AcceptCurrentRaceInfo, time);
+                var units = Math.Max(0, Math.Min(100, (int)perc));
+                SpeakText(FormatPercentageText("Race percentage", units));
+                PushEvent(RaceEventType.AcceptCurrentRaceInfo, 0.5f);
             }
 
             if (_input.GetCurrentLapPerc() && _started && _acceptCurrentRaceInfo && _lap <= _nrOfLaps)
@@ -206,32 +164,30 @@ namespace TopSpeed.Race
                 _acceptCurrentRaceInfo = false;
                 var perc = ((_car.PositionY - (_track.Length * (_lap - 1))) / (float)_track.Length) * 100.0f;
                 var units = Math.Max(0, Math.Min(100, (int)perc));
-                QueueSound(_soundNumbers[units]);
-                QueueSound(_soundPercent);
-                var time = _soundNumbers[units].GetLengthSeconds() + _soundPercent.GetLengthSeconds();
-                PushEvent(RaceEventType.AcceptCurrentRaceInfo, time);
+                SpeakText(FormatPercentageText("Lap percentage", units));
+                PushEvent(RaceEventType.AcceptCurrentRaceInfo, 0.5f);
             }
 
             if (_input.GetCurrentRaceTime() && _started && _acceptCurrentRaceInfo && _lap <= _nrOfLaps)
             {
                 _acceptCurrentRaceInfo = false;
-                _sayTimeLength = 0.0f;
-                SayTime((int)(_stopwatch.ElapsedMilliseconds - _stopwatchDiffMs), detailed: false);
-                PushEvent(RaceEventType.AcceptCurrentRaceInfo, _sayTimeLength);
+                var text = FormatTimeText((int)(_stopwatch.ElapsedMilliseconds - _stopwatchDiffMs), detailed: false);
+                SpeakText($"Race time {text}");
+                PushEvent(RaceEventType.AcceptCurrentRaceInfo, 0.5f);
             }
 
-            if (_input.TryGetPlayerInfo(out var player) && _acceptPlayerInfo && player == 0 && _soundVehicle != null)
+            if (_input.TryGetPlayerInfo(out var player) && _acceptPlayerInfo && player == 0)
             {
                 _acceptPlayerInfo = false;
-                QueueSound(_soundVehicle);
-                PushEvent(RaceEventType.AcceptPlayerInfo, _soundVehicle.GetLengthSeconds());
+                SpeakText(GetVehicleName());
+                PushEvent(RaceEventType.AcceptPlayerInfo, 0.5f);
             }
 
-            if (_input.GetTrackName() && _acceptCurrentRaceInfo && _soundTrackName != null)
+            if (_input.GetTrackName() && _acceptCurrentRaceInfo)
             {
                 _acceptCurrentRaceInfo = false;
-                QueueSound(_soundTrackName);
-                PushEvent(RaceEventType.AcceptCurrentRaceInfo, _soundTrackName.GetLengthSeconds());
+                SpeakText(FormatTrackName(_track.TrackName));
+                PushEvent(RaceEventType.AcceptCurrentRaceInfo, 0.5f);
             }
 
             if (!_input.GetPause() && !_pauseKeyReleased)
@@ -243,6 +199,9 @@ namespace TopSpeed.Race
                 _pauseKeyReleased = false;
                 PauseRequested = true;
             }
+
+            if (UpdateExitWhenQueueIdle())
+                return;
 
             _elapsedTotal += elapsed;
         }
@@ -328,6 +287,13 @@ namespace TopSpeed.Race
             if (!File.Exists(path))
                 return LoadLegacySound("error.wav");
             return _audio.CreateSource(path, streamFromDisk: true);
+        }
+
+        private string GetVehicleName()
+        {
+            if (_car.UserDefined && !string.IsNullOrWhiteSpace(_car.CustomFile))
+                return FormatVehicleName(_car.CustomFile);
+            return $"Vehicle {(int)_car.CarType + 1}";
         }
     }
 }
