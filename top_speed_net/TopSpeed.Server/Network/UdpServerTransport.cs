@@ -9,6 +9,7 @@ namespace TopSpeed.Server.Network
 {
     internal sealed class UdpServerTransport : IDisposable
     {
+        public const int MaxDatagramSize = 65507;
         private readonly Logger _logger;
         private UdpClient? _client;
         private CancellationTokenSource? _cts;
@@ -25,7 +26,12 @@ namespace TopSpeed.Server.Network
         {
             if (_client != null)
                 return;
-            _client = new UdpClient(port);
+            var client = new UdpClient(AddressFamily.InterNetwork);
+            client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            client.Client.ReceiveBufferSize = 1024 * 1024;
+            client.Client.SendBufferSize = 1024 * 1024;
+            client.Client.Bind(new IPEndPoint(IPAddress.Any, port));
+            _client = client;
             _cts = new CancellationTokenSource();
             _receiveTask = Task.Run(() => ReceiveLoop(_cts.Token));
             _logger.Info($"UDP transport listening on {port}.");
@@ -46,6 +52,11 @@ namespace TopSpeed.Server.Network
         {
             if (_client == null)
                 return;
+            if (payload.Length > MaxDatagramSize)
+            {
+                _logger.Warning($"UDP send dropped: payload too large ({payload.Length} bytes).");
+                return;
+            }
             try
             {
                 _client.Send(payload, payload.Length, endPoint);

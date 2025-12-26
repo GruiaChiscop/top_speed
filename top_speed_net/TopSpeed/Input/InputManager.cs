@@ -11,6 +11,7 @@ namespace TopSpeed.Input
         private readonly JoystickDevice? _joystick;
         private readonly InputState _current;
         private readonly InputState _previous;
+        private bool _suspended;
 
         public InputState Current => _current;
 
@@ -30,6 +31,9 @@ namespace TopSpeed.Input
         {
             _previous.CopyFrom(_current);
             _current.Clear();
+
+            if (_suspended)
+                return;
 
             if (!TryAcquire())
                 return;
@@ -59,6 +63,25 @@ namespace TopSpeed.Input
         }
 
         public JoystickDevice? Joystick => _joystick;
+
+        public void Suspend()
+        {
+            _suspended = true;
+            try
+            {
+                _keyboard.Unacquire();
+            }
+            catch (SharpDXException)
+            {
+                // Ignore unacquire failures.
+            }
+        }
+
+        public void Resume()
+        {
+            _suspended = false;
+            TryAcquire();
+        }
 
         private bool TryAcquire()
         {

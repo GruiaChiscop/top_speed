@@ -30,6 +30,11 @@ namespace TopSpeed.Server.Protocol
         public byte PlayerNumber;
     }
 
+    internal sealed class PacketPlayerHello
+    {
+        public string Name = string.Empty;
+    }
+
     internal sealed class PacketPlayerState
     {
         public uint PlayerId;
@@ -73,5 +78,10 @@ namespace TopSpeed.Server.Protocol
     {
         public byte NPlayers;
         public byte[] Results = Array.Empty<byte>();
+    }
+
+    internal sealed class PacketServerInfo
+    {
+        public string Motd = string.Empty;
     }
 }

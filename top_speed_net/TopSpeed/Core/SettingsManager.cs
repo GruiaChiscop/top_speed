@@ -38,6 +38,7 @@ namespace TopSpeed.Core
             }
 
             var language = settings.Language;
+            var serverAddress = settings.LastServerAddress;
             var values = new List<int>();
             foreach (var rawLine in lines)
             {
@@ -51,7 +52,15 @@ namespace TopSpeed.Core
                     var key = line.Substring(0, equals).Trim();
                     var val = line.Substring(equals + 1).Trim();
                     if (key.Equals("lang", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(val))
+                    {
                         language = val;
+                    }
+                    else if ((key.Equals("server_addr", StringComparison.OrdinalIgnoreCase) ||
+                              key.Equals("server_address", StringComparison.OrdinalIgnoreCase)) &&
+                             !string.IsNullOrWhiteSpace(val))
+                    {
+                        serverAddress = val;
+                    }
                     continue;
                 }
 
@@ -60,6 +69,7 @@ namespace TopSpeed.Core
             }
 
             settings.Language = language;
+            settings.LastServerAddress = serverAddress ?? string.Empty;
             ApplyValues(settings, values);
             return settings;
         }
@@ -71,6 +81,8 @@ namespace TopSpeed.Core
             {
                 $"lang={language}"
             };
+            if (!string.IsNullOrWhiteSpace(settings.LastServerAddress))
+                lines.Add($"server_addr={settings.LastServerAddress}");
 
             AppendValue(lines, (int)settings.JoystickLeft);
             AppendValue(lines, (int)settings.JoystickRight);
@@ -121,6 +133,7 @@ namespace TopSpeed.Core
             AppendValue(lines, settings.RandomCustomVehicles ? 1 : 0);
             AppendValue(lines, settings.SingleRaceCustomVehicles ? 1 : 0);
             AppendValue(lines, (int)Math.Round(settings.MusicVolume * 100f));
+            AppendValue(lines, settings.ServerPort);
 
             try
             {
@@ -194,6 +207,14 @@ namespace TopSpeed.Core
             if (TryNext(values, ref index, out value)) settings.RandomCustomVehicles = value != 0;
             if (TryNext(values, ref index, out value)) settings.SingleRaceCustomVehicles = value != 0;
             if (TryNext(values, ref index, out value)) settings.MusicVolume = Math.Max(0f, Math.Min(1f, value / 100f));
+            if (TryNext(values, ref index, out value)) settings.ServerPort = ClampPort(value, settings.ServerPort);
+        }
+
+        private static int ClampPort(int value, int fallback)
+        {
+            if (value <= 0)
+                return 0;
+            return value >= 1 && value <= 65535 ? value : fallback;
         }
 
         private static bool TryNext(List<int> values, ref int index, out int value)

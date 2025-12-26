@@ -66,17 +66,7 @@ namespace TopSpeed.Menu
                 return;
 
             if (EnableItemSounds)
-            {
-                foreach (var item in _items)
-                {
-                    if (string.IsNullOrWhiteSpace(item.SoundFile))
-                        continue;
-
-                    var path = ResolveSoundPath(item.SoundFile);
-                    if (path != null)
-                        item.Sound = _audio.CreateSource(path, streamFromDisk: true);
-                }
-            }
+                LoadItemSounds();
 
             _navigateSound = LoadDefaultSound(NavigateSoundFile);
             _wrapSound = LoadDefaultSound(WrapSoundFile);
@@ -166,6 +156,18 @@ namespace TopSpeed.Menu
         public void ResetSelection()
         {
             _index = NoSelection;
+        }
+
+        public void ReplaceItems(IEnumerable<MenuItem> items)
+        {
+            foreach (var item in _items)
+                item.Sound?.Dispose();
+            _items.Clear();
+            _items.AddRange(items);
+            _index = NoSelection;
+
+            if (_initialized && EnableItemSounds)
+                LoadItemSounds();
         }
 
         private void MoveSelectionAndAnnounce(int delta)
@@ -327,6 +329,19 @@ namespace TopSpeed.Menu
             _wrapSound?.Dispose();
             _activateSound?.Dispose();
             _music?.Dispose();
+        }
+
+        private void LoadItemSounds()
+        {
+            foreach (var item in _items)
+            {
+                if (string.IsNullOrWhiteSpace(item.SoundFile))
+                    continue;
+
+                var path = ResolveSoundPath(item.SoundFile);
+                if (path != null)
+                    item.Sound = _audio.CreateSource(path, streamFromDisk: true);
+            }
         }
     }
 }

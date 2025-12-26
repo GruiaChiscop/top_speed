@@ -41,6 +41,18 @@ namespace TopSpeed.Server.Protocol
             return true;
         }
 
+        public static bool TryReadPlayerHello(ReadOnlySpan<byte> data, out PacketPlayerHello packet)
+        {
+            packet = new PacketPlayerHello();
+            if (data.Length < 2 + ProtocolConstants.MaxPlayerNameLength)
+                return false;
+            var reader = new PacketReader(data);
+            reader.ReadByte();
+            reader.ReadByte();
+            packet.Name = reader.ReadFixedString(ProtocolConstants.MaxPlayerNameLength);
+            return true;
+        }
+
         public static bool TryReadPlayerData(ReadOnlySpan<byte> data, out PacketPlayerData packet)
         {
             packet = new PacketPlayerData();
@@ -171,6 +183,16 @@ namespace TopSpeed.Server.Protocol
             writer.WriteByte((byte)count);
             for (var i = 0; i < count; i++)
                 writer.WriteByte(results.Results[i]);
+            return buffer;
+        }
+
+        public static byte[] WriteServerInfo(PacketServerInfo info)
+        {
+            var buffer = WritePacketHeader(Command.ServerInfo, ProtocolConstants.MaxMotdLength);
+            var writer = new PacketWriter(buffer);
+            writer.WriteByte(ProtocolConstants.Version);
+            writer.WriteByte((byte)Command.ServerInfo);
+            writer.WriteFixedString(info.Motd ?? string.Empty, ProtocolConstants.MaxMotdLength);
             return buffer;
         }
 

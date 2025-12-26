@@ -27,6 +27,12 @@ namespace TopSpeed.Menu
                 _screens.Add(screen.Id, screen);
         }
 
+        public void UpdateItems(string id, IEnumerable<MenuItem> items)
+        {
+            var screen = GetScreen(id);
+            screen.ReplaceItems(items);
+        }
+
         public void ShowRoot(string id)
         {
             _stack.Clear();
@@ -87,7 +93,7 @@ namespace TopSpeed.Menu
                     Push(item.NextMenuId!);
                     return MenuAction.None;
                 }
-                if (item.Action == MenuAction.None && item.OnActivate != null && !stackChanged)
+                if (item.Action == MenuAction.None && item.OnActivate != null && !stackChanged && !item.SuppressPostActivateAnnouncement)
                     current.AnnounceSelection();
                 return item.Action;
             }

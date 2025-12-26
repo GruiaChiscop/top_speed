@@ -4,19 +4,10 @@ using System.Linq;
 using System.Net;
 using TopSpeed.Server.Logging;
 using TopSpeed.Server.Protocol;
+using TopSpeed.Server.Tracks;
 
 namespace TopSpeed.Server.Network
 {
-    internal sealed class TrackData
-    {
-        public bool UserDefined { get; set; }
-        public byte Laps { get; set; } = 3;
-        public byte Weather { get; set; }
-        public byte Ambience { get; set; }
-        public ushort Length { get; set; }
-        public MultiplayerDefinition[] Definitions { get; set; } = Array.Empty<MultiplayerDefinition>();
-    }
-
     internal sealed class PlayerConnection
     {
         public IPEndPoint EndPoint { get; }
@@ -28,6 +19,7 @@ namespace TopSpeed.Server.Network
         public ushort Speed { get; set; }
         public int Frequency { get; set; }
         public PlayerState State { get; set; }
+        public string Name { get; set; }
         public bool EngineRunning { get; set; }
         public bool Braking { get; set; }
         public bool Horning { get; set; }
@@ -45,6 +37,7 @@ namespace TopSpeed.Server.Network
             Speed = 0;
             Frequency = ProtocolConstants.DefaultFrequency;
             State = PlayerState.NotReady;
+            Name = string.Empty;
             EngineRunning = false;
             Braking = false;
             Horning = false;
@@ -138,6 +131,15 @@ namespace TopSpeed.Server.Network
             }
         }
 
+        public void LoadTrack(string trackName, byte defaultLaps)
+        {
+            if (string.IsNullOrWhiteSpace(trackName))
+                throw new ArgumentException("Track name required.", nameof(trackName));
+
+            var data = TrackLoader.LoadTrack(trackName, defaultLaps);
+            LoadCustomTrack(trackName, data);
+        }
+
         public void LoadCustomTrack(string trackName, TrackData data)
         {
             if (string.IsNullOrWhiteSpace(trackName))
@@ -222,6 +224,12 @@ namespace TopSpeed.Server.Network
                         if (PacketSerializer.TryReadPlayerState(payload, out var playerState))
                             HandlePlayerState(connection, playerState);
                         break;
+                    case Command.PlayerHello:
+                        if (PacketSerializer.TryReadPlayerHello(payload, out var hello))
+                            HandlePlayerHello(connection, hello);
+                        break;
+                    case Command.KeepAlive:
+                        break;
                     case Command.PlayerFinished:
                         if (PacketSerializer.TryReadPlayer(payload, out var finished))
                             HandlePlayerFinished(connection, finished);
@@ -268,6 +276,12 @@ namespace TopSpeed.Server.Network
             _transport.Send(endPoint, packet);
             _logger.Info($"Player connected: id={connectionId}, number={connection.PlayerNumber}.");
 
+            if (!string.IsNullOrWhiteSpace(_config.Motd))
+            {
+                var info = new PacketServerInfo { Motd = _config.Motd };
+                _transport.Send(endPoint, PacketSerializer.WriteServerInfo(info));
+            }
+
             if (_trackSelected)
             {
                 if (_raceStarted)
@@ -281,7 +295,8 @@ namespace TopSpeed.Server.Network
 
         private int FindFreePlayerNumber()
         {
-            for (var i = 0; i < ProtocolConstants.MaxPlayers; i++)
+            var maxPlayers = Math.Min(_config.MaxPlayers, ProtocolConstants.MaxPlayers);
+            for (var i = 0; i < maxPlayers; i++)
             {
                 if (_players.Values.All(p => p.PlayerNumber != i))
                     return i;
@@ -310,6 +325,14 @@ namespace TopSpeed.Server.Network
                 SendTrackTo(connection);
             }
             connection.State = packet.State;
+        }
+
+        private void HandlePlayerHello(PlayerConnection connection, PacketPlayerHello packet)
+        {
+            var name = (packet.Name ?? string.Empty).Trim();
+            if (name.Length > ProtocolConstants.MaxPlayerNameLength)
+                name = name.Substring(0, ProtocolConstants.MaxPlayerNameLength);
+            connection.Name = name;
         }
 
         private void HandlePlayerFinished(PlayerConnection connection, PacketPlayer packet)
@@ -473,6 +496,23 @@ namespace TopSpeed.Server.Network
         private void SendDisconnect(IPEndPoint endPoint)
         {
             _transport.Send(endPoint, PacketSerializer.WriteGeneral(Command.Disconnect));
+        }
+
+        public ServerSnapshot GetSnapshot()
+        {
+            lock (_lock)
+            {
+                var name = _config.Name ?? "TopSpeed Server";
+                var trackName = _trackData != null && _trackData.UserDefined ? "custom" : _trackName;
+                return new ServerSnapshot(
+                    name,
+                    _config.Port,
+                    _config.MaxPlayers,
+                    _players.Count,
+                    _raceStarted,
+                    _trackSelected,
+                    trackName);
+            }
         }
 
         public void Dispose()

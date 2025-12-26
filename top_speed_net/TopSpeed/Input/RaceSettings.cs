@@ -90,6 +90,8 @@ namespace TopSpeed.Input
         public bool RandomCustomTracks { get; set; }
         public bool RandomCustomVehicles { get; set; }
         public bool SingleRaceCustomVehicles { get; set; }
+        public string LastServerAddress { get; set; } = string.Empty;
+        public int ServerPort { get; set; }
 
         public bool UseJoystick
         {
@@ -145,6 +147,8 @@ namespace TopSpeed.Input
             RandomCustomVehicles = false;
             SingleRaceCustomVehicles = false;
             MusicVolume = 0.6f;
+            LastServerAddress = string.Empty;
+            ServerPort = 0;
         }
     }
 }

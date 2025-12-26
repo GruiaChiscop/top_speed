@@ -42,6 +42,9 @@ namespace TopSpeed.Server.Protocol
         PlayerCrashed = 11,
         PlayerBumped = 12,
         PlayerDisconnected = 13,
-        LoadCustomTrack = 14
+        LoadCustomTrack = 14,
+        PlayerHello = 15,
+        ServerInfo = 16,
+        KeepAlive = 17
     }
 }

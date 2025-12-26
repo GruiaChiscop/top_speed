@@ -14,13 +14,15 @@ namespace TopSpeed.Menu
         public string? SoundFile { get; }
         public AudioSourceHandle? Sound { get; set; }
         public Action? OnActivate { get; }
+        public bool SuppressPostActivateAnnouncement { get; }
 
         public MenuItem(
             string text,
             MenuAction action,
             string? soundFile,
             string? nextMenuId = null,
-            Action? onActivate = null)
+            Action? onActivate = null,
+            bool suppressPostActivateAnnouncement = false)
         {
             _text = text;
             _textProvider = null;
@@ -28,6 +30,7 @@ namespace TopSpeed.Menu
             SoundFile = soundFile;
             NextMenuId = nextMenuId;
             OnActivate = onActivate;
+            SuppressPostActivateAnnouncement = suppressPostActivateAnnouncement;
         }
 
         public MenuItem(
@@ -35,7 +38,8 @@ namespace TopSpeed.Menu
             MenuAction action,
             string? soundFile,
             string? nextMenuId = null,
-            Action? onActivate = null)
+            Action? onActivate = null,
+            bool suppressPostActivateAnnouncement = false)
         {
             _text = string.Empty;
             _textProvider = textProvider ?? throw new ArgumentNullException(nameof(textProvider));
@@ -43,6 +47,7 @@ namespace TopSpeed.Menu
             SoundFile = soundFile;
             NextMenuId = nextMenuId;
             OnActivate = onActivate;
+            SuppressPostActivateAnnouncement = suppressPostActivateAnnouncement;
         }
 
         public string GetDisplayText()

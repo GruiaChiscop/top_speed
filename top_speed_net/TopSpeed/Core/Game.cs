@@ -2,14 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using SharpDX.DirectInput;
 using TopSpeed.Audio;
 using TopSpeed.Common;
 using TopSpeed.Data;
 using TopSpeed.Input;
 using TopSpeed.Menu;
+using TopSpeed.Network;
 using TopSpeed.Race;
 using TopSpeed.Speech;
+using TopSpeed.Windowing;
 
 namespace TopSpeed.Core
 {
@@ -93,6 +97,7 @@ namespace TopSpeed.Core
             new TrackInfo("advEscape", "Polar escape", Path.Combine("Tracks", "polarescape.ogg"))
         };
 
+        private readonly GameWindow _window;
         private readonly AudioManager _audio;
         private readonly SpeechService _speech;
         private readonly InputManager _input;
@@ -101,6 +106,8 @@ namespace TopSpeed.Core
         private readonly RaceInput _raceInput;
         private readonly RaceSetup _setup;
         private readonly SettingsManager _settingsManager;
+        private readonly MultiplayerConnector _connector = new MultiplayerConnector();
+        private MultiplayerSession? _session;
         private bool _mappingActive;
         private InputMappingMode _mappingMode;
         private MappingAction _mappingAction;
@@ -115,16 +122,28 @@ namespace TopSpeed.Core
         private bool _pauseKeyReleased = true;
         private LevelTimeTrial? _timeTrial;
         private LevelSingleRace? _singleRace;
+        private bool _textInputActive;
+        private Action<string>? _textInputHandler;
+        private Action? _textInputCancelled;
+        private Task<IReadOnlyList<ServerInfo>>? _discoveryTask;
+        private CancellationTokenSource? _discoveryCts;
+        private Task<ConnectResult>? _connectTask;
+        private CancellationTokenSource? _connectCts;
+        private ServerInfo? _pendingServer;
+        private string _pendingServerAddress = string.Empty;
+        private int _pendingServerPort;
+        private string _pendingCallSign = string.Empty;
 
         public event Action? ExitRequested;
 
-        public Game(IntPtr windowHandle)
+        public Game(GameWindow window)
         {
+            _window = window ?? throw new ArgumentNullException(nameof(window));
             _settingsManager = new SettingsManager();
             _settings = _settingsManager.Load();
             _audio = new AudioManager(_settings.ThreeDSound);
             _speech = new SpeechService();
-            _input = new InputManager(windowHandle);
+            _input = new InputManager(_window.Handle);
             _raceInput = new RaceInput(_settings);
             _setup = new RaceSetup();
             _menu = new MenuManager(_audio, _speech);
@@ -159,6 +178,9 @@ namespace TopSpeed.Core
                     }
                     break;
                 case AppState.Menu:
+                    if (UpdateModalOperations())
+                        break;
+
                     if (_mappingActive)
                     {
                         UpdateMapping();
@@ -199,9 +221,6 @@ namespace TopSpeed.Core
                     PrepareQuickStart();
                     QueueRaceStart(RaceMode.QuickStart);
                     break;
-                case MenuAction.Multiplayer:
-                    _speech.Speak("Multiplayer is not implemented yet.", interrupt: true);
-                    break;
                 default:
                     break;
             }
@@ -214,7 +233,7 @@ namespace TopSpeed.Core
                 new MenuItem("Quick start", MenuAction.QuickStart, "quickstart.ogg"),
                 new MenuItem("Time trial", MenuAction.None, "timetrial.ogg", nextMenuId: "time_trial_type", onActivate: () => PrepareMode(RaceMode.TimeTrial)),
                 new MenuItem("Single race", MenuAction.None, "singlerace.ogg", nextMenuId: "single_race_type", onActivate: () => PrepareMode(RaceMode.SingleRace)),
-                new MenuItem("MultiPlayer game", MenuAction.Multiplayer, "multiplayergame.ogg"),
+                new MenuItem("MultiPlayer game", MenuAction.None, "multiplayergame.ogg", nextMenuId: "multiplayer"),
                 new MenuItem("Options", MenuAction.None, "options.ogg", nextMenuId: "options_main"),
                 new MenuItem("Exit Game", MenuAction.Exit, "exitgame.ogg")
             }, "Main menu");
@@ -222,6 +241,9 @@ namespace TopSpeed.Core
             mainMenu.MusicVolume = _settings.MusicVolume;
             mainMenu.MusicVolumeChanged = SaveMusicVolume;
             _menu.Register(mainMenu);
+
+            _menu.Register(BuildMultiplayerMenu());
+            _menu.Register(BuildMultiplayerServersMenu());
 
             _menu.Register(BuildTrackTypeMenu("time_trial_type", RaceMode.TimeTrial));
             _menu.Register(BuildTrackTypeMenu("single_race_type", RaceMode.SingleRace));
@@ -250,6 +272,7 @@ namespace TopSpeed.Core
             _menu.Register(BuildOptionsComputersMenu());
             _menu.Register(BuildOptionsDifficultyMenu());
             _menu.Register(BuildOptionsRestoreMenu());
+            _menu.Register(BuildOptionsServerSettingsMenu());
         }
 
         private MenuScreen BuildTrackTypeMenu(string id, RaceMode mode)
@@ -263,6 +286,26 @@ namespace TopSpeed.Core
             };
             var title = "Choose track type";
             return _menu.CreateMenu(id, items, title);
+        }
+
+        private MenuScreen BuildMultiplayerMenu()
+        {
+            var items = new List<MenuItem>
+            {
+                new MenuItem("Join a game on the local network", MenuAction.None, null, onActivate: StartServerDiscovery, suppressPostActivateAnnouncement: true),
+                new MenuItem("Enter the IP address or domain manually", MenuAction.None, null, onActivate: BeginManualServerEntry, suppressPostActivateAnnouncement: true),
+                BackItem()
+            };
+            return _menu.CreateMenu("multiplayer", items, "Multiplayer");
+        }
+
+        private MenuScreen BuildMultiplayerServersMenu()
+        {
+            var items = new List<MenuItem>
+            {
+                BackItem()
+            };
+            return _menu.CreateMenu("multiplayer_servers", items, "Available servers");
         }
 
         private MenuScreen BuildTrackMenu(string id, RaceMode mode, TrackCategory category)
@@ -329,6 +372,7 @@ namespace TopSpeed.Core
                 new MenuItem("Game settings", MenuAction.None, "gamesettings.ogg", nextMenuId: "options_game"),
                 new MenuItem("Controls", MenuAction.None, "controls.ogg", nextMenuId: "options_controls"),
                 new MenuItem("Race settings", MenuAction.None, "racesettings.ogg", nextMenuId: "options_race"),
+                new MenuItem("Server settings", MenuAction.None, null, nextMenuId: "options_server"),
                 new MenuItem("Restore default settings", MenuAction.None, "restoredefaults.ogg", nextMenuId: "options_restore"),
                 BackItem()
             };
@@ -345,6 +389,249 @@ namespace TopSpeed.Core
                 BackItem()
             };
             return _menu.CreateMenu("options_game", items, "Game settings");
+        }
+
+        private MenuScreen BuildOptionsServerSettingsMenu()
+        {
+            var items = new List<MenuItem>
+            {
+                new MenuItem(() => $"Custom server port: {FormatServerPort(_settings.ServerPort)}", MenuAction.None, null, onActivate: BeginServerPortEntry),
+                BackItem()
+            };
+            return _menu.CreateMenu("options_server", items, "Server settings");
+        }
+
+        private bool UpdateModalOperations()
+        {
+            if (_textInputActive)
+            {
+                UpdateTextInput();
+                return true;
+            }
+
+            if (_connectTask != null)
+            {
+                if (!_connectTask.IsCompleted)
+                    return true;
+                var result = _connectTask.IsFaulted || _connectTask.IsCanceled
+                    ? ConnectResult.CreateFail("Connection attempt failed.")
+                    : _connectTask.GetAwaiter().GetResult();
+                _connectTask = null;
+                _connectCts?.Dispose();
+                _connectCts = null;
+                HandleConnectResult(result);
+                return false;
+            }
+
+            if (_discoveryTask != null)
+            {
+                if (!_discoveryTask.IsCompleted)
+                    return true;
+                IReadOnlyList<ServerInfo> servers;
+                if (_discoveryTask.IsFaulted || _discoveryTask.IsCanceled)
+                    servers = Array.Empty<ServerInfo>();
+                else
+                    servers = _discoveryTask.GetAwaiter().GetResult();
+                _discoveryTask = null;
+                _discoveryCts?.Dispose();
+                _discoveryCts = null;
+                HandleDiscoveryResult(servers);
+                return false;
+            }
+
+            return false;
+        }
+
+        private void UpdateTextInput()
+        {
+            if (!_window.TryConsumeTextInput(out var result))
+                return;
+
+            _textInputActive = false;
+            _input.Resume();
+            if (result.Cancelled)
+            {
+                _textInputCancelled?.Invoke();
+                return;
+            }
+
+            _textInputHandler?.Invoke(result.Text ?? string.Empty);
+        }
+
+        private void BeginTextInput(string prompt, string? initialValue, Action<string> onSubmit, Action? onCancel = null)
+        {
+            _textInputHandler = onSubmit;
+            _textInputCancelled = onCancel;
+            _textInputActive = true;
+            _input.Suspend();
+            _window.ShowTextInput(initialValue);
+            _speech.Speak(prompt, interrupt: true);
+        }
+
+        private void StartServerDiscovery()
+        {
+            if (_discoveryTask != null && !_discoveryTask.IsCompleted)
+                return;
+
+            _speech.Speak("Please wait. Scanning for servers on the local network.", interrupt: true);
+            _discoveryCts?.Cancel();
+            _discoveryCts?.Dispose();
+            _discoveryCts = new CancellationTokenSource();
+            _discoveryTask = Task.Run(async () =>
+            {
+                using var client = new DiscoveryClient();
+                return await client.ScanAsync(ClientProtocol.DefaultDiscoveryPort, TimeSpan.FromSeconds(2), _discoveryCts.Token);
+            }, _discoveryCts.Token);
+        }
+
+        private void HandleDiscoveryResult(IReadOnlyList<ServerInfo> servers)
+        {
+            if (servers == null || servers.Count == 0)
+            {
+                _speech.Speak("No servers were found on the local network. You can enter an address manually.", interrupt: true);
+                return;
+            }
+
+            UpdateServerListMenu(servers);
+            _menu.Push("multiplayer_servers");
+        }
+
+        private void UpdateServerListMenu(IReadOnlyList<ServerInfo> servers)
+        {
+            var items = new List<MenuItem>();
+            foreach (var server in servers)
+            {
+                var info = server;
+                var label = $"{info.Address}:{info.Port}";
+                items.Add(new MenuItem(label, MenuAction.None, null, onActivate: () => SelectDiscoveredServer(info), suppressPostActivateAnnouncement: true));
+            }
+            items.Add(BackItem());
+            _menu.UpdateItems("multiplayer_servers", items);
+        }
+
+        private void SelectDiscoveredServer(ServerInfo server)
+        {
+            _pendingServerAddress = server.Address.ToString();
+            _pendingServerPort = server.Port;
+            _pendingServer = server;
+            BeginCallSignInput();
+        }
+
+        private void BeginManualServerEntry()
+        {
+            BeginTextInput("Enter the server IP address or domain.", _settings.LastServerAddress, HandleServerAddressInput);
+        }
+
+        private void HandleServerAddressInput(string text)
+        {
+            var trimmed = (text ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                _speech.Speak("Please enter a server address.", interrupt: true);
+                BeginManualServerEntry();
+                return;
+            }
+
+            var host = trimmed;
+            int? overridePort = null;
+            var lastColon = trimmed.LastIndexOf(':');
+            if (lastColon > 0 && lastColon < trimmed.Length - 1)
+            {
+                var portPart = trimmed.Substring(lastColon + 1);
+                if (int.TryParse(portPart, out var parsedPort))
+                {
+                    host = trimmed.Substring(0, lastColon);
+                    overridePort = parsedPort;
+                }
+            }
+
+            _settings.LastServerAddress = host;
+            SaveSettings();
+            _pendingServerAddress = host;
+            _pendingServerPort = overridePort ?? ResolveServerPort();
+            BeginCallSignInput();
+        }
+
+        private void BeginCallSignInput()
+        {
+            BeginTextInput("Enter your call sign.", null, HandleCallSignInput);
+        }
+
+        private void HandleCallSignInput(string text)
+        {
+            var trimmed = (text ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                _speech.Speak("Call sign cannot be empty.", interrupt: true);
+                BeginCallSignInput();
+                return;
+            }
+
+            _pendingCallSign = trimmed;
+            AttemptConnect(_pendingServerAddress, _pendingServerPort, _pendingCallSign);
+        }
+
+        private void AttemptConnect(string host, int port, string callSign)
+        {
+            _speech.Speak("Attempting to connect, please wait...", interrupt: true);
+            _session?.Dispose();
+            _session = null;
+            _connectCts?.Cancel();
+            _connectCts?.Dispose();
+            _connectCts = new CancellationTokenSource();
+            _connectTask = _connector.ConnectAsync(host, port, callSign, TimeSpan.FromSeconds(3), _connectCts.Token);
+        }
+
+        private void HandleConnectResult(ConnectResult result)
+        {
+            if (result.Success)
+            {
+                var address = result.Address?.ToString() ?? _pendingServerAddress;
+                _session = result.Session;
+                if (!string.IsNullOrWhiteSpace(result.Motd))
+                    _speech.Speak($"Message of the day: {result.Motd}.", interrupt: true);
+                _speech.Speak($"Connected to server {address}. Multiplayer gameplay is not implemented yet.", interrupt: true);
+                return;
+            }
+
+            _speech.Speak($"Failed to connect: {result.Message}", interrupt: true);
+            _state = AppState.Menu;
+            _menu.ShowRoot("main");
+            _speech.Speak("Main menu", interrupt: true);
+        }
+
+        private void BeginServerPortEntry()
+        {
+            var current = _settings.ServerPort > 0 ? _settings.ServerPort.ToString() : string.Empty;
+            BeginTextInput("Enter a custom server port, or leave empty for default.", current, HandleServerPortInput);
+        }
+
+        private void HandleServerPortInput(string text)
+        {
+            var trimmed = (text ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                _settings.ServerPort = 0;
+                SaveSettings();
+                _speech.Speak("Server port cleared. The default port will be used.", interrupt: true);
+                return;
+            }
+
+            if (!int.TryParse(trimmed, out var port) || port < 1 || port > 65535)
+            {
+                _speech.Speak("Invalid port. Enter a number between 1 and 65535.", interrupt: true);
+                BeginServerPortEntry();
+                return;
+            }
+
+            _settings.ServerPort = port;
+            SaveSettings();
+            _speech.Speak($"Server port set to {port}.", interrupt: true);
+        }
+
+        private int ResolveServerPort()
+        {
+            return _settings.ServerPort > 0 ? _settings.ServerPort : ClientProtocol.DefaultServerPort;
         }
 
         private MenuScreen BuildOptionsControlsMenu()
@@ -1148,6 +1435,11 @@ namespace TopSpeed.Core
 
         private static string FormatOnOff(bool value) => value ? "on" : "off";
 
+        private static string FormatServerPort(int port)
+        {
+            return port > 0 ? port.ToString() : $"default ({ClientProtocol.DefaultServerPort})";
+        }
+
         private static string DeviceLabel(InputDeviceMode mode)
         {
             return mode switch
@@ -1340,6 +1632,7 @@ namespace TopSpeed.Core
             _logo?.Dispose();
             _menu.Dispose();
             _input.Dispose();
+            _session?.Dispose();
             _speech.Dispose();
             _audio.Dispose();
         }
