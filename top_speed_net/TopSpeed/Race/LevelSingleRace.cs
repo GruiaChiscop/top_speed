@@ -63,8 +63,8 @@ namespace TopSpeed.Race
             _position = playerNumber + 1;
             _positionComment = playerNumber + 1;
 
-            var positionX = playerNumber % 2 == 1 ? 3000 : -3000;
-            var positionY = 14000 - playerNumber * 2000;
+            var positionX = playerNumber % 2 == 1 ? 30.0f : -30.0f;
+            var positionY = 140.0f - playerNumber * 20.0f;
             _car.SetPosition(positionX, positionY);
 
             for (var i = 0; i < _nComputerPlayers; i++)
@@ -73,8 +73,8 @@ namespace TopSpeed.Race
                 if (botNumber >= _playerNumber)
                     botNumber++;
                 _computerPlayers[i] = GenerateRandomPlayer(botNumber);
-                positionX = botNumber % 2 == 1 ? 3000 : -3000;
-                positionY = 14000 - botNumber * 2000;
+                positionX = botNumber % 2 == 1 ? 30.0f : -30.0f;
+                positionY = 140.0f - botNumber * 20.0f;
                 _computerPlayers[i]!.Initialize(positionX, positionY, _track.Length);
             }
 
@@ -381,9 +381,9 @@ namespace TopSpeed.Race
 
             var position = 1;
             var inFront = -1;
-            var inFrontDist = 50000;
+            var inFrontDist = 500.0f;
             var onTail = -1;
-            var onTailDist = 50000;
+            var onTailDist = 500.0f;
 
             for (var i = 0; i < _nComputerPlayers; i++)
             {
@@ -466,8 +466,8 @@ namespace TopSpeed.Race
                     continue;
                 if (_car.State == CarState.Running && !bot.Finished)
                 {
-                    if (Math.Abs(_car.PositionX - bot.PositionX) < 1000 &&
-                        Math.Abs(_car.PositionY - bot.PositionY) < 500)
+                    if (Math.Abs(_car.PositionX - bot.PositionX) < 10.0f &&
+                        Math.Abs(_car.PositionY - bot.PositionY) < 5.0f)
                     {
                         var bumpX = _car.PositionX - bot.PositionX;
                         var bumpY = _car.PositionY - bot.PositionY;

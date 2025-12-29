@@ -66,8 +66,8 @@ namespace TopSpeed.Server.Protocol
             packet.PlayerId = reader.ReadUInt32();
             packet.PlayerNumber = reader.ReadByte();
             packet.Car = (CarType)reader.ReadByte();
-            packet.RaceData.PositionX = reader.ReadInt32();
-            packet.RaceData.PositionY = reader.ReadInt32();
+            packet.RaceData.PositionX = reader.ReadSingle();
+            packet.RaceData.PositionY = reader.ReadSingle();
             packet.RaceData.Speed = reader.ReadUInt16();
             packet.RaceData.Frequency = reader.ReadInt32();
             packet.State = (PlayerState)reader.ReadByte();
@@ -123,8 +123,8 @@ namespace TopSpeed.Server.Protocol
             writer.WriteUInt32(data.PlayerId);
             writer.WriteByte(data.PlayerNumber);
             writer.WriteByte((byte)data.Car);
-            writer.WriteInt32(data.RaceData.PositionX);
-            writer.WriteInt32(data.RaceData.PositionY);
+            writer.WriteSingle(data.RaceData.PositionX);
+            writer.WriteSingle(data.RaceData.PositionY);
             writer.WriteUInt16(data.RaceData.Speed);
             writer.WriteInt32(data.RaceData.Frequency);
             writer.WriteByte((byte)data.State);
@@ -143,8 +143,8 @@ namespace TopSpeed.Server.Protocol
             writer.WriteByte((byte)Command.PlayerBumped);
             writer.WriteUInt32(bump.PlayerId);
             writer.WriteByte(bump.PlayerNumber);
-            writer.WriteInt32(bump.BumpX);
-            writer.WriteInt32(bump.BumpY);
+            writer.WriteSingle(bump.BumpX);
+            writer.WriteSingle(bump.BumpY);
             writer.WriteUInt16(bump.BumpSpeed);
             return buffer;
         }
@@ -169,7 +169,7 @@ namespace TopSpeed.Server.Protocol
                 writer.WriteByte((byte)def.Type);
                 writer.WriteByte((byte)def.Surface);
                 writer.WriteByte((byte)def.Noise);
-                writer.WriteUInt32((uint)def.Length);
+                writer.WriteSingle(def.Length);
             }
             return buffer;
         }

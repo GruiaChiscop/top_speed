@@ -13,7 +13,7 @@ namespace TopSpeed.Vehicles
 {
     internal sealed class ComputerPlayer : IDisposable
     {
-        private const int CallLength = 3000;
+        private const float CallLength = 30.0f;
 
         private readonly AudioManager _audio;
         private readonly Track _track;
@@ -29,20 +29,20 @@ namespace TopSpeed.Vehicles
         private ComputerState _state;
         private TrackSurface _surface;
         private int _gear;
-        private int _speed;
-        private int _positionX;
-        private int _positionY;
+        private float _speed;
+        private float _positionX;
+        private float _positionY;
         private int _switchingGear;
-        private int _trackLength;
+        private float _trackLength;
 
-        private int _acceleration;
-        private int _deceleration;
-        private int _topSpeed;
+        private float _acceleration;
+        private float _deceleration;
+        private float _topSpeed;
         private int _idleFreq;
         private int _topFreq;
         private int _shiftFreq;
         private int _gears;
-        private int _steering;
+        private float _steering;
         private int _steeringFactor;
 
         private int _random;
@@ -50,18 +50,18 @@ namespace TopSpeed.Vehicles
         private int _frequency;
         private int _prevBrakeFrequency;
         private int _brakeFrequency;
-        private int _laneWidth;
+        private float _laneWidth;
         private float _relPos;
         private float _nextRelPos;
-        private int _diffX;
-        private int _diffY;
+        private float _diffX;
+        private float _diffY;
         private int _currentSteering;
         private int _currentThrottle;
         private int _currentBrake;
-        private int _currentAcceleration;
-        private int _currentDeceleration;
-        private int _speedDiff;
-        private int _thrust;
+        private float _currentAcceleration;
+        private float _currentDeceleration;
+        private float _speedDiff;
+        private float _thrust;
         private int _difficulty;
         private bool _finished;
         private bool _horning;
@@ -147,15 +147,15 @@ namespace TopSpeed.Vehicles
         }
 
         public ComputerState State => _state;
-        public int PositionX => _positionX;
-        public int PositionY => _positionY;
-        public int Speed => _speed;
+        public float PositionX => _positionX;
+        public float PositionY => _positionY;
+        public float Speed => _speed;
         public int PlayerNumber => _playerNumber;
         public int VehicleIndex => _vehicleIndex;
         public bool Finished => _finished;
         public void SetFinished(bool value) => _finished = value;
 
-        public void Initialize(int positionX, int positionY, int trackLength)
+        public void Initialize(float positionX, float positionY, float trackLength)
         {
             _positionX = positionX;
             _positionY = positionY;
@@ -189,7 +189,7 @@ namespace TopSpeed.Vehicles
             _state = ComputerState.Starting;
         }
 
-        public void Crash(int newPosition)
+        public void Crash(float newPosition)
         {
             _speed = 0;
             _soundCrash.Play(loop: false);
@@ -205,14 +205,14 @@ namespace TopSpeed.Vehicles
             PushEvent(BotEventType.CarRestart, _soundCrash.GetLengthSeconds() + 1.25f);
         }
 
-        public void MiniCrash(int newPosition)
+        public void MiniCrash(float newPosition)
         {
             _speed /= 4;
             _positionX = newPosition;
             _soundMiniCrash.Play(loop: false);
         }
 
-        public void Bump(int bumpX, int bumpY, int bumpSpeed)
+        public void Bump(float bumpX, float bumpY, float bumpSpeed)
         {
             if (bumpY != 0)
             {
@@ -251,7 +251,7 @@ namespace TopSpeed.Vehicles
                 _soundBackfire.SetVolumePercent(80);
         }
 
-        public void Run(float elapsed, int playerX, int playerY)
+        public void Run(float elapsed, float playerX, float playerY)
         {
             _diffX = _positionX - playerX;
             _diffY = _positionY - playerY;
@@ -259,7 +259,7 @@ namespace TopSpeed.Vehicles
             if (_diffY > _trackLength / 2)
                 _diffY = (_diffY - _trackLength) % _trackLength;
 
-            if (!_horning && _diffY < -10000)
+            if (!_horning && _diffY < -100.0f)
             {
                 if (Algorithm.RandomInt(2500) == 1)
                 {
@@ -270,7 +270,7 @@ namespace TopSpeed.Vehicles
             }
 
             var relX = _laneWidth == 0 ? 0f : _diffX / (float)_laneWidth;
-            var relY = _diffY / 12000.0f;
+            var relY = _diffY / 120.0f;
             SetSoundPosition(_soundEngine, relX, relY);
             SetSoundPosition(_soundStart, relX, relY);
             SetSoundPosition(_soundHorn, relX, relY);
@@ -329,39 +329,39 @@ namespace TopSpeed.Vehicles
                 }
 
                 if (_thrust > 10)
-                    _speedDiff = (int)(elapsed * _thrust * _currentAcceleration);
+                    _speedDiff = (elapsed * _thrust * _currentAcceleration);
                 else if (_thrust < -10)
-                    _speedDiff = (int)(elapsed * _thrust * _currentDeceleration);
+                    _speedDiff = (elapsed * _thrust * _currentDeceleration);
                 else
-                    _speedDiff = (int)(elapsed * -1000);
+                    _speedDiff = (elapsed * -10.0f);
 
                 if (_speedDiff > 0)
-                    _speedDiff = (int)(_speedDiff * (2.0f - ((_topSpeed + _speed) * 1.0f / (2.0f * _topSpeed))));
+                    _speedDiff = (_speedDiff * (2.0f - ((_topSpeed + _speed) * 1.0f / (2.0f * _topSpeed))));
 
                 _speed += _speedDiff;
                 if (_speed > _topSpeed)
                     _speed = _topSpeed;
                 if (_speed < 0)
                     _speed = 0;
-                if (_thrust < -50 && _speed > 5000)
+                if (_thrust < -50 && _speed > 50.0f)
                     _currentSteering = _currentSteering * 2 / 3;
 
-                _positionY += (int)(_speed * elapsed);
+                _positionY += (_speed * elapsed);
                 if (_surface != TrackSurface.Snow)
                 {
-                    _positionX += (int)(_currentSteering * elapsed * _steering *
-                        ((5000.0f + _speed * _steeringFactor / 100f) / _topSpeed));
+                    _positionX += (_currentSteering * elapsed * _steering *
+                        ((50.0f + _speed * _steeringFactor / 100f) / _topSpeed));
                 }
                 else
                 {
-                    _positionX += (int)(_currentSteering * elapsed * (_steering * 1.44f) *
-                        ((50000.0f + _speed * _steeringFactor / 100f) / _topSpeed));
+                    _positionX += (_currentSteering * elapsed * (_steering * 1.44f) *
+                        ((500.0f + _speed * _steeringFactor / 100f) / _topSpeed));
                 }
 
                 if (_frame % 4 == 0)
                 {
                     _frame = 0;
-                    _brakeFrequency = 11025 + 22050 * _speed / _topSpeed;
+                    _brakeFrequency = (int)(11025 + 22050 * _speed / _topSpeed);
                     if (_brakeFrequency != _prevBrakeFrequency)
                     {
                         _soundBrake.SetFrequency(_brakeFrequency);
@@ -376,7 +376,7 @@ namespace TopSpeed.Vehicles
             }
             else if (_state == ComputerState.Stopping)
             {
-                _speed -= (int)(elapsed * 100 * _deceleration);
+                _speed -= (elapsed * 100 * _deceleration);
                 if (_speed < 0)
                     _speed = 0;
                 if (_frame % 4 == 0)
@@ -432,17 +432,17 @@ namespace TopSpeed.Vehicles
         }
 
         public void ApplyNetworkState(
-            int positionX,
-            int positionY,
-            int speed,
+            float positionX,
+            float positionY,
+            float speed,
             int frequency,
             bool engineRunning,
             bool braking,
             bool horning,
             bool backfiring,
-            int playerX,
-            int playerY,
-            int trackLength)
+            float playerX,
+            float playerY,
+            float trackLength)
         {
             _positionX = positionX;
             _positionY = positionY;
@@ -457,7 +457,7 @@ namespace TopSpeed.Vehicles
                 _diffY = (_diffY - _trackLength) % _trackLength;
 
             var relX = _laneWidth == 0 ? 0f : _diffX / (float)_laneWidth;
-            var relY = _diffY / 12000.0f;
+            var relY = _diffY / 120.0f;
             SetSoundPosition(_soundEngine, relX, relY);
             SetSoundPosition(_soundStart, relX, relY);
             SetSoundPosition(_soundHorn, relX, relY);
@@ -488,7 +488,7 @@ namespace TopSpeed.Vehicles
             {
                 if (!_soundBrake.IsPlaying)
                     _soundBrake.Play(loop: true);
-                var targetBrakeFrequency = 11025 + 22050 * _speed / _topSpeed;
+                var targetBrakeFrequency = (int)(11025 + 22050 * _speed / _topSpeed);
                 if (_prevBrakeFrequency != targetBrakeFrequency)
                 {
                     _soundBrake.SetFrequency(targetBrakeFrequency);

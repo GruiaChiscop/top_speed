@@ -10,42 +10,42 @@ namespace TopSpeed.Tracks
 {
     internal sealed class Track : IDisposable
     {
-        private const int LaneWidthUnits = 15000;
-        private const int CallLength = 3000;
+        private const float LaneWidthMeters = 150.0f;
+        private const float CallLengthMeters = 30.0f;
         private const int Types = 9;
         private const int Surfaces = 5;
         private const int Noises = 12;
-        private const int MinPartLength = 5000;
+        private const float MinPartLengthMeters = 50.0f;
 
         public struct Road
         {
-            public int Left;
-            public int Right;
+            public float Left;
+            public float Right;
             public TrackSurface Surface;
             public TrackType Type;
-            public int Length;
+            public float Length;
         }
 
         private readonly AudioManager _audio;
         private readonly string _trackName;
         private readonly bool _userDefined;
         private readonly TrackDefinition[] _definition;
-        private readonly int _length;
+        private readonly int _segmentCount;
         private readonly TrackWeather _weather;
         private readonly TrackAmbience _ambience;
 
-        private int _laneWidth;
-        private int _callLength;
-        private int _lapDistance;
-        private int _lapCenter;
+        private float _laneWidth;
+        private float _callLength;
+        private float _lapDistance;
+        private float _lapCenter;
         private int _currentRoad;
-        private int _relPos;
-        private int _prevRelPos;
+        private float _relPos;
+        private float _prevRelPos;
         private int _lastCalled;
         private float _factor;
-        private int _noiseLength;
-        private int _noiseStartPos;
-        private int _noiseEndPos;
+        private float _noiseLength;
+        private float _noiseStartPos;
+        private float _noiseEndPos;
         private bool _noisePlaying;
 
         private AudioSourceHandle? _soundCrowd;
@@ -70,12 +70,12 @@ namespace TopSpeed.Tracks
             _trackName = trackName.Length < 64 ? trackName : string.Empty;
             _userDefined = userDefined;
             _audio = audio;
-            _laneWidth = LaneWidthUnits;
-            _callLength = CallLength;
+            _laneWidth = LaneWidthMeters;
+            _callLength = CallLengthMeters;
             _weather = data.Weather;
             _ambience = data.Ambience;
             _definition = data.Definitions;
-            _length = _definition.Length;
+            _segmentCount = _definition.Length;
 
             InitializeSounds();
         }
@@ -99,25 +99,25 @@ namespace TopSpeed.Tracks
         }
 
         public string TrackName => _trackName;
-        public int Length => _lapDistance;
-        public int SegmentCount => _length;
-        public int LapDistance => _lapDistance;
+        public float Length => _lapDistance;
+        public int SegmentCount => _segmentCount;
+        public float LapDistance => _lapDistance;
         public TrackWeather Weather => _weather;
         public TrackAmbience Ambience => _ambience;
         public bool UserDefined => _userDefined;
-        public int LaneWidth => _laneWidth;
+        public float LaneWidth => _laneWidth;
         public TrackSurface InitialSurface => _definition.Length > 0 ? _definition[0].Surface : TrackSurface.Asphalt;
 
-        public void SetLaneWidth(int laneWidth)
+        public void SetLaneWidth(float laneWidth)
         {
             _laneWidth = laneWidth;
         }
 
-        public int Lap(int position)
+        public int Lap(float position)
         {
             if (_lapDistance <= 0)
                 return 1;
-            return (position / _lapDistance) + 1;
+            return (int)(position / _lapDistance) + 1;
         }
 
 
@@ -125,7 +125,7 @@ namespace TopSpeed.Tracks
         {
             _lapDistance = 0;
             _lapCenter = 0;
-            for (var i = 0; i < _length; i++)
+            for (var i = 0; i < _segmentCount; i++)
             {
                 _lapDistance += _definition[i].Length;
                 switch (_definition[i].Type)
@@ -185,12 +185,12 @@ namespace TopSpeed.Tracks
                 _soundAirport?.Stop();
         }
 
-        public void Run(int position)
+        public void Run(float position)
         {
             if (_noisePlaying && position > _noiseEndPos)
                 _noisePlaying = false;
 
-            if (_length == 0)
+            if (_segmentCount == 0)
                 return;
 
             switch (_definition[_currentRoad].Noise)
@@ -239,17 +239,17 @@ namespace TopSpeed.Tracks
             }
         }
 
-        public Road RoadAtPosition(int position)
+        public Road RoadAtPosition(float position)
         {
             if (_lapDistance == 0)
                 Initialize();
 
-            var lap = position / _lapDistance;
+            var lap = (int)(position / _lapDistance);
             var pos = position % _lapDistance;
-            var dist = 0;
+            var dist = 0.0f;
             var center = lap * _lapCenter;
 
-            for (var i = 0; i < _length; i++)
+            for (var i = 0; i < _segmentCount; i++)
             {
                 if (dist <= pos && dist + _definition[i].Length > pos)
                 {
@@ -271,21 +271,21 @@ namespace TopSpeed.Tracks
                 dist += _definition[i].Length;
             }
 
-            return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLength };
+            return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
         }
 
-        public Road RoadComputer(int position)
+        public Road RoadComputer(float position)
         {
             if (_lapDistance == 0)
                 Initialize();
 
-            var lap = position / _lapDistance;
+            var lap = (int)(position / _lapDistance);
             var pos = position % _lapDistance;
-            var dist = 0;
+            var dist = 0.0f;
             var center = lap * _lapCenter;
-            var relPos = 0;
+            var relPos = 0.0f;
 
-            for (var i = 0; i < _length; i++)
+            for (var i = 0; i < _segmentCount; i++)
             {
                 if (dist <= pos && dist + _definition[i].Length > pos)
                 {
@@ -305,13 +305,13 @@ namespace TopSpeed.Tracks
                 dist += _definition[i].Length;
             }
 
-            return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLength };
+            return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
         }
 
-        public bool NextRoad(int position, int speed, int curveAnnouncementMode, out Road road)
+        public bool NextRoad(float position, float speed, int curveAnnouncementMode, out Road road)
         {
             road = new Road();
-            if (_length == 0)
+            if (_segmentCount == 0)
                 return false;
 
             if (curveAnnouncementMode == 0)
@@ -319,7 +319,7 @@ namespace TopSpeed.Tracks
                 var currentLength = _definition[_currentRoad].Length;
                 if ((_relPos + _callLength > currentLength) && (_prevRelPos + _callLength <= currentLength))
                 {
-                    var next = _definition[(_currentRoad + 1) % _length];
+                    var next = _definition[(_currentRoad + 1) % _segmentCount];
                     road.Type = next.Type;
                     road.Surface = next.Surface;
                     road.Length = next.Length;
@@ -333,8 +333,8 @@ namespace TopSpeed.Tracks
             if (roadAhead < 0)
                 return false;
 
-            var delta = (roadAhead - _lastCalled + _length) % _length;
-            if (delta > 0 && delta <= _length / 2)
+            var delta = (roadAhead - _lastCalled + _segmentCount) % _segmentCount;
+            if (delta > 0 && delta <= _segmentCount / 2)
             {
                 var next = _definition[roadAhead];
                 road.Type = next.Type;
@@ -347,14 +347,14 @@ namespace TopSpeed.Tracks
             return false;
         }
 
-        private int RoadIndexAt(int position)
+        private int RoadIndexAt(float position)
         {
             if (_lapDistance == 0)
                 Initialize();
 
             var pos = position % _lapDistance;
-            var dist = 0;
-            for (var i = 0; i < _length; i++)
+            var dist = 0.0f;
+            for (var i = 0; i < _segmentCount; i++)
             {
                 if (dist <= pos && dist + _definition[i].Length > pos)
                     return i;
@@ -367,7 +367,7 @@ namespace TopSpeed.Tracks
         {
             _noiseLength = 0;
             var i = _currentRoad;
-            while (i < _length && _definition[i].Noise == _definition[_currentRoad].Noise)
+            while (i < _segmentCount && _definition[i].Noise == _definition[_currentRoad].Noise)
             {
                 _noiseLength += _definition[i].Length;
                 i++;
@@ -375,7 +375,7 @@ namespace TopSpeed.Tracks
             _noisePlaying = true;
         }
 
-        private void UpdateLoopingNoise(AudioSourceHandle? sound, int position, int? pan = null)
+        private void UpdateLoopingNoise(AudioSourceHandle? sound, float position, int? pan = null)
         {
             if (sound == null)
                 return;
@@ -445,7 +445,7 @@ namespace TopSpeed.Tracks
             return _audio.CreateLoopingSource(path);
         }
 
-        private int UpdateCenter(int center, TrackDefinition definition)
+        private float UpdateCenter(float center, TrackDefinition definition)
         {
             switch (definition.Type)
             {
@@ -470,7 +470,7 @@ namespace TopSpeed.Tracks
             }
         }
 
-        private void ApplyRoadOffset(ref Road road, int center, int relPos, TrackType type)
+        private void ApplyRoadOffset(ref Road road, float center, float relPos, TrackType type)
         {
             switch (type)
             {
@@ -522,7 +522,7 @@ namespace TopSpeed.Tracks
             if (!File.Exists(filename))
             {
                 return new TrackData(true, TrackWeather.Sunny, TrackAmbience.NoAmbience,
-                    new[] { new TrackDefinition(TrackType.Straight, TrackSurface.Asphalt, TrackNoise.NoNoise, MinPartLength) });
+                    new[] { new TrackDefinition(TrackType.Straight, TrackSurface.Asphalt, TrackNoise.NoNoise, MinPartLengthMeters) });
             }
 
             var ints = new List<int>();
@@ -534,6 +534,8 @@ namespace TopSpeed.Tracks
 
             var length = 0;
             var index = 0;
+            var minPartLengthLegacy = 5000;
+
             while (index < ints.Count)
             {
                 var first = ints[index++];
@@ -542,7 +544,7 @@ namespace TopSpeed.Tracks
                 if (index < ints.Count) index++;
                 if (index >= ints.Count) break;
                 var third = ints[index++];
-                if (third < MinPartLength && index < ints.Count)
+                if (third < minPartLengthLegacy && index < ints.Count)
                     index++;
                 length++;
             }
@@ -550,7 +552,7 @@ namespace TopSpeed.Tracks
             if (length == 0)
             {
                 return new TrackData(true, TrackWeather.Sunny, TrackAmbience.NoAmbience,
-                    new[] { new TrackDefinition(TrackType.Straight, TrackSurface.Asphalt, TrackNoise.NoNoise, MinPartLength) });
+                    new[] { new TrackDefinition(TrackType.Straight, TrackSurface.Asphalt, TrackNoise.NoNoise, MinPartLengthMeters) });
             }
 
             var definitions = new TrackDefinition[length];
@@ -562,11 +564,11 @@ namespace TopSpeed.Tracks
                 var temp = index < ints.Count ? ints[index++] : 0;
 
                 var noiseValue = 0;
-                var lengthValue = 0;
+                var lengthValueLegacy = 0;
                 if (temp < Noises)
                 {
                     noiseValue = temp;
-                    lengthValue = index < ints.Count ? ints[index++] : MinPartLength;
+                    lengthValueLegacy = index < ints.Count ? ints[index++] : minPartLengthLegacy;
                 }
                 else
                 {
@@ -579,7 +581,7 @@ namespace TopSpeed.Tracks
                     {
                         noiseValue = 0;
                     }
-                    lengthValue = temp;
+                    lengthValueLegacy = temp;
                 }
 
                 if (typeValue >= Types)
@@ -588,10 +590,10 @@ namespace TopSpeed.Tracks
                     surfaceValue = 0;
                 if (noiseValue >= Noises)
                     noiseValue = 0;
-                if (lengthValue < MinPartLength)
-                    lengthValue = MinPartLength;
+                if (lengthValueLegacy < minPartLengthLegacy)
+                    lengthValueLegacy = minPartLengthLegacy;
 
-                definitions[i] = new TrackDefinition((TrackType)typeValue, (TrackSurface)surfaceValue, (TrackNoise)noiseValue, lengthValue);
+                definitions[i] = new TrackDefinition((TrackType)typeValue, (TrackSurface)surfaceValue, (TrackNoise)noiseValue, lengthValueLegacy / 100.0f);
             }
 
             if (index < ints.Count)

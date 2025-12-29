@@ -44,6 +44,13 @@ namespace TopSpeed.Protocol
             return value;
         }
 
+        public float ReadSingle()
+        {
+            var value = BitConverter.ToSingle(_data, _offset);
+            _offset += 4;
+            return value;
+        }
+
         public string ReadFixedString(int length)
         {
             var value = Encoding.ASCII.GetString(_data, _offset, length);
@@ -87,6 +94,13 @@ namespace TopSpeed.Protocol
             _buffer[_offset++] = (byte)((value >> 8) & 0xFF);
             _buffer[_offset++] = (byte)((value >> 16) & 0xFF);
             _buffer[_offset++] = (byte)((value >> 24) & 0xFF);
+        }
+
+        public void WriteSingle(float value)
+        {
+            var bytes = BitConverter.GetBytes(value);
+            Array.Copy(bytes, 0, _buffer, _offset, 4);
+            _offset += 4;
         }
 
         public void WriteFixedString(string value, int length)

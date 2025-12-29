@@ -92,8 +92,8 @@ namespace TopSpeed.Race
             _sentStart = false;
             _sentFinish = false;
 
-            var positionX = _playerNumber % 2 == 1 ? 3000 : -3000;
-            var positionY = 14000 - _playerNumber * 2000;
+            var positionX = _playerNumber % 2 == 1 ? 30.0f : -30.0f;
+            var positionY = 140.0f - _playerNumber * 20.0f;
             _car.SetPosition(positionX, positionY);
 
             for (var i = 0; i < MaxPlayers; i++)
@@ -463,9 +463,9 @@ namespace TopSpeed.Race
 
             var position = 1;
             int inFrontNumber = -1;
-            var inFrontDist = 50000;
+            var inFrontDist = 500.0f;
             int onTailNumber = -1;
-            var onTailDist = 50000;
+            var onTailDist = 500.0f;
 
             foreach (var remote in _remotePlayers.Values)
             {
@@ -542,7 +542,7 @@ namespace TopSpeed.Race
             return 0;
         }
 
-        private int ClampPercent(int positionY)
+        private int ClampPercent(float positionY)
         {
             var perc = (int)((positionY / (float)(_track.Length * _nrOfLaps)) * 100.0f);
             if (perc > 100)

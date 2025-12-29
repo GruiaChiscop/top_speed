@@ -53,14 +53,14 @@ namespace TopSpeed.Vehicles
             var builtinRoot = Path.Combine(AssetPaths.SoundsRoot, "Vehicles");
             var customVehiclesRoot = Path.Combine(AssetPaths.Root, "Vehicles");
 
-            var acceleration = ReadInt(settings, "acceleration", 10);
-            var deceleration = ReadInt(settings, "deceleration", 40);
-            var topSpeed = ReadInt(settings, "topspeed", 15000);
+            var acceleration = ReadInt(settings, "acceleration", 10) / 100.0f;
+            var deceleration = ReadInt(settings, "deceleration", 40) / 100.0f;
+            var topSpeed = ReadInt(settings, "topspeed", 15000) / 100.0f;
             var idleFreq = ReadInt(settings, "idlefreq", 11000);
             var topFreq = ReadInt(settings, "topfreq", 50000);
             var shiftFreq = ReadInt(settings, "shiftfreq", 40000);
             var gears = ReadInt(settings, "numberofgears", 5);
-            var steering = ReadInt(settings, "steering", 100);
+            var steering = ReadInt(settings, "steering", 100) / 100.0f;
             var steeringFactor = ReadInt(settings, "steeringfactor", 40);
 
             var engineSound = ReadString(settings, "enginesound", "builtin1");

@@ -21,7 +21,7 @@ namespace TopSpeed.Race
         protected const int MaxUnkeys = 12;
         protected const int RandomSoundGroups = 16;
         protected const int RandomSoundMax = 32;
-        protected const int AdventureLaneWidth = 8000;
+        protected const float AdventureLaneWidth = 80.0f;
 
         public enum RandomSound
         {

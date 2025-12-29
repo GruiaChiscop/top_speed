@@ -5,8 +5,8 @@ namespace TopSpeed.Protocol
 {
     public struct PlayerRaceData
     {
-        public int PositionX;
-        public int PositionY;
+        public float PositionX;
+        public float PositionY;
         public ushort Speed;
         public int Frequency;
     }
@@ -52,8 +52,8 @@ namespace TopSpeed.Protocol
     {
         public uint PlayerId;
         public byte PlayerNumber;
-        public int BumpX;
-        public int BumpY;
+        public float BumpX;
+        public float BumpY;
         public ushort BumpSpeed;
     }
 

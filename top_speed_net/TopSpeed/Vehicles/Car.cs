@@ -31,9 +31,9 @@ namespace TopSpeed.Vehicles
         private CarState _state;
         private TrackSurface _surface;
         private int _gear;
-        private int _speed;
-        private int _positionX;
-        private int _positionY;
+        private float _speed;
+        private float _positionX;
+        private float _positionY;
         private bool _manualTransmission;
         private bool _backfirePlayed;
         private bool _backfirePlayedAuto;
@@ -44,31 +44,31 @@ namespace TopSpeed.Vehicles
         private string? _customFile;
         private bool _userDefined;
 
-        private int _acceleration;
-        private int _deceleration;
-        private int _topSpeed;
+        private float _acceleration;
+        private float _deceleration;
+        private float _topSpeed;
         private int _idleFreq;
         private int _topFreq;
         private int _shiftFreq;
         private int _gears;
-        private int _steering;
+        private float _steering;
         private int _steeringFactor;
-        private int _thrust;
+        private float _thrust;
         private int _prevFrequency;
         private int _frequency;
         private int _prevBrakeFrequency;
         private int _brakeFrequency;
         private int _prevSurfaceFrequency;
         private int _surfaceFrequency;
-        private int _laneWidth;
+        private float _laneWidth;
         private float _relPos;
         private int _panPos;
         private int _currentSteering;
         private int _currentThrottle;
         private int _currentBrake;
-        private int _currentAcceleration;
-        private int _currentDeceleration;
-        private int _speedDiff;
+        private float _currentAcceleration;
+        private float _currentDeceleration;
+        private float _speedDiff;
         private int _factor1;
         private double _factor2;
         private int _frame;
@@ -95,12 +95,12 @@ namespace TopSpeed.Vehicles
         private ForceFeedbackEffect? _effectStart;
         private ForceFeedbackEffect? _effectCrash;
         private ForceFeedbackEffect? _effectSpring;
-        private ForceFeedbackEffect? _effectGravel;
         private ForceFeedbackEffect? _effectEngine;
         private ForceFeedbackEffect? _effectCurbLeft;
         private ForceFeedbackEffect? _effectCurbRight;
         private ForceFeedbackEffect? _effectBumpLeft;
         private ForceFeedbackEffect? _effectBumpRight;
+        private ForceFeedbackEffect? _effectGravel;
 
         public Car(
             AudioManager audio,
@@ -214,9 +214,9 @@ namespace TopSpeed.Vehicles
         }
 
         public CarState State => _state;
-        public int PositionX => _positionX;
-        public int PositionY => _positionY;
-        public int Speed => _speed;
+        public float PositionX => _positionX;
+        public float PositionY => _positionY;
+        public float Speed => _speed;
         public int Frequency => _frequency;
         public int Gear => _gear;
         public bool ManualTransmission
@@ -236,7 +236,7 @@ namespace TopSpeed.Vehicles
         public bool UserDefined => _userDefined;
         public string? CustomFile => _customFile;
 
-        public void Initialize(int positionX = 0, int positionY = 0)
+        public void Initialize(float positionX = 0, float positionY = 0)
         {
             _positionX = positionX;
             _positionY = positionY;
@@ -244,7 +244,7 @@ namespace TopSpeed.Vehicles
             _effectSpring?.Play();
         }
 
-        public void SetPosition(int positionX, int positionY)
+        public void SetPosition(float positionX, float positionY)
         {
             _positionX = positionX;
             _positionY = positionY;
@@ -348,7 +348,7 @@ namespace TopSpeed.Vehicles
             _effectCurbRight?.Stop();
         }
 
-        public void MiniCrash(int newPosition)
+        public void MiniCrash(float newPosition)
         {
             _speed /= 4;
             if (_effectBumpLeft != null && _positionX < newPosition)
@@ -362,7 +362,7 @@ namespace TopSpeed.Vehicles
             _soundMiniCrash.Play(loop: false);
         }
 
-        public void Bump(int bumpX, int bumpY, int bumpSpeed)
+        public void Bump(float bumpX, float bumpY, float bumpSpeed)
         {
             if (bumpY != 0)
             {
@@ -544,21 +544,21 @@ namespace TopSpeed.Vehicles
 
                 if (_thrust > 10)
                 {
-                    _speedDiff = (int)(elapsed * _thrust * _currentAcceleration * _factor1 * _factor2 / 100);
+                    _speedDiff = (elapsed * _thrust * _currentAcceleration * _factor1 * (float)_factor2 / 100f);
                     if (_backfirePlayed)
                         _backfirePlayed = false;
                 }
                 else if (_thrust < -10)
                 {
-                    _speedDiff = (int)(elapsed * _thrust * _currentDeceleration);
+                    _speedDiff = (elapsed * _thrust * _currentDeceleration);
                 }
                 else
                 {
-                    _speedDiff = (int)(elapsed * -1000);
+                    _speedDiff = (elapsed * -10.0f);
                 }
 
                 if (_speedDiff > 0)
-                    _speedDiff = (int)(_speedDiff * (2.0f - ((_topSpeed + _speed) * 1.0f / (2.0f * _topSpeed))));
+                    _speedDiff = (_speedDiff * (2.0f - ((_topSpeed + _speed) * 1.0f / (2.0f * _topSpeed))));
                 _speed += _speedDiff;
                 if (_speed > _topSpeed)
                     _speed = _topSpeed;
@@ -581,7 +581,7 @@ namespace TopSpeed.Vehicles
                 if (_thrust < -50 && _speed > 0)
                 {
                     BrakeSound();
-                    _effectSpring?.Gain(5000 * _speed / _topSpeed);
+                    _effectSpring?.Gain((int)(5000 * _speed / _topSpeed));
                     _currentSteering = _currentSteering * 2 / 3;
                 }
                 else if (_currentSteering != 0 && _speed > _topSpeed / 2)
@@ -600,27 +600,27 @@ namespace TopSpeed.Vehicles
                     _soundSnow.SetVolumePercent(90);
                 }
 
-                _positionY += (int)(_speed * elapsed);
+                _positionY += (_speed * elapsed);
                 if (_surface != TrackSurface.Snow)
                 {
-                    _positionX += (int)(_currentSteering * elapsed * _steering * ((5000.0f + _speed * _steeringFactor / 100.0f) / _topSpeed));
+                    _positionX += (_currentSteering * elapsed * _steering * ((50.0f + _speed * _steeringFactor / 100.0f) / _topSpeed));
                 }
                 else
                 {
-                    _positionX += (int)(_currentSteering * elapsed * (_steering * 1.44f) * ((50000.0f + _speed * _steeringFactor / 100.0f) / _topSpeed));
+                    _positionX += (_currentSteering * elapsed * (_steering * 1.44f) * ((500.0f + _speed * _steeringFactor / 100.0f) / _topSpeed));
                 }
 
                 if (_frame % 4 == 0)
                 {
                     _frame = 0;
-                    _brakeFrequency = 11025 + 22050 * _speed / _topSpeed;
+                    _brakeFrequency = (int)(11025 + 22050 * _speed / _topSpeed);
                     if (_brakeFrequency != _prevBrakeFrequency)
                     {
                         _soundBrake.SetFrequency(_brakeFrequency);
                         _prevBrakeFrequency = _brakeFrequency;
                     }
-                    if (_speed <= 5000)
-                        _soundBrake.SetVolumePercent(100 - (50 - (_speed / 100)));
+                    if (_speed <= 50.0f)
+                        _soundBrake.SetVolumePercent((int)(100 - (50 - (_speed)))); 
                     else
                         _soundBrake.SetVolumePercent(100);
                     if (_manualTransmission)
@@ -631,7 +631,7 @@ namespace TopSpeed.Vehicles
                     if (_effectGravel != null)
                     {
                         if (_surface == TrackSurface.Gravel)
-                            _effectGravel.Gain(_speed * 10000 / _topSpeed);
+                            _effectGravel.Gain((int)(_speed * 10000 / _topSpeed));
                         else
                             _effectGravel.Gain(0);
                     }
@@ -640,12 +640,12 @@ namespace TopSpeed.Vehicles
                         if (_speed == 0)
                             _effectSpring.Gain(10000);
                         else
-                            _effectSpring.Gain(10000 * _speed / _topSpeed);
+                            _effectSpring.Gain((int)(10000 * _speed / _topSpeed));
                     }
                     if (_effectEngine != null)
                     {
                         if (_speed < _topSpeed / 10)
-                            _effectEngine.Gain(10000 - _speed * 10 / _topSpeed);
+                            _effectEngine.Gain((int)(10000 - _speed * 10 / _topSpeed));
                         else
                             _effectEngine.Gain(0);
                     }
@@ -692,7 +692,7 @@ namespace TopSpeed.Vehicles
             }
             else if (_state == CarState.Stopping)
             {
-                _speed -= (int)(elapsed * 100 * _deceleration);
+                _speed -= (elapsed * 100 * _deceleration);
                 if (_speed < 0)
                     _speed = 0;
                 if (_frame % 4 == 0)
@@ -757,32 +757,32 @@ namespace TopSpeed.Vehicles
                 case TrackSurface.Gravel:
                     if (_soundBrake.IsPlaying)
                         _soundBrake.Stop();
-                    if (_speed <= 5000)
-                        _soundGravel.SetVolumePercent(100 - (10 - (_speed / 500)));
+                    if (_speed <= 50.0f)
+                        _soundGravel.SetVolumePercent((int)(100 - (10 - (_speed / 5))));
                     else
                         _soundGravel.SetVolumePercent(100);
                     break;
                 case TrackSurface.Water:
                     if (_soundBrake.IsPlaying)
                         _soundBrake.Stop();
-                    if (_speed <= 5000)
-                        _soundWater.SetVolumePercent(100 - (10 - (_speed / 500)));
+                    if (_speed <= 50.0f)
+                        _soundWater.SetVolumePercent((int)(100 - (10 - (_speed / 5))));
                     else
                         _soundWater.SetVolumePercent(100);
                     break;
                 case TrackSurface.Sand:
                     if (_soundBrake.IsPlaying)
                         _soundBrake.Stop();
-                    if (_speed <= 5000)
-                        _soundSand.SetVolumePercent(100 - (10 - (_speed / 500)));
+                    if (_speed <= 50.0f)
+                        _soundSand.SetVolumePercent((int)(100 - (10 - (_speed / 5))));
                     else
                         _soundSand.SetVolumePercent(100);
                     break;
                 case TrackSurface.Snow:
                     if (_soundBrake.IsPlaying)
                         _soundBrake.Stop();
-                    if (_speed <= 5000)
-                        _soundSnow.SetVolumePercent(100 - (10 - (_speed / 500)));
+                    if (_speed <= 50.0f)
+                        _soundSnow.SetVolumePercent((int)(100 - (10 - (_speed / 5))));
                     else
                         _soundSnow.SetVolumePercent(100);
                     break;
@@ -1009,7 +1009,7 @@ namespace TopSpeed.Vehicles
             }
             else
             {
-                _gear = _speed / gearRange;
+                _gear = (int)(_speed / gearRange);
                 if (_gear > _gears)
                     _gear = _gears;
                 var gearSpeed = (_speed - _gear * gearRange) / (float)gearRange;
@@ -1111,7 +1111,7 @@ namespace TopSpeed.Vehicles
 
         private void UpdateSoundRoad()
         {
-            _surfaceFrequency = _speed * 5;
+            _surfaceFrequency = (int)(_speed * 500);
             if (_surfaceFrequency != _prevSurfaceFrequency)
             {
                 switch (_surface)

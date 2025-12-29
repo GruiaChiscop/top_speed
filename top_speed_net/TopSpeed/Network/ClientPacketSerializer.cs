@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TopSpeed.Data;
 using TopSpeed.Protocol;
 
@@ -55,8 +55,8 @@ namespace TopSpeed.Network
             packet.PlayerId = reader.ReadUInt32();
             packet.PlayerNumber = reader.ReadByte();
             packet.Car = (CarType)reader.ReadByte();
-            packet.RaceData.PositionX = reader.ReadInt32();
-            packet.RaceData.PositionY = reader.ReadInt32();
+            packet.RaceData.PositionX = reader.ReadSingle();
+            packet.RaceData.PositionY = reader.ReadSingle();
             packet.RaceData.Speed = reader.ReadUInt16();
             packet.RaceData.Frequency = reader.ReadInt32();
             packet.State = (PlayerState)reader.ReadByte();
@@ -77,8 +77,8 @@ namespace TopSpeed.Network
             reader.ReadByte();
             packet.PlayerId = reader.ReadUInt32();
             packet.PlayerNumber = reader.ReadByte();
-            packet.BumpX = reader.ReadInt32();
-            packet.BumpY = reader.ReadInt32();
+            packet.BumpX = reader.ReadSingle();
+            packet.BumpY = reader.ReadSingle();
             packet.BumpSpeed = reader.ReadUInt16();
             return true;
         }
@@ -108,7 +108,7 @@ namespace TopSpeed.Network
                 var type = (TrackType)reader.ReadByte();
                 var surface = (TrackSurface)reader.ReadByte();
                 var noise = (TrackNoise)reader.ReadByte();
-                var segmentLength = (int)reader.ReadUInt32();
+                var segmentLength = reader.ReadSingle();
                 definitions[i] = new TrackDefinition(type, surface, noise, segmentLength);
             }
 
@@ -184,8 +184,8 @@ namespace TopSpeed.Network
             writer.WriteUInt32(playerId);
             writer.WriteByte(playerNumber);
             writer.WriteByte((byte)car);
-            writer.WriteInt32(raceData.PositionX);
-            writer.WriteInt32(raceData.PositionY);
+            writer.WriteSingle(raceData.PositionX);
+            writer.WriteSingle(raceData.PositionY);
             writer.WriteUInt16(raceData.Speed);
             writer.WriteInt32(raceData.Frequency);
             writer.WriteByte((byte)state);

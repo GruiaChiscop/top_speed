@@ -16,8 +16,8 @@ namespace TopSpeed.Server.Network
         public uint Id { get; }
         public byte PlayerNumber { get; set; }
         public CarType Car { get; set; }
-        public int PositionX { get; set; }
-        public int PositionY { get; set; }
+        public float PositionX { get; set; }
+        public float PositionY { get; set; }
         public ushort Speed { get; set; }
         public int Frequency { get; set; }
         public PlayerState State { get; set; }
@@ -401,7 +401,7 @@ namespace TopSpeed.Server.Network
                         continue;
                     var player = racers[i];
                     var other = racers[j];
-                    if (Math.Abs(player.PositionX - other.PositionX) < 1000 && Math.Abs(player.PositionY - other.PositionY) < 500)
+                    if (Math.Abs(player.PositionX - other.PositionX) < 10.0f && Math.Abs(player.PositionY - other.PositionY) < 5.0f)
                     {
                         var bump = new PacketPlayerBumped
                         {
