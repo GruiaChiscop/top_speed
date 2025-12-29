@@ -581,7 +581,7 @@ namespace TopSpeed.Vehicles
                 if (_thrust < -50 && _speed > 0)
                 {
                     BrakeSound();
-                    _effectSpring?.Gain((int)(5000 * _speed / _topSpeed));
+                    _effectSpring?.Gain((int)(50.0f * _speed / _topSpeed));
                     _currentSteering = _currentSteering * 2 / 3;
                 }
                 else if (_currentSteering != 0 && _speed > _topSpeed / 2)

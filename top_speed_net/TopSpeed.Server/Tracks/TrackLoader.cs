@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using TopSpeed.Data;
@@ -10,7 +10,7 @@ namespace TopSpeed.Server.Tracks
         private const int Types = 9;
         private const int Surfaces = 5;
         private const int Noises = 12;
-        private const int MinPartLength = 5000;
+        private const float MinPartLength = 50.0f;
 
         public static TrackData LoadTrack(string nameOrPath, byte defaultLaps)
         {
@@ -49,6 +49,8 @@ namespace TopSpeed.Server.Tracks
 
             var length = 0;
             var index = 0;
+            var minPartLengthLegacy = 5000;
+
             while (index < values.Count)
             {
                 var first = values[index++];
@@ -57,7 +59,7 @@ namespace TopSpeed.Server.Tracks
                 if (index < values.Count) index++;
                 if (index >= values.Count) break;
                 var third = values[index++];
-                if (third < MinPartLength && index < values.Count)
+                if (third < minPartLengthLegacy && index < values.Count)
                     index++;
                 length++;
             }
@@ -76,11 +78,11 @@ namespace TopSpeed.Server.Tracks
                 var temp = index < values.Count ? values[index++] : 0;
 
                 var noiseValue = 0;
-                var lengthValue = 0;
+                var lengthValueLegacy = 0;
                 if (temp < Noises)
                 {
                     noiseValue = temp;
-                    lengthValue = index < values.Count ? values[index++] : MinPartLength;
+                    lengthValueLegacy = index < values.Count ? ints[index++] : minPartLengthLegacy;
                 }
                 else
                 {
@@ -93,7 +95,7 @@ namespace TopSpeed.Server.Tracks
                     {
                         noiseValue = 0;
                     }
-                    lengthValue = temp;
+                    lengthValueLegacy = temp;
                 }
 
                 if (typeValue >= Types)
@@ -102,10 +104,10 @@ namespace TopSpeed.Server.Tracks
                     surfaceValue = 0;
                 if (noiseValue >= Noises)
                     noiseValue = 0;
-                if (lengthValue < MinPartLength)
-                    lengthValue = MinPartLength;
+                if (lengthValueLegacy < minPartLengthLegacy)
+                    lengthValueLegacy = minPartLengthLegacy;
 
-                definitions[i] = new TrackDefinition((TrackType)typeValue, (TrackSurface)surfaceValue, (TrackNoise)noiseValue, lengthValue);
+                definitions[i] = new TrackDefinition((TrackType)typeValue, (TrackSurface)surfaceValue, (TrackNoise)noiseValue, lengthValueLegacy / 100.0f);
             }
 
             if (index < values.Count)

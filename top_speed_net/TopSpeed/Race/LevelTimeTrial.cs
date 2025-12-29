@@ -162,7 +162,7 @@ namespace TopSpeed.Race
             if (_input.GetCurrentLapPerc() && _started && _acceptCurrentRaceInfo && _lap <= _nrOfLaps)
             {
                 _acceptCurrentRaceInfo = false;
-                var perc = ((_car.PositionY - (_track.Length * (_lap - 1))) / (float)_track.Length) * 100.0f;
+                var perc = ((_car.PositionY - (_track.Length * (_lap - 1))) / _track.Length) * 100.0f;
                 var units = Math.Max(0, Math.Min(100, (int)perc));
                 SpeakText(FormatPercentageText("Lap percentage", units));
                 PushEvent(RaceEventType.AcceptCurrentRaceInfo, 0.5f);
