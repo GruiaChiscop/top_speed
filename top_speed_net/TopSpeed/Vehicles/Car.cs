@@ -175,13 +175,13 @@ namespace TopSpeed.Vehicles
             _steeringFactor = definition.SteeringFactor;
             _frequency = _idleFreq;
 
-            _soundEngine = CreateRequiredSound(definition.EngineSound, looped: true);
-            _soundStart = CreateRequiredSound(definition.StartSound);
-            _soundHorn = CreateRequiredSound(definition.HornSound, looped: true);
-            _soundThrottle = TryCreateSound(definition.ThrottleSound, looped: true);
-            _soundCrash = CreateRequiredSound(definition.CrashSound);
-            _soundBrake = CreateRequiredSound(definition.BrakeSound, looped: true);
-            _soundBackfire = TryCreateSound(definition.BackfireSound);
+            _soundEngine = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Engine), looped: true);
+            _soundStart = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Start));
+            _soundHorn = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Horn), looped: true);
+            _soundThrottle = TryCreateSound(definition.GetSoundPath(VehicleAction.Throttle), looped: true);
+            _soundCrash = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Crash));
+            _soundBrake = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Brake), looped: true);
+            _soundBackfire = TryCreateSound(definition.GetSoundPath(VehicleAction.Backfire));
 
             if (definition.HasWipers == 1)
                 _hasWipers = 1;

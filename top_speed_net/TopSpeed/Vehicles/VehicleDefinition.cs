@@ -17,12 +17,10 @@ namespace TopSpeed.Vehicles
         public float Steering { get; set; }
         public int SteeringFactor { get; set; }
         public int HasWipers { get; set; }
-        public string? EngineSound { get; set; }
-        public string? StartSound { get; set; }
-        public string? HornSound { get; set; }
-        public string? ThrottleSound { get; set; }
-        public string? CrashSound { get; set; }
-        public string? BrakeSound { get; set; }
-        public string? BackfireSound { get; set; }
+
+        private readonly string?[] _sounds = new string?[8];
+
+        public string? GetSoundPath(VehicleAction action) => _sounds[(int)action];
+        public void SetSoundPath(VehicleAction action, string? path) => _sounds[(int)action] = path;
     }
 }

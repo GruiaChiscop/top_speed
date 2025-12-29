@@ -82,7 +82,7 @@ namespace TopSpeed.Server.Tracks
                 if (temp < Noises)
                 {
                     noiseValue = temp;
-                    lengthValueLegacy = index < values.Count ? ints[index++] : minPartLengthLegacy;
+                    lengthValueLegacy = index < values.Count ? values[index++] : minPartLengthLegacy;
                 }
                 else
                 {

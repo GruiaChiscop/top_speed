@@ -6,6 +6,7 @@ using TopSpeed.Common;
 using TopSpeed.Core;
 using TopSpeed.Data;
 using TopSpeed.Input;
+using TopSpeed.Protocol;
 using TopSpeed.Tracks;
 using TS.Audio;
 
@@ -136,14 +137,14 @@ namespace TopSpeed.Vehicles
             _steeringFactor = definition.SteeringFactor;
             _frequency = _idleFreq;
 
-            _soundEngine = CreateRequiredSound(definition.EngineSound, "engine", looped: true);
-            _soundStart = CreateRequiredSound(definition.StartSound, "start");
-            _soundHorn = CreateRequiredSound(definition.HornSound, "horn", looped: true);
-            _soundCrash = CreateRequiredSound(definition.CrashSound, "crash");
-            _soundBrake = CreateRequiredSound(definition.BrakeSound, "brake", looped: true);
+            _soundEngine = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Engine), "engine", looped: true);
+            _soundStart = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Start), "start");
+            _soundHorn = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Horn), "horn", looped: true);
+            _soundCrash = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Crash), "crash");
+            _soundBrake = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Brake), "brake", looped: true);
             _soundMiniCrash = CreateRequiredSound(Path.Combine(_legacyRoot, "crashshort.wav"), "mini crash");
             _soundBump = CreateRequiredSound(Path.Combine(_legacyRoot, "bump.wav"), "bump");
-            _soundBackfire = TryCreateSound(definition.BackfireSound);
+            _soundBackfire = TryCreateSound(definition.GetSoundPath(VehicleAction.Backfire));
         }
 
         public ComputerState State => _state;

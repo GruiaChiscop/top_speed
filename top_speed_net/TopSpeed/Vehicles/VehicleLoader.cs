@@ -11,6 +11,7 @@ namespace TopSpeed.Vehicles
     internal static class VehicleLoader
     {
         private const string BuiltinPrefix = "builtin";
+        private const string DefaultVehicleFolder = "default";
 
         public static VehicleDefinition LoadOfficial(int vehicleIndex, TrackWeather weather)
         {
@@ -19,8 +20,9 @@ namespace TopSpeed.Vehicles
 
             var parameters = VehicleCatalog.Vehicles[vehicleIndex];
             var vehiclesRoot = Path.Combine(AssetPaths.SoundsRoot, "Vehicles");
+            var currentVehicleFolder = $"Vehicle{vehicleIndex + 1}";
 
-            return new VehicleDefinition
+            var def = new VehicleDefinition
             {
                 CarType = (CarType)vehicleIndex,
                 UserDefined = false,
@@ -33,15 +35,23 @@ namespace TopSpeed.Vehicles
                 Gears = parameters.Gears,
                 Steering = parameters.Steering,
                 SteeringFactor = parameters.SteeringFactor,
-                HasWipers = parameters.HasWipers == 1 && weather == TrackWeather.Rain ? 1 : 0,
-                EngineSound = CombineSound(vehiclesRoot, parameters.EngineSound),
-                StartSound = CombineSound(vehiclesRoot, parameters.StartSound),
-                HornSound = CombineSound(vehiclesRoot, parameters.HornSound),
-                ThrottleSound = CombineSound(vehiclesRoot, parameters.ThrottleSound),
-                CrashSound = CombineSound(vehiclesRoot, parameters.CrashSound),
-                BrakeSound = CombineSound(vehiclesRoot, parameters.BrakeSound),
-                BackfireSound = CombineSound(vehiclesRoot, parameters.BackfireSound)
+                HasWipers = parameters.HasWipers == 1 && weather == TrackWeather.Rain ? 1 : 0
             };
+
+            foreach (VehicleAction action in Enum.GetValues(typeof(VehicleAction)))
+            {
+                var overridePath = parameters.GetSoundPath(action);
+                if (!string.IsNullOrWhiteSpace(overridePath))
+                {
+                    def.SetSoundPath(action, Path.Combine(vehiclesRoot, overridePath!));
+                }
+                else
+                {
+                    def.SetSoundPath(action, ResolveOfficialFallback(vehiclesRoot, currentVehicleFolder, action));
+                }
+            }
+
+            return def;
         }
 
         public static VehicleDefinition LoadCustom(string vehicleFile, TrackWeather weather)
@@ -63,19 +73,11 @@ namespace TopSpeed.Vehicles
             var steering = ReadInt(settings, "steering", 100) / 100.0f;
             var steeringFactor = ReadInt(settings, "steeringfactor", 40);
 
-            var engineSound = ReadString(settings, "enginesound", "builtin1");
-            var throttleSound = ReadString(settings, "throttlesound", string.Empty);
-            var startSound = ReadString(settings, "startsound", "builtin1");
-            var hornSound = ReadString(settings, "hornsound", "builtin1");
-            var backfireSound = ReadString(settings, "backfiresound", string.Empty);
-            var crashSound = ReadString(settings, "crashsound", "builtin1");
-            var brakeSound = ReadString(settings, "brakesound", "builtin1");
-
             var hasWipers = 0;
             if (weather == TrackWeather.Rain)
                 hasWipers = ReadInt(settings, "haswipers", 1);
 
-            return new VehicleDefinition
+            var def = new VehicleDefinition
             {
                 CarType = CarType.Vehicle1,
                 UserDefined = true,
@@ -89,22 +91,49 @@ namespace TopSpeed.Vehicles
                 Gears = gears,
                 Steering = steering,
                 SteeringFactor = steeringFactor,
-                HasWipers = hasWipers,
-                EngineSound = ResolveSound(engineSound, builtinRoot, customVehiclesRoot, p => p.EngineSound),
-                StartSound = ResolveSound(startSound, builtinRoot, customVehiclesRoot, p => p.StartSound),
-                HornSound = ResolveSound(hornSound, builtinRoot, customVehiclesRoot, p => p.HornSound),
-                ThrottleSound = ResolveSound(throttleSound, builtinRoot, customVehiclesRoot, p => p.ThrottleSound),
-                CrashSound = ResolveSound(crashSound, builtinRoot, customVehiclesRoot, p => p.CrashSound),
-                BrakeSound = ResolveSound(brakeSound, builtinRoot, customVehiclesRoot, p => p.BrakeSound),
-                BackfireSound = ResolveSound(backfireSound, builtinRoot, customVehiclesRoot, p => p.BackfireSound)
+                HasWipers = hasWipers
             };
+
+            def.SetSoundPath(VehicleAction.Engine, ResolveSound(ReadString(settings, "enginesound", "engine.wav"), builtinRoot, customVehiclesRoot, p => p.GetSoundPath(VehicleAction.Engine)));
+            def.SetSoundPath(VehicleAction.Start, ResolveSound(ReadString(settings, "startsound", "start.wav"), builtinRoot, customVehiclesRoot, p => p.GetSoundPath(VehicleAction.Start)));
+            def.SetSoundPath(VehicleAction.Horn, ResolveSound(ReadString(settings, "hornsound", "horn.wav"), builtinRoot, customVehiclesRoot, p => p.GetSoundPath(VehicleAction.Horn)));
+            def.SetSoundPath(VehicleAction.Throttle, ResolveSound(ReadString(settings, "throttlesound", "throttle.wav"), builtinRoot, customVehiclesRoot, p => p.GetSoundPath(VehicleAction.Throttle)));
+            def.SetSoundPath(VehicleAction.Crash, ResolveSound(ReadString(settings, "crashsound", "crash.wav"), builtinRoot, customVehiclesRoot, p => p.GetSoundPath(VehicleAction.Crash)));
+            def.SetSoundPath(VehicleAction.CrashMono, ResolveSound(ReadString(settings, "monocrashsound", "crash_mono.wav"), builtinRoot, customVehiclesRoot, p => p.GetSoundPath(VehicleAction.CrashMono)));
+            def.SetSoundPath(VehicleAction.Brake, ResolveSound(ReadString(settings, "brakesound", "brake.wav"), builtinRoot, customVehiclesRoot, p => p.GetSoundPath(VehicleAction.Brake)));
+            def.SetSoundPath(VehicleAction.Backfire, ResolveSound(ReadString(settings, "backfiresound", "backfire.wav"), builtinRoot, customVehiclesRoot, p => p.GetSoundPath(VehicleAction.Backfire)));
+
+            return def;
         }
 
-        private static string? CombineSound(string root, string? file)
+        private static string? ResolveOfficialFallback(string root, string vehicleFolder, VehicleAction action)
         {
-            if (string.IsNullOrWhiteSpace(file))
-                return null;
-            return Path.Combine(root, file);
+            var fileName = GetDefaultFileName(action);
+            var primaryPath = Path.Combine(root, vehicleFolder, fileName);
+            if (File.Exists(primaryPath))
+                return primaryPath;
+
+            var fallbackPath = Path.Combine(root, DefaultVehicleFolder, fileName);
+            if (File.Exists(fallbackPath))
+                return fallbackPath;
+
+            return null;
+        }
+
+        private static string GetDefaultFileName(VehicleAction action)
+        {
+            switch (action)
+            {
+                case VehicleAction.Engine: return "engine.wav";
+                case VehicleAction.Start: return "start.wav";
+                case VehicleAction.Horn: return "horn.wav";
+                case VehicleAction.Throttle: return "throttle.wav";
+                case VehicleAction.Crash: return "crash.wav";
+                case VehicleAction.CrashMono: return "crash_mono.wav";
+                case VehicleAction.Brake: return "brake.wav";
+                case VehicleAction.Backfire: return "backfire.wav";
+                default: throw new ArgumentOutOfRangeException(nameof(action));
+            }
         }
 
         private static string? ResolveSound(string? value, string builtinRoot, string customVehiclesRoot, Func<VehicleParameters, string?> selector)
@@ -121,10 +150,37 @@ namespace TopSpeed.Vehicles
                     return null;
                 var parameters = VehicleCatalog.Vehicles[index];
                 var file = selector(parameters);
-                return CombineSound(builtinRoot, file);
+                
+                // If it's a builtin reference, we should still handle official fallbacks if the catalog doesn't provide a path
+                if (string.IsNullOrWhiteSpace(file))
+                {
+                    return ResolveOfficialFallback(builtinRoot, $"Vehicle{index + 1}", GetActionFromSelector(selector));
+                }
+
+                return Path.Combine(builtinRoot, file!);
             }
 
-            return Path.Combine(customVehiclesRoot, value);
+            return Path.IsPathRooted(value) ? value : Path.Combine(customVehiclesRoot, value);
+        }
+
+        private static VehicleAction GetActionFromSelector(Func<VehicleParameters, string?> selector)
+        {
+            // Simple hack to detect the action from the selector if needed for builtin resolution
+            // In a production environment, we'd pass the action explicitly.
+            var testParams = new VehicleParameters("e", "s", "h", "t", "c", "cm", "b", "f", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            var result = selector(testParams);
+            switch (result)
+            {
+                case "e": return VehicleAction.Engine;
+                case "s": return VehicleAction.Start;
+                case "h": return VehicleAction.Horn;
+                case "t": return VehicleAction.Throttle;
+                case "c": return VehicleAction.Crash;
+                case "cm": return VehicleAction.CrashMono;
+                case "b": return VehicleAction.Brake;
+                case "f": return VehicleAction.Backfire;
+                default: return VehicleAction.Engine;
+            }
         }
 
         private static Dictionary<string, string> ReadVehicleFile(string filePath)

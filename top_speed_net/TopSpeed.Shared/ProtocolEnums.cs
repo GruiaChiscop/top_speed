@@ -26,6 +26,18 @@ namespace TopSpeed.Protocol
         Finished = 4
     }
 
+    public enum VehicleAction : byte
+    {
+        Engine = 0,
+        Start = 1,
+        Horn = 2,
+        Throttle = 3,
+        Crash = 4,
+        CrashMono = 5,
+        Brake = 6,
+        Backfire = 7
+    }
+
     public enum Command : byte
     {
         Disconnect = 0,
