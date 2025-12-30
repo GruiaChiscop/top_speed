@@ -25,14 +25,21 @@
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="ThirdParty\Tolk\x64\Tolk.dll">
+    <Content Include="ThirdParty\Tolk\x64\*.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>%(Filename)%(Extension)</Link>
     </Content>
-    <Content Include="ThirdParty\Tolk\x64\nvdaControllerClient64.dll">
+    <Content Include="..\MiniAudioExNET\runtimes\win-x64\native\miniaudioex.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>miniaudioex.dll</Link>
     </Content>
-    <Content Include="ThirdParty\Tolk\x64\SAAPI64.dll">
+    <Content Include="ThirdParty\phonon.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>phonon.dll</Link>
+    </Content>
+    <Content Include="Effects\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Effects\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Content>
     <Content Include="..\Sounds\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

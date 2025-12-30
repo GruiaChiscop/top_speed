@@ -1,0 +1,74 @@
+name: Dev Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    defaults:
+      run:
+        working-directory: top_speed_net
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x # Installs .NET 8 SDK (includes msbuild capable of building net472)
+
+    - name: Restore dependencies
+      run: dotnet restore TopSpeed.sln
+
+    - name: Build
+      run: dotnet build TopSpeed.sln --configuration Release --no-restore
+
+    - name: Create Zip Archive
+      shell: powershell
+      run: |
+        $source = "TopSpeed\bin\Release\net472\*"
+        $destination = "TopSpeed-DevBuild.zip"
+        Compress-Archive -Path $source -DestinationPath $destination -CompressionLevel Optimal
+
+    - name: Generate Commit Log
+      id: changelog
+      shell: pwsh
+      run: |
+        $log = git log -n 10 --pretty=format:"* %h - %s (%an)"
+        "COMMIT_LOG<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        $log | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+    - name: Update Tag
+      shell: bash
+      run: |
+        git config --global user.email "actions@github.com"
+        git config --global user.name "GitHub Actions"
+        git tag -fa dev-build -m "Latest Development Build"
+        git push -f origin dev-build
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: dev-build
+        name: Development Build
+        body: |
+          ### Recent Changes
+          ${{ steps.changelog.outputs.COMMIT_LOG }}
+          
+          ---
+          *Build from commit ${{ github.sha }}*
+        draft: false
+        prerelease: true
+        files: top_speed_net/TopSpeed-DevBuild.zip
