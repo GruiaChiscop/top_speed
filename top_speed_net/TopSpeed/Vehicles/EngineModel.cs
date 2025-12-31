@@ -43,7 +43,7 @@ namespace TopSpeed.Vehicles
             _engineBraking = Math.Max(0.05f, Math.Min(1.0f, engineBraking));    
             _topSpeedKmh = Math.Max(50f, topSpeedKmh);
             _gearCount = Math.Max(1, gearCount);
-            _rpm = _idleRpm;
+            _rpm = 0f;  // Engine starts OFF
             _distanceMeters = 0f;
             _speedMps = 0f;
 
@@ -186,13 +186,34 @@ namespace TopSpeed.Vehicles
         }
 
         /// <summary>
-        /// Resets the engine to idle state.
+        /// Resets the engine to stopped state (RPM = 0, clears distance).
+        /// Use this when starting fresh (e.g., beginning a new race).
         /// </summary>
         public void Reset()
         {
-            _rpm = _idleRpm;
+            _rpm = 0f;
             _speedMps = 0f;
             _distanceMeters = 0f;
+        }
+
+        /// <summary>
+        /// Resets the engine for crash recovery (RPM = 0, preserves distance).
+        /// Use this when the vehicle crashes mid-race. Engine is OFF, player must restart.
+        /// </summary>
+        public void ResetForCrash()
+        {
+            _rpm = 0f;  // Engine is off after crash
+            _speedMps = 0f;
+            // Distance is preserved - don't reset it
+        }
+
+        /// <summary>
+        /// Starts the engine, setting RPM to idle.
+        /// Call this when the engine is turned on.
+        /// </summary>
+        public void StartEngine()
+        {
+            _rpm = _idleRpm;
         }
 
         /// <summary>

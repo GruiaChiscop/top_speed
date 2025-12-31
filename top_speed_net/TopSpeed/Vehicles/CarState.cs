@@ -7,6 +7,7 @@ namespace TopSpeed.Vehicles
         Running,
         Slipping,
         Crashing,
+        Crashed,  // Crash animation complete, awaiting manual restart
         Stopping
     }
 }

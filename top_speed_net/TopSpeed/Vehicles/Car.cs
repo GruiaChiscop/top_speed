@@ -306,7 +306,7 @@ namespace TopSpeed.Vehicles
         public void Crash()
         {
             _speed = 0;
-            _engine.Reset();
+            _engine.ResetForCrash();
             _throttleVolume = 0.0f;
             _soundCrash.Restart(loop: false);
             _soundEngine.Stop();
@@ -362,7 +362,8 @@ namespace TopSpeed.Vehicles
             _gear = 1;
             _switchingGear = 0;
             _state = CarState.Crashing;
-            PushEvent(CarEventType.CarRestart, _soundCrash.GetLengthSeconds() + 1.25f);
+            // Transition to Crashed state after crash animation completes (player must manually restart)
+            PushEvent(CarEventType.CrashComplete, _soundCrash.GetLengthSeconds() + 1.25f);
             _listener?.OnCrash();
             _effectEngine?.Stop();
             _effectCrash?.Play();
@@ -754,11 +755,17 @@ namespace TopSpeed.Vehicles
                             _effectStart?.Stop();
                             _soundEngine.Play(loop: true);
                             _soundWipers?.Play(loop: true);
+                            _engine.StartEngine();  // Set RPM to idle
                             _state = CarState.Running;
                             break;
                         case CarEventType.CarRestart:
                             _effectCrash?.Stop();
                             Start();
+                            break;
+                        case CarEventType.CrashComplete:
+                            // Crash animation done - set to Crashed state, awaiting manual restart
+                            _effectCrash?.Stop();
+                            _state = CarState.Crashed;
                             break;
                         case CarEventType.InGear:
                             _switchingGear = 0;
@@ -923,7 +930,9 @@ namespace TopSpeed.Vehicles
                     }
                     if (_relPos < 0 || _relPos > 1)
                     {
-                        if (_speed < _topSpeed / 2)
+                        // Crash if speed is above 1.5 gear ranges (e.g. 60 km/h for 5-gear 200 km/h car)
+                        var crashThreshold = 1.5f * _topSpeed / _gears;
+                        if (_speed < crashThreshold)
                             MiniCrash((road.Right + road.Left) / 2);
                         else
                             Crash();
@@ -1243,6 +1252,7 @@ namespace TopSpeed.Vehicles
         {
             CarStart,
             CarRestart,
+            CrashComplete,
             InGear
         }
     }

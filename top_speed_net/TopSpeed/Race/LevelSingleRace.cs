@@ -227,10 +227,15 @@ namespace TopSpeed.Race
 
             CheckForBumps();
 
-            if (_input.GetStartEngine() && _started && !_engineStarted && !_finished)
+            // Allow starting engine initially or restarting after crash
+            if (_input.GetStartEngine() && _started && !_finished)
             {
-                _engineStarted = true;
-                _car.Start();
+                var canStart = !_engineStarted || _car.State == CarState.Crashed;
+                if (canStart)
+                {
+                    _engineStarted = true;
+                    _car.Start();
+                }
             }
 
             if (_input.GetCurrentGear() && _started && _acceptCurrentRaceInfo && _lap <= _nrOfLaps)
