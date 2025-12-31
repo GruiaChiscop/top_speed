@@ -303,6 +303,35 @@ namespace TopSpeed.Vehicles
             _effectEngine?.Play();
         }
 
+        /// <summary>
+        /// Restarts the car after a crash, preserving distance traveled.
+        /// </summary>
+        public void RestartAfterCrash()
+        {
+            var delay = Math.Max(0f, _soundStart.GetLengthSeconds() - 0.1f);
+            PushEvent(CarEventType.CarStart, delay);
+            _soundStart.Restart(loop: false);
+            _speed = 0;
+            // Do NOT call _engine.Reset() - preserve distance
+            _prevFrequency = _idleFreq;
+            _frequency = _idleFreq;
+            _prevBrakeFrequency = 0;
+            _brakeFrequency = 0;
+            _prevSurfaceFrequency = 0;
+            _surfaceFrequency = 0;
+            _switchingGear = 0;
+            _throttleVolume = 0.0f;
+            _soundAsphalt.SetFrequency(_surfaceFrequency);
+            _soundGravel.SetFrequency(_surfaceFrequency);
+            _soundWater.SetFrequency(_surfaceFrequency);
+            _soundSand.SetFrequency(_surfaceFrequency);
+            _soundSnow.SetFrequency(_surfaceFrequency);
+            _state = CarState.Starting;
+            _listener?.OnStart();
+            _effectStart?.Play();
+            _effectEngine?.Play();
+        }
+
         public void Crash()
         {
             _speed = 0;
@@ -1058,7 +1087,54 @@ namespace TopSpeed.Vehicles
 
         private void UpdateEngineFreqManual()
         {
-            UpdateEngineFreqForGear(_gear);
+            var gearRange = _topSpeed / _gears;
+
+            if (_gear == 1)
+            {
+                // Gear 1: frequency scales with speed relative to gear range
+                if (_speed < (4.0f / 3.0f) * gearRange)
+                {
+                    _frequency = _idleFreq + (int)((_speed * 3.0f / (2.0f * gearRange)) * (_topFreq - _idleFreq));
+                }
+                else
+                {
+                    // Cap at 2x the frequency range above idle when speed exceeds gear capability
+                    _frequency = _idleFreq + 2 * (_topFreq - _idleFreq);
+                }
+            }
+            else
+            {
+                // Higher gears: frequency = (speed / shiftPoint) * topFreq
+                // where shiftPoint = (2/3 + (gear-1)) * gearRange
+                var shiftPoint = ((2.0f / 3.0f) + (_gear - 1)) * gearRange;
+                _frequency = (int)((_speed / shiftPoint) * _topFreq);
+
+                // Clamp frequency to valid range
+                if (_frequency > 2 * _topFreq)
+                    _frequency = 2 * _topFreq;
+                if (_frequency < _idleFreq / 2)
+                    _frequency = _idleFreq / 2;
+            }
+
+            // Smooth gear transition
+            if (_switchingGear != 0)
+                _frequency = (2 * _prevFrequency + _frequency) / 3;
+
+            // Apply frequency change to sound
+            if (_frequency != _prevFrequency)
+            {
+                _soundEngine.SetFrequency(_frequency);
+                if (_soundThrottle != null)
+                {
+                    if ((int)_throttleVolume != (int)_prevThrottleVolume)
+                    {
+                        _soundThrottle.SetVolumePercent((int)_throttleVolume);
+                        _prevThrottleVolume = _throttleVolume;
+                    }
+                    _soundThrottle.SetFrequency(_frequency);
+                }
+                _prevFrequency = _frequency;
+            }
         }
 
         private void UpdateEngineFreqForGear(int gear)

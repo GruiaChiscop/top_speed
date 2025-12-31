@@ -244,7 +244,10 @@ namespace TopSpeed.Race
                 if (canStart)
                 {
                     _engineStarted = true;
-                    _car.Start();
+                    if (_car.State == CarState.Crashed)
+                        _car.RestartAfterCrash();
+                    else
+                        _car.Start();
                 }
             }
 
