@@ -10,7 +10,7 @@ namespace TopSpeed.Tracks
 {
     internal sealed class Track : IDisposable
     {
-        private const float LaneWidthMeters = 150.0f;
+        private const float LaneWidthMeters = 50.0f;
         private const float CallLengthMeters = 30.0f;
         private const int Types = 9;
         private const int Surfaces = 5;

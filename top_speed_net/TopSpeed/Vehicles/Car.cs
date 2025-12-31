@@ -1044,14 +1044,31 @@ namespace TopSpeed.Vehicles
             if (_gear < 1)
                 _gear = 1;
 
-            if (_gear == 1)
+            UpdateEngineFreqForGear(_gear);
+        }
+
+        private void UpdateEngineFreqManual()
+        {
+            UpdateEngineFreqForGear(_gear);
+        }
+
+        private void UpdateEngineFreqForGear(int gear)
+        {
+            var gearRange = _topSpeed / _gears;
+            var clampedGear = gear;
+            if (clampedGear > _gears)
+                clampedGear = _gears;
+            if (clampedGear < 1)
+                clampedGear = 1;
+
+            if (clampedGear == 1)
             {
                 var gearSpeed = Math.Min(1.0f, _speed / gearRange);
                 _frequency = (int)(gearSpeed * (_topFreq - _idleFreq)) + _idleFreq;
             }
             else
             {
-                var gearStart = (_gear - 1) * gearRange;
+                var gearStart = (clampedGear - 1) * gearRange;
                 var gearSpeed = (_speed - gearStart) / (float)gearRange;
                 if (gearSpeed < 0.07f)
                 {
@@ -1074,45 +1091,6 @@ namespace TopSpeed.Vehicles
                 }
             }
 
-            if (_frequency != _prevFrequency)
-            {
-                _soundEngine.SetFrequency(_frequency);
-                if (_soundThrottle != null)
-                {
-                    if ((int)_throttleVolume != (int)_prevThrottleVolume)
-                    {
-                        _soundThrottle.SetVolumePercent((int)_throttleVolume);
-                        _prevThrottleVolume = _throttleVolume;
-                    }
-                    _soundThrottle.SetFrequency(_frequency);
-                }
-                _prevFrequency = _frequency;
-            }
-        }
-
-        private void UpdateEngineFreqManual()
-        {
-            var gearRange = _topSpeed / _gears;
-            if (_gear == 1)
-            {
-                if (_speed < (int)((4.0f / 3.0f) * gearRange))
-                {
-                    _frequency = _idleFreq + (int)((_speed * 3.0f / (2 * gearRange)) * (_topFreq - _idleFreq));
-                }
-                else
-                {
-                    _frequency = _idleFreq + 2 * (_topFreq - _idleFreq);
-                }
-            }
-            else
-            {
-                var shiftPoint = ((2.0f / 3.0f) + (_gear - 1)) * gearRange;
-                _frequency = (int)((_speed / shiftPoint) * _topFreq);
-                if (_frequency > 2 * _topFreq)
-                    _frequency = 2 * _topFreq;
-                if (_frequency < _idleFreq / 2)
-                    _frequency = _idleFreq / 2;
-            }
             if (_switchingGear != 0)
                 _frequency = (2 * _prevFrequency + _frequency) / 3;
             if (_frequency != _prevFrequency)
