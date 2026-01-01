@@ -8,7 +8,10 @@ namespace TopSpeed.Vehicles
         public string Name { get; set; } = "Vehicle";
         public bool UserDefined { get; set; }
         public string? CustomFile { get; set; }
-        public float Acceleration { get; set; }
+        /// <summary>
+        /// Base traction scaling used for surface modifiers (higher = more grip).
+        /// </summary>
+        public float SurfaceTractionFactor { get; set; }
         public float Deceleration { get; set; }
         public float TopSpeed { get; set; }
         public int IdleFreq { get; set; }

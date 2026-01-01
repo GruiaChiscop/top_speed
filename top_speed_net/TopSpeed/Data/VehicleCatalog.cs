@@ -12,7 +12,7 @@ namespace TopSpeed.Data
 
         public string Name { get; }
         public int HasWipers { get; }
-        public float Acceleration { get; }
+        public float SurfaceTractionFactor { get; }
         public float Deceleration { get; }
         public float TopSpeed { get; }
         public int IdleFreq { get; }
@@ -57,7 +57,7 @@ namespace TopSpeed.Data
             string? brakeSound,
             string? backfireSound,
             int hasWipers,
-            float acceleration,
+            float surfaceTractionFactor,
             float deceleration,
             float topSpeed,
             int idleFreq,
@@ -100,7 +100,7 @@ namespace TopSpeed.Data
             _sounds[(int)VehicleAction.Backfire] = backfireSound;
 
             HasWipers = hasWipers;
-            Acceleration = acceleration;
+            SurfaceTractionFactor = surfaceTractionFactor;
             Deceleration = deceleration;
             TopSpeed = topSpeed;
             IdleFreq = idleFreq;
@@ -164,7 +164,7 @@ namespace TopSpeed.Data
         {
             // Vehicle 1: Racing car - fast but still keyboard-friendly (takes ~15 seconds to top speed)
             new VehicleParameters("Nissan GT-R Nismo", null, null, null, null, null, null, null, null,
-                hasWipers: 1, acceleration: 0.06f, deceleration: 0.40f, topSpeed: 315.0f,
+                hasWipers: 1, surfaceTractionFactor: 0.06f, deceleration: 0.40f, topSpeed: 315.0f,
                 idleFreq: 22050, topFreq: 55000, shiftFreq: 26000, gears: 6, steering: 1.60f, steeringFactor: 60,
                 idleRpm: 900f, maxRpm: 8000f, revLimiter: 7600f, autoShiftRpm: 7600f * 0.92f, engineBraking: 0.25f,
                 massKg: 1774f, drivetrainEfficiency: 0.80f, engineBrakingTorqueNm: 652f, tireGripCoefficient: 1.0f,
@@ -175,7 +175,7 @@ namespace TopSpeed.Data
 
             // Vehicle 2: Racing car - very responsive, high-revving
             new VehicleParameters("Porsche 911 GT3 RS", null, null, null, null, null, null, null, null,
-                hasWipers: 1, acceleration: 0.07f, deceleration: 0.45f, topSpeed: 312.0f,
+                hasWipers: 1, surfaceTractionFactor: 0.07f, deceleration: 0.45f, topSpeed: 312.0f,
                 idleFreq: 22050, topFreq: 60000, shiftFreq: 35000, gears: 7, steering: 1.50f, steeringFactor: 55,
                 idleRpm: 950f, maxRpm: 9000f, revLimiter: 8500f, autoShiftRpm: 8500f * 0.92f, engineBraking: 0.22f,
                 massKg: 1450f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 465f, tireGripCoefficient: 1.05f,
@@ -186,7 +186,7 @@ namespace TopSpeed.Data
 
             // Vehicle 3: Small car - slow acceleration, economical
             new VehicleParameters("Fiat 500", null, null, null, null, null, null, null, null,
-                hasWipers: 1, acceleration: 0.035f, deceleration: 0.30f, topSpeed: 160.0f,
+                hasWipers: 1, surfaceTractionFactor: 0.035f, deceleration: 0.30f, topSpeed: 160.0f,
                 idleFreq: 6000, topFreq: 25000, shiftFreq: 19000, gears: 5, steering: 1.50f, steeringFactor: 72,
                 idleRpm: 750f, maxRpm: 6000f, revLimiter: 5500f, autoShiftRpm: 5500f * 0.92f, engineBraking: 0.40f,
                 massKg: 865f, drivetrainEfficiency: 0.88f, engineBrakingTorqueNm: 102f, tireGripCoefficient: 0.88f,
@@ -197,7 +197,7 @@ namespace TopSpeed.Data
 
             // Vehicle 4: Small sporty car - better than Fiat but not racing
             new VehicleParameters("Mini Cooper S", null, null, null, null, null, null, null, null,
-                hasWipers: 1, acceleration: 0.045f, deceleration: 0.35f, topSpeed: 235.0f,
+                hasWipers: 1, surfaceTractionFactor: 0.045f, deceleration: 0.35f, topSpeed: 235.0f,
                 idleFreq: 6000, topFreq: 27000, shiftFreq: 20000, gears: 6, steering: 1.40f, steeringFactor: 56,
                 idleRpm: 800f, maxRpm: 6500f, revLimiter: 6000f, autoShiftRpm: 6000f * 0.92f, engineBraking: 0.32f,
                 massKg: 1265f, drivetrainEfficiency: 0.88f, engineBrakingTorqueNm: 280f, tireGripCoefficient: 0.95f,
@@ -208,7 +208,7 @@ namespace TopSpeed.Data
 
             // Vehicle 5: Classic muscle car - torquey but heavy
             new VehicleParameters("Ford Mustang 1969", null, null, null, null, null, null, null, null,
-                hasWipers: 1, acceleration: 0.04f, deceleration: 0.35f, topSpeed: 200.0f,
+                hasWipers: 1, surfaceTractionFactor: 0.04f, deceleration: 0.35f, topSpeed: 200.0f,
                 idleFreq: 6000, topFreq: 33000, shiftFreq: 27500, gears: 4, steering: 2.30f, steeringFactor: 80,
                 idleRpm: 650f, maxRpm: 5500f, revLimiter: 5000f, autoShiftRpm: 5000f * 0.92f, engineBraking: 0.35f,
                 massKg: 1440f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 481f, tireGripCoefficient: 0.90f,
@@ -219,7 +219,7 @@ namespace TopSpeed.Data
 
             // Vehicle 6: Common sedan - comfortable, not sporty
             new VehicleParameters("Toyota Camry", null, null, null, null, null, null, null, null,
-                hasWipers: 1, acceleration: 0.035f, deceleration: 0.30f, topSpeed: 210.0f,
+                hasWipers: 1, surfaceTractionFactor: 0.035f, deceleration: 0.30f, topSpeed: 210.0f,
                 idleFreq: 7025, topFreq: 40000, shiftFreq: 32500, gears: 8, steering: 2.20f, steeringFactor: 95,
                 idleRpm: 700f, maxRpm: 6000f, revLimiter: 5500f, autoShiftRpm: 5500f * 0.92f, engineBraking: 0.38f,
                 massKg: 1470f, drivetrainEfficiency: 0.88f, engineBrakingTorqueNm: 250f, tireGripCoefficient: 0.90f,
@@ -230,7 +230,7 @@ namespace TopSpeed.Data
 
             // Vehicle 7: Supercar - fastest acceleration, high power
             new VehicleParameters("Lamborghini Aventador", null, null, null, null, null, null, null, null,
-                hasWipers: 1, acceleration: 0.08f, deceleration: 0.80f, topSpeed: 350.0f,
+                hasWipers: 1, surfaceTractionFactor: 0.08f, deceleration: 0.80f, topSpeed: 350.0f,
                 idleFreq: 6000, topFreq: 26000, shiftFreq: 21000, gears: 7, steering: 2.10f, steeringFactor: 65,
                 idleRpm: 1000f, maxRpm: 8500f, revLimiter: 8000f, autoShiftRpm: 8000f * 0.92f, engineBraking: 0.20f,
                 massKg: 1640f, drivetrainEfficiency: 0.80f, engineBrakingTorqueNm: 720f, tireGripCoefficient: 1.05f,
@@ -241,7 +241,7 @@ namespace TopSpeed.Data
 
             // Vehicle 8: Premium sedan - balanced performance
             new VehicleParameters("BMW 3 Series", null, null, null, null, null, null, null, null,
-                hasWipers: 1, acceleration: 0.045f, deceleration: 0.40f, topSpeed: 250.0f,
+                hasWipers: 1, surfaceTractionFactor: 0.045f, deceleration: 0.40f, topSpeed: 250.0f,
                 idleFreq: 10000, topFreq: 45000, shiftFreq: 34000, gears: 8, steering: 2.00f, steeringFactor: 70,
                 idleRpm: 750f, maxRpm: 6500f, revLimiter: 6000f, autoShiftRpm: 6000f * 0.92f, engineBraking: 0.30f,
                 massKg: 1524f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 346f, tireGripCoefficient: 0.93f,
@@ -252,7 +252,7 @@ namespace TopSpeed.Data
 
             // Vehicle 9: Bus/Van - very slow acceleration, heavy
             new VehicleParameters("Mercedes Sprinter", null, null, null, null, null, null, null, null,
-                hasWipers: 1, acceleration: 0.02f, deceleration: 0.20f, topSpeed: 160.0f,
+                hasWipers: 1, surfaceTractionFactor: 0.02f, deceleration: 0.20f, topSpeed: 160.0f,
                 idleFreq: 22050, topFreq: 30550, shiftFreq: 22550, gears: 7, steering: 1.50f, steeringFactor: 85,
                 idleRpm: 600f, maxRpm: 4500f, revLimiter: 4000f, autoShiftRpm: 4000f * 0.92f, engineBraking: 0.45f,
                 massKg: 1970f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 380f, tireGripCoefficient: 0.82f,
@@ -263,7 +263,7 @@ namespace TopSpeed.Data
 
             // Vehicle 10: Sport motorcycle - quick, light, high-revving
             new VehicleParameters("Kawasaki Ninja ZX-10R", null, null, null, null, null, null, null, null,
-                hasWipers: 0, acceleration: 0.09f, deceleration: 0.50f, topSpeed: 299.0f,
+                hasWipers: 0, surfaceTractionFactor: 0.09f, deceleration: 0.50f, topSpeed: 299.0f,
                 idleFreq: 22050, topFreq: 60000, shiftFreq: 35000, gears: 6, steering: 1.40f, steeringFactor: 50,
                 idleRpm: 1100f, maxRpm: 14000f, revLimiter: 13500f, autoShiftRpm: 13500f * 0.92f, engineBraking: 0.28f,
                 massKg: 207f, drivetrainEfficiency: 0.92f, engineBrakingTorqueNm: 114.9f, tireGripCoefficient: 1.10f,
@@ -274,7 +274,7 @@ namespace TopSpeed.Data
 
             // Vehicle 11: Superbike - fastest motorcycle
             new VehicleParameters("Ducati Panigale V4", null, null, null, null, null, null, null, null,
-                hasWipers: 0, acceleration: 0.10f, deceleration: 0.55f, topSpeed: 310.0f,
+                hasWipers: 0, surfaceTractionFactor: 0.10f, deceleration: 0.55f, topSpeed: 310.0f,
                 idleFreq: 22050, topFreq: 60000, shiftFreq: 35000, gears: 6, steering: 1.30f, steeringFactor: 50,
                 idleRpm: 1200f, maxRpm: 15000f, revLimiter: 14500f, autoShiftRpm: 14500f * 0.92f, engineBraking: 0.25f,
                 massKg: 191f, drivetrainEfficiency: 0.92f, engineBrakingTorqueNm: 121f, tireGripCoefficient: 1.12f,
@@ -285,7 +285,7 @@ namespace TopSpeed.Data
 
             // Vehicle 12: Sport motorcycle - balanced
             new VehicleParameters("Yamaha YZF-R1", null, null, null, null, null, null, null, null,
-                hasWipers: 0, acceleration: 0.085f, deceleration: 0.48f, topSpeed: 299.0f,
+                hasWipers: 0, surfaceTractionFactor: 0.085f, deceleration: 0.48f, topSpeed: 299.0f,
                 idleFreq: 22050, topFreq: 27550, shiftFreq: 23550, gears: 6, steering: 1.50f, steeringFactor: 66,
                 idleRpm: 1100f, maxRpm: 14500f, revLimiter: 14000f, autoShiftRpm: 14000f * 0.92f, engineBraking: 0.30f,
                 massKg: 201f, drivetrainEfficiency: 0.92f, engineBrakingTorqueNm: 113.3f, tireGripCoefficient: 1.10f,

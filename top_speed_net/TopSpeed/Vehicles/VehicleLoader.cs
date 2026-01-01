@@ -27,7 +27,7 @@ namespace TopSpeed.Vehicles
                 CarType = (CarType)vehicleIndex,
                 Name = parameters.Name,
                 UserDefined = false,
-                Acceleration = parameters.Acceleration,
+                SurfaceTractionFactor = parameters.SurfaceTractionFactor,
                 Deceleration = parameters.Deceleration,
                 TopSpeed = parameters.TopSpeed,
                 IdleFreq = parameters.IdleFreq,
@@ -86,7 +86,7 @@ namespace TopSpeed.Vehicles
             var builtinRoot = Path.Combine(AssetPaths.SoundsRoot, "Vehicles");
             var customVehiclesRoot = Path.Combine(AssetPaths.Root, "Vehicles");
 
-            var acceleration = ReadInt(settings, "acceleration", 10) / 100.0f;
+            var surfaceTractionFactor = ReadInt(settings, "surfacetractionfactor", 10) / 100.0f;
             var deceleration = ReadInt(settings, "deceleration", 40) / 100.0f;
             var topSpeed = ReadInt(settings, "topspeed", 15000) / 100.0f;
             var idleFreq = ReadInt(settings, "idlefreq", 11000);
@@ -141,7 +141,7 @@ namespace TopSpeed.Vehicles
                 Name = ReadString(settings, "name", Path.GetFileNameWithoutExtension(filePath)),
                 UserDefined = true,
                 CustomFile = Path.GetFileNameWithoutExtension(filePath),
-                Acceleration = acceleration,
+                SurfaceTractionFactor = surfaceTractionFactor,
                 Deceleration = deceleration,
                 TopSpeed = topSpeed,
                 IdleFreq = idleFreq,

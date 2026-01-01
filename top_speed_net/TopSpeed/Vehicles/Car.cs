@@ -47,7 +47,7 @@ namespace TopSpeed.Vehicles
         private string? _customFile;
         private bool _userDefined;
 
-        private float _acceleration;
+        private float _surfaceTractionFactor;
         private float _deceleration;
         private float _topSpeed;
         private float _massKg;
@@ -89,7 +89,7 @@ namespace TopSpeed.Vehicles
         private int _currentSteering;
         private int _currentThrottle;
         private int _currentBrake;
-        private float _currentAcceleration;
+        private float _currentSurfaceTractionFactor;
         private float _currentDeceleration;
         private float _speedDiff;
         private int _factor1;
@@ -161,7 +161,7 @@ namespace TopSpeed.Vehicles
             _currentSteering = 0;
             _currentThrottle = 0;
             _currentBrake = 0;
-            _currentAcceleration = 0;
+            _currentSurfaceTractionFactor = 0;
             _currentDeceleration = 0;
             _speedDiff = 0;
             _factor1 = 100;
@@ -182,7 +182,7 @@ namespace TopSpeed.Vehicles
             }
 
             VehicleName = definition.Name;
-            _acceleration = definition.Acceleration;
+            _surfaceTractionFactor = definition.SurfaceTractionFactor;
             _deceleration = definition.Deceleration;
             _topSpeed = definition.TopSpeed;
             _massKg = Math.Max(1f, definition.MassKg);
@@ -518,21 +518,21 @@ namespace TopSpeed.Vehicles
                 var gearUp = _input.GetGearUp();
                 var gearDown = _input.GetGearDown();
 
-                _currentAcceleration = _acceleration;
+                _currentSurfaceTractionFactor = _surfaceTractionFactor;
                 _currentDeceleration = _deceleration;
                 _speedDiff = 0;
                 switch (_surface)
                 {
                     case TrackSurface.Gravel:
-                        _currentAcceleration = (_currentAcceleration * 2) / 3;
+                        _currentSurfaceTractionFactor = (_currentSurfaceTractionFactor * 2) / 3;
                         _currentDeceleration = (_currentDeceleration * 2) / 3;
                         break;
                     case TrackSurface.Water:
-                        _currentAcceleration = (_currentAcceleration * 3) / 5;
+                        _currentSurfaceTractionFactor = (_currentSurfaceTractionFactor * 3) / 5;
                         _currentDeceleration = (_currentDeceleration * 3) / 5;
                         break;
                     case TrackSurface.Sand:
-                        _currentAcceleration = _currentAcceleration / 2;
+                        _currentSurfaceTractionFactor = _currentSurfaceTractionFactor / 2;
                         _currentDeceleration = (_currentDeceleration * 3) / 2;
                         break;
                     case TrackSurface.Snow:
@@ -641,13 +641,13 @@ namespace TopSpeed.Vehicles
                 {
                     var speedMpsCurrent = _speed / 3.6f;
                     var throttle = Math.Max(0f, Math.Min(100f, _currentThrottle)) / 100f;
-                    var surfaceAccelMod = _acceleration > 0f ? _currentAcceleration / _acceleration : 1.0f;
+                    var surfaceTractionMod = _surfaceTractionFactor > 0f ? _currentSurfaceTractionFactor / _surfaceTractionFactor : 1.0f;
                     var driveRpm = CalculateDriveRpm(speedMpsCurrent, throttle);
                     var engineTorque = CalculateEngineTorqueNm(driveRpm) * throttle * _powerFactor;
                     var gearRatio = _engine.GetGearRatio(_gear);
                     var wheelTorque = engineTorque * gearRatio * _finalDriveRatio * _drivetrainEfficiency;
                     var wheelForce = wheelTorque / _wheelRadiusM;
-                    var tractionLimit = _tireGripCoefficient * surfaceAccelMod * _massKg * 9.80665f;
+                    var tractionLimit = _tireGripCoefficient * surfaceTractionMod * _massKg * 9.80665f;
                     if (wheelForce > tractionLimit)
                         wheelForce = tractionLimit;
                     wheelForce *= (float)_factor2;

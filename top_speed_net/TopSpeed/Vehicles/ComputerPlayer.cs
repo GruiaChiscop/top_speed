@@ -37,9 +37,29 @@ namespace TopSpeed.Vehicles
         private int _switchingGear;
         private float _trackLength;
 
-        private float _acceleration;
+        private float _surfaceTractionFactor;
         private float _deceleration;
         private float _topSpeed;
+        private float _massKg;
+        private float _drivetrainEfficiency;
+        private float _engineBrakingTorqueNm;
+        private float _tireGripCoefficient;
+        private float _brakeStrength;
+        private float _wheelRadiusM;
+        private float _engineBraking;
+        private float _idleRpm;
+        private float _revLimiter;
+        private float _finalDriveRatio;
+        private float _powerFactor;
+        private float _peakTorqueNm;
+        private float _peakTorqueRpm;
+        private float _idleTorqueNm;
+        private float _redlineTorqueNm;
+        private float _dragCoefficient;
+        private float _frontalAreaM2;
+        private float _rollingResistanceCoefficient;
+        private float _launchRpm;
+        private float _lastDriveRpm;
         private int _idleFreq;
         private int _topFreq;
         private int _shiftFreq;
@@ -60,7 +80,7 @@ namespace TopSpeed.Vehicles
         private int _currentSteering;
         private int _currentThrottle;
         private int _currentBrake;
-        private float _currentAcceleration;
+        private float _currentSurfaceTractionFactor;
         private float _currentDeceleration;
         private float _speedDiff;
         private float _thrust;
@@ -118,7 +138,7 @@ namespace TopSpeed.Vehicles
             _currentSteering = 0;
             _currentThrottle = 0;
             _currentBrake = 0;
-            _currentAcceleration = 0;
+            _currentSurfaceTractionFactor = 0;
             _currentDeceleration = 0;
             _speedDiff = 0;
             _thrust = 0;
@@ -129,9 +149,28 @@ namespace TopSpeed.Vehicles
             _networkBackfireActive = false;
 
             var definition = VehicleLoader.LoadOfficial(vehicleIndex, track.Weather);
-            _acceleration = definition.Acceleration;
+            _surfaceTractionFactor = definition.SurfaceTractionFactor;
             _deceleration = definition.Deceleration;
             _topSpeed = definition.TopSpeed;
+            _massKg = Math.Max(1f, definition.MassKg);
+            _drivetrainEfficiency = Math.Max(0.1f, Math.Min(1.0f, definition.DrivetrainEfficiency));
+            _engineBrakingTorqueNm = Math.Max(0f, definition.EngineBrakingTorqueNm);
+            _tireGripCoefficient = Math.Max(0.1f, definition.TireGripCoefficient);
+            _brakeStrength = Math.Max(0.1f, definition.BrakeStrength);
+            _wheelRadiusM = Math.Max(0.01f, definition.TireCircumferenceM / (2.0f * (float)Math.PI));
+            _engineBraking = Math.Max(0.05f, Math.Min(1.0f, definition.EngineBraking));
+            _idleRpm = definition.IdleRpm;
+            _revLimiter = definition.RevLimiter;
+            _finalDriveRatio = definition.FinalDriveRatio;
+            _powerFactor = Math.Max(0.1f, definition.PowerFactor);
+            _peakTorqueNm = Math.Max(0f, definition.PeakTorqueNm);
+            _peakTorqueRpm = Math.Max(_idleRpm + 100f, definition.PeakTorqueRpm);
+            _idleTorqueNm = Math.Max(0f, definition.IdleTorqueNm);
+            _redlineTorqueNm = Math.Max(0f, definition.RedlineTorqueNm);
+            _dragCoefficient = Math.Max(0.01f, definition.DragCoefficient);
+            _frontalAreaM2 = Math.Max(0.1f, definition.FrontalAreaM2);
+            _rollingResistanceCoefficient = Math.Max(0.001f, definition.RollingResistanceCoefficient);
+            _launchRpm = Math.Max(_idleRpm, Math.Min(_revLimiter, definition.LaunchRpm));
             _idleFreq = definition.IdleFreq;
             _topFreq = definition.TopFreq;
             _shiftFreq = definition.ShiftFreq;
@@ -317,21 +356,22 @@ namespace TopSpeed.Vehicles
             {
                 AI();
 
-                _currentAcceleration = _acceleration;
+                _currentSurfaceTractionFactor = _surfaceTractionFactor;
                 _currentDeceleration = _deceleration;
+                _speedDiff = 0;
                 switch (_surface)
                 {
                     case TrackSurface.Gravel:
-                        _currentAcceleration = (_currentAcceleration * 2) / 3;
+                        _currentSurfaceTractionFactor = (_currentSurfaceTractionFactor * 2) / 3;
                         _currentDeceleration = (_currentDeceleration * 2) / 3;
                         break;
                     case TrackSurface.Water:
-                        _currentAcceleration = (_currentAcceleration * 3) / 5;
+                        _currentSurfaceTractionFactor = (_currentSurfaceTractionFactor * 3) / 5;
                         _currentDeceleration = (_currentDeceleration * 3) / 5;
                         break;
                     case TrackSurface.Sand:
-                        _currentAcceleration = (_currentAcceleration * 3) / 8;
-                        _currentDeceleration = (_currentDeceleration * 5) / 4;
+                        _currentSurfaceTractionFactor = _currentSurfaceTractionFactor / 2;
+                        _currentDeceleration = (_currentDeceleration * 3) / 2;
                         break;
                     case TrackSurface.Snow:
                         _currentDeceleration = _currentDeceleration / 2;
@@ -360,15 +400,45 @@ namespace TopSpeed.Vehicles
                     _thrust = _currentBrake;
                 }
 
-                if (_thrust > 10)
-                    _speedDiff = (elapsed * _thrust * _currentAcceleration);
-                else if (_thrust < -10)
-                    _speedDiff = (elapsed * _thrust * _currentDeceleration);
-                else
-                    _speedDiff = (elapsed * -10.0f);
+                var steeringFactor = 1.0;
+                if (_currentSteering != 0 && _speed > _topSpeed / 2)
+                    steeringFactor = 1.0 - (1.5 * _speed / _topSpeed) * Math.Abs(_currentSteering) / 100.0;
 
-                if (_speedDiff > 0)
-                    _speedDiff = (_speedDiff * (2.0f - ((_topSpeed + _speed) * 1.0f / (2.0f * _topSpeed))));
+                if (_thrust > 10)
+                {
+                    var speedMpsCurrent = _speed / 3.6f;
+                    var throttle = Math.Max(0f, Math.Min(100f, _currentThrottle)) / 100f;
+                    var surfaceTractionMod = _surfaceTractionFactor > 0f ? _currentSurfaceTractionFactor / _surfaceTractionFactor : 1.0f;
+                    var driveRpm = CalculateDriveRpm(speedMpsCurrent, throttle);
+                    var engineTorque = CalculateEngineTorqueNm(driveRpm) * throttle * _powerFactor;
+                    var gearRatio = _engine.GetGearRatio(_gear);
+                    var wheelTorque = engineTorque * gearRatio * _finalDriveRatio * _drivetrainEfficiency;
+                    var wheelForce = wheelTorque / _wheelRadiusM;
+                    var tractionLimit = _tireGripCoefficient * surfaceTractionMod * _massKg * 9.80665f;
+                    if (wheelForce > tractionLimit)
+                        wheelForce = tractionLimit;
+                    wheelForce *= (float)steeringFactor;
+
+                    var dragForce = 0.5f * 1.225f * _dragCoefficient * _frontalAreaM2 * speedMpsCurrent * speedMpsCurrent;
+                    var rollingForce = _rollingResistanceCoefficient * _massKg * 9.80665f;
+                    var netForce = wheelForce - dragForce - rollingForce;
+                    var accelMps2 = netForce / _massKg;
+                    var newSpeedMps = speedMpsCurrent + (accelMps2 * elapsed);
+                    if (newSpeedMps < 0f)
+                        newSpeedMps = 0f;
+                    _speedDiff = (newSpeedMps - speedMpsCurrent) * 3.6f;
+                    _lastDriveRpm = CalculateDriveRpm(newSpeedMps, throttle);
+                }
+                else
+                {
+                    var surfaceDecelMod = _deceleration > 0f ? _currentDeceleration / _deceleration : 1.0f;
+                    var brakeInput = Math.Max(0f, Math.Min(100f, -_currentBrake)) / 100f;
+                    var brakeDecel = CalculateBrakeDecel(brakeInput, surfaceDecelMod);
+                    var engineBrakeDecel = CalculateEngineBrakingDecel(surfaceDecelMod);
+                    var totalDecel = _thrust < -10 ? (brakeDecel + engineBrakeDecel) : engineBrakeDecel;
+                    _speedDiff = -totalDecel * elapsed;
+                    _lastDriveRpm = 0f;
+                }
 
                 _speed += _speedDiff;
                 if (_speed > _topSpeed)
@@ -383,6 +453,9 @@ namespace TopSpeed.Vehicles
                     _gear = desiredGear;
                     PushEvent(BotEventType.InGear, 0.2f);
                 }
+                _engine.SyncFromSpeed(_speed, _gear, elapsed, _currentThrottle);
+                if (_lastDriveRpm > 0f && _lastDriveRpm > _engine.Rpm)
+                    _engine.OverrideRpm(_lastDriveRpm);
                 if (_thrust < -50 && _speed > 50.0f)
                     _currentSteering = _currentSteering * 2 / 3;
 
@@ -810,6 +883,76 @@ namespace TopSpeed.Vehicles
 
             var minAcceleration = (int)(100 * (0.5f + Math.Cos(0.95f * Math.PI)));
             return minAcceleration < 5 ? 5 : minAcceleration;
+        }
+
+        private float CalculateDriveRpm(float speedMps, float throttle)
+        {
+            var wheelCircumference = _wheelRadiusM * 2.0f * (float)Math.PI;
+            var gearRatio = _engine.GetGearRatio(_gear);
+            var speedBasedRpm = wheelCircumference > 0f
+                ? (speedMps / wheelCircumference) * 60f * gearRatio * _finalDriveRatio
+                : 0f;
+            var launchTarget = _idleRpm + (throttle * (_launchRpm - _idleRpm));
+            var rpm = Math.Max(speedBasedRpm, launchTarget);
+            if (rpm < _idleRpm)
+                rpm = _idleRpm;
+            if (rpm > _revLimiter)
+                rpm = _revLimiter;
+            return rpm;
+        }
+
+        private float CalculateEngineTorqueNm(float rpm)
+        {
+            if (_peakTorqueNm <= 0f)
+                return 0f;
+            var clampedRpm = Math.Max(_idleRpm, Math.Min(_revLimiter, rpm));
+            if (clampedRpm <= _peakTorqueRpm)
+            {
+                var denom = _peakTorqueRpm - _idleRpm;
+                var t = denom > 0f ? (clampedRpm - _idleRpm) / denom : 0f;
+                return SmoothStep(_idleTorqueNm, _peakTorqueNm, t);
+            }
+            else
+            {
+                var denom = _revLimiter - _peakTorqueRpm;
+                var t = denom > 0f ? (clampedRpm - _peakTorqueRpm) / denom : 0f;
+                return SmoothStep(_peakTorqueNm, _redlineTorqueNm, t);
+            }
+        }
+
+        private static float SmoothStep(float a, float b, float t)
+        {
+            var clamped = Math.Max(0f, Math.Min(1f, t));
+            clamped = clamped * clamped * (3f - 2f * clamped);
+            return a + (b - a) * clamped;
+        }
+
+        private float CalculateBrakeDecel(float brakeInput, float surfaceDecelMod)
+        {
+            if (brakeInput <= 0f)
+                return 0f;
+            var grip = Math.Max(0.1f, _tireGripCoefficient * surfaceDecelMod);
+            var decelMps2 = brakeInput * _brakeStrength * grip * 9.80665f;
+            return decelMps2 * 3.6f;
+        }
+
+        private float CalculateEngineBrakingDecel(float surfaceDecelMod)
+        {
+            if (_engineBrakingTorqueNm <= 0f || _massKg <= 0f || _wheelRadiusM <= 0f)
+                return 0f;
+            var rpmRange = _revLimiter - _idleRpm;
+            if (rpmRange <= 0f)
+                return 0f;
+            var rpmFactor = (_engine.Rpm - _idleRpm) / rpmRange;
+            if (rpmFactor <= 0f)
+                return 0f;
+            rpmFactor = Math.Max(0f, Math.Min(1f, rpmFactor));
+            var gearRatio = _engine.GetGearRatio(_gear);
+            var drivelineTorque = _engineBrakingTorqueNm * _engineBraking * rpmFactor;
+            var wheelTorque = drivelineTorque * gearRatio * _finalDriveRatio * _drivetrainEfficiency;
+            var wheelForce = wheelTorque / _wheelRadiusM;
+            var decelMps2 = (wheelForce / _massKg) * surfaceDecelMod;
+            return Math.Max(0f, decelMps2 * 3.6f);
         }
 
         private void SetSoundPosition(AudioSourceHandle sound, float relX, float relY)
