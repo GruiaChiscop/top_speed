@@ -36,22 +36,6 @@ namespace TopSpeed.Core
             Joystick
         }
 
-        private enum MappingAction
-        {
-            SteerLeft,
-            SteerRight,
-            Throttle,
-            Brake,
-            GearUp,
-            GearDown,
-            Horn,
-            RequestInfo,
-            CurrentGear,
-            CurrentLapNr,
-            CurrentRacePerc,
-            CurrentLapPerc,
-            CurrentRaceTime
-        }
 
         private readonly struct TrackInfo
         {
@@ -110,7 +94,7 @@ namespace TopSpeed.Core
         private MultiplayerSession? _session;
         private bool _mappingActive;
         private InputMappingMode _mappingMode;
-        private MappingAction _mappingAction;
+        private InputAction _mappingAction;
         private bool _mappingNeedsInstruction;
         private JoystickStateSnapshot _mappingPrevJoystick;
         private bool _mappingHasPrevJoystick;
@@ -737,23 +721,16 @@ namespace TopSpeed.Core
 
         private List<MenuItem> BuildMappingItems(InputMappingMode mode)
         {
-            var items = new List<MenuItem>
+            var items = new List<MenuItem>();
+            foreach (var action in _raceInput.KeyMap.Actions)
             {
-                new MenuItem(() => $"{ActionLabel(MappingAction.SteerLeft)}: {FormatMappingValue(MappingAction.SteerLeft, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.SteerLeft)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.SteerRight)}: {FormatMappingValue(MappingAction.SteerRight, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.SteerRight)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.Throttle)}: {FormatMappingValue(MappingAction.Throttle, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.Throttle)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.Brake)}: {FormatMappingValue(MappingAction.Brake, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.Brake)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.GearUp)}: {FormatMappingValue(MappingAction.GearUp, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.GearUp)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.GearDown)}: {FormatMappingValue(MappingAction.GearDown, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.GearDown)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.Horn)}: {FormatMappingValue(MappingAction.Horn, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.Horn)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.RequestInfo)}: {FormatMappingValue(MappingAction.RequestInfo, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.RequestInfo)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.CurrentGear)}: {FormatMappingValue(MappingAction.CurrentGear, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.CurrentGear)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.CurrentLapNr)}: {FormatMappingValue(MappingAction.CurrentLapNr, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.CurrentLapNr)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.CurrentRacePerc)}: {FormatMappingValue(MappingAction.CurrentRacePerc, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.CurrentRacePerc)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.CurrentLapPerc)}: {FormatMappingValue(MappingAction.CurrentLapPerc, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.CurrentLapPerc)),
-                new MenuItem(() => $"{ActionLabel(MappingAction.CurrentRaceTime)}: {FormatMappingValue(MappingAction.CurrentRaceTime, mode)}", MenuAction.None, onActivate: () => BeginMapping(mode, MappingAction.CurrentRaceTime)),
-                BackItem()
-            };
+                var definition = action;
+                items.Add(new MenuItem(
+                    () => $"{definition.Label}: {FormatMappingValue(definition.Action, mode)}",
+                    MenuAction.None,
+                    onActivate: () => BeginMapping(mode, definition.Action)));
+            }
+            items.Add(BackItem());
             return items;
         }
 
@@ -883,7 +860,8 @@ namespace TopSpeed.Core
             if (_mappingNeedsInstruction)
             {
                 _mappingNeedsInstruction = false;
-                _speech.Speak(GetMappingInstruction(_mappingMode, _mappingAction), interrupt: true);
+                var instruction = _raceInput.KeyMap.GetMappingInstruction(_mappingMode == InputMappingMode.Keyboard, _mappingAction);
+                _speech.Speak(instruction, interrupt: true);
             }
 
             if (_input.WasPressed(Key.Escape))
@@ -906,21 +884,22 @@ namespace TopSpeed.Core
                 var key = (Key)i;
                 if (!_input.WasPressed(key))
                     continue;
-                if (IsReservedKey(key))
+                if (KeyMapManager.IsReservedKey(key))
                 {
                     _speech.Speak("That key is reserved.", interrupt: true);
                     return;
                 }
-                if (IsKeyInUse(key, _mappingAction))
+                if (_raceInput.KeyMap.IsKeyInUse(key, _mappingAction))
                 {
                     _speech.Speak("That key is already in use.", interrupt: true);
                     return;
                 }
 
-                ApplyKeyMapping(_mappingAction, key);
+                _raceInput.KeyMap.ApplyKeyMapping(_mappingAction, key);
                 SaveSettings();
                 _mappingActive = false;
-                _speech.Speak($"{ActionLabel(_mappingAction)} set to {FormatKey(key)}.", interrupt: true);
+                var label = _raceInput.KeyMap.GetLabel(_mappingAction);
+                _speech.Speak($"{label} set to {KeyMapManager.FormatKey(key)}.", interrupt: true);
                 return;
             }
         }
@@ -945,16 +924,17 @@ namespace TopSpeed.Core
             _mappingPrevJoystick = state;
             if (axis == JoystickAxisOrButton.AxisNone)
                 return;
-            if (IsAxisInUse(axis, _mappingAction))
+            if (_raceInput.KeyMap.IsAxisInUse(axis, _mappingAction))
             {
                 _speech.Speak("That control is already in use.", interrupt: true);
                 return;
             }
 
-            ApplyAxisMapping(_mappingAction, axis);
+            _raceInput.KeyMap.ApplyAxisMapping(_mappingAction, axis);
             SaveSettings();
             _mappingActive = false;
-            _speech.Speak($"{ActionLabel(_mappingAction)} set to {FormatAxis(axis)}.", interrupt: true);
+            var label = _raceInput.KeyMap.GetLabel(_mappingAction);
+            _speech.Speak($"{label} set to {KeyMapManager.FormatAxis(axis)}.", interrupt: true);
         }
 
         private JoystickAxisOrButton FindTriggeredAxis(JoystickStateSnapshot current, JoystickStateSnapshot previous)
@@ -1059,266 +1039,14 @@ namespace TopSpeed.Core
             }
         }
 
-        private static bool IsReservedKey(Key key)
-        {
-            if (key >= Key.F1 && key <= Key.F12)
-                return true;
-            if (key >= Key.D1 && key <= Key.D8)
-                return true;
-            return key == Key.LeftAlt;
-        }
-
-        private bool IsKeyInUse(Key key, MappingAction ignore)
-        {
-            foreach (MappingAction action in Enum.GetValues(typeof(MappingAction)))
-            {
-                if (action == ignore)
-                    continue;
-                if (GetKeyForAction(action) == key)
-                    return true;
-            }
-            return false;
-        }
-
-        private bool IsAxisInUse(JoystickAxisOrButton axis, MappingAction ignore)
-        {
-            foreach (MappingAction action in Enum.GetValues(typeof(MappingAction)))
-            {
-                if (action == ignore)
-                    continue;
-                if (GetAxisForAction(action) == axis)
-                    return true;
-            }
-            return false;
-        }
-
-        private void ApplyKeyMapping(MappingAction action, Key key)
-        {
-            switch (action)
-            {
-                case MappingAction.SteerLeft:
-                    _raceInput.SetLeft(key);
-                    break;
-                case MappingAction.SteerRight:
-                    _raceInput.SetRight(key);
-                    break;
-                case MappingAction.Throttle:
-                    _raceInput.SetThrottle(key);
-                    break;
-                case MappingAction.Brake:
-                    _raceInput.SetBrake(key);
-                    break;
-                case MappingAction.GearUp:
-                    _raceInput.SetGearUp(key);
-                    break;
-                case MappingAction.GearDown:
-                    _raceInput.SetGearDown(key);
-                    break;
-                case MappingAction.Horn:
-                    _raceInput.SetHorn(key);
-                    break;
-                case MappingAction.RequestInfo:
-                    _raceInput.SetRequestInfo(key);
-                    break;
-                case MappingAction.CurrentGear:
-                    _raceInput.SetCurrentGear(key);
-                    break;
-                case MappingAction.CurrentLapNr:
-                    _raceInput.SetCurrentLapNr(key);
-                    break;
-                case MappingAction.CurrentRacePerc:
-                    _raceInput.SetCurrentRacePerc(key);
-                    break;
-                case MappingAction.CurrentLapPerc:
-                    _raceInput.SetCurrentLapPerc(key);
-                    break;
-                case MappingAction.CurrentRaceTime:
-                    _raceInput.SetCurrentRaceTime(key);
-                    break;
-            }
-        }
-
-        private void ApplyAxisMapping(MappingAction action, JoystickAxisOrButton axis)
-        {
-            switch (action)
-            {
-                case MappingAction.SteerLeft:
-                    _raceInput.SetLeft(axis);
-                    break;
-                case MappingAction.SteerRight:
-                    _raceInput.SetRight(axis);
-                    break;
-                case MappingAction.Throttle:
-                    _raceInput.SetThrottle(axis);
-                    break;
-                case MappingAction.Brake:
-                    _raceInput.SetBrake(axis);
-                    break;
-                case MappingAction.GearUp:
-                    _raceInput.SetGearUp(axis);
-                    break;
-                case MappingAction.GearDown:
-                    _raceInput.SetGearDown(axis);
-                    break;
-                case MappingAction.Horn:
-                    _raceInput.SetHorn(axis);
-                    break;
-                case MappingAction.RequestInfo:
-                    _raceInput.SetRequestInfo(axis);
-                    break;
-                case MappingAction.CurrentGear:
-                    _raceInput.SetCurrentGear(axis);
-                    break;
-                case MappingAction.CurrentLapNr:
-                    _raceInput.SetCurrentLapNr(axis);
-                    break;
-                case MappingAction.CurrentRacePerc:
-                    _raceInput.SetCurrentRacePerc(axis);
-                    break;
-                case MappingAction.CurrentLapPerc:
-                    _raceInput.SetCurrentLapPerc(axis);
-                    break;
-                case MappingAction.CurrentRaceTime:
-                    _raceInput.SetCurrentRaceTime(axis);
-                    break;
-            }
-        }
-
-        private Key GetKeyForAction(MappingAction action)
-        {
-            return action switch
-            {
-                MappingAction.SteerLeft => _settings.KeyLeft,
-                MappingAction.SteerRight => _settings.KeyRight,
-                MappingAction.Throttle => _settings.KeyThrottle,
-                MappingAction.Brake => _settings.KeyBrake,
-                MappingAction.GearUp => _settings.KeyGearUp,
-                MappingAction.GearDown => _settings.KeyGearDown,
-                MappingAction.Horn => _settings.KeyHorn,
-                MappingAction.RequestInfo => _settings.KeyRequestInfo,
-                MappingAction.CurrentGear => _settings.KeyCurrentGear,
-                MappingAction.CurrentLapNr => _settings.KeyCurrentLapNr,
-                MappingAction.CurrentRacePerc => _settings.KeyCurrentRacePerc,
-                MappingAction.CurrentLapPerc => _settings.KeyCurrentLapPerc,
-                MappingAction.CurrentRaceTime => _settings.KeyCurrentRaceTime,
-                _ => Key.Unknown
-            };
-        }
-
-        private JoystickAxisOrButton GetAxisForAction(MappingAction action)
-        {
-            return action switch
-            {
-                MappingAction.SteerLeft => _settings.JoystickLeft,
-                MappingAction.SteerRight => _settings.JoystickRight,
-                MappingAction.Throttle => _settings.JoystickThrottle,
-                MappingAction.Brake => _settings.JoystickBrake,
-                MappingAction.GearUp => _settings.JoystickGearUp,
-                MappingAction.GearDown => _settings.JoystickGearDown,
-                MappingAction.Horn => _settings.JoystickHorn,
-                MappingAction.RequestInfo => _settings.JoystickRequestInfo,
-                MappingAction.CurrentGear => _settings.JoystickCurrentGear,
-                MappingAction.CurrentLapNr => _settings.JoystickCurrentLapNr,
-                MappingAction.CurrentRacePerc => _settings.JoystickCurrentRacePerc,
-                MappingAction.CurrentLapPerc => _settings.JoystickCurrentLapPerc,
-                MappingAction.CurrentRaceTime => _settings.JoystickCurrentRaceTime,
-                _ => JoystickAxisOrButton.AxisNone
-            };
-        }
-
-        private static string ActionLabel(MappingAction action)
-        {
-            return action switch
-            {
-                MappingAction.SteerLeft => "Steer left",
-                MappingAction.SteerRight => "Steer right",
-                MappingAction.Throttle => "Throttle",
-                MappingAction.Brake => "Brake",
-                MappingAction.GearUp => "Shift gear up",
-                MappingAction.GearDown => "Shift gear down",
-                MappingAction.Horn => "Use horn",
-                MappingAction.RequestInfo => "Request info",
-                MappingAction.CurrentGear => "Current gear",
-                MappingAction.CurrentLapNr => "Current lap number",
-                MappingAction.CurrentRacePerc => "Current race percentage",
-                MappingAction.CurrentLapPerc => "Current lap percentage",
-                MappingAction.CurrentRaceTime => "Current race time",
-                _ => "Action"
-            };
-        }
-
-        private string FormatMappingValue(MappingAction action, InputMappingMode mode)
+        private string FormatMappingValue(InputAction action, InputMappingMode mode)
         {
             return mode == InputMappingMode.Keyboard
-                ? FormatKey(GetKeyForAction(action))
-                : FormatAxis(GetAxisForAction(action));
+                ? KeyMapManager.FormatKey(_raceInput.KeyMap.GetKey(action))
+                : KeyMapManager.FormatAxis(_raceInput.KeyMap.GetAxis(action));
         }
 
-        private static string FormatKey(Key key)
-        {
-            if ((int)key <= 0)
-                return "none";
-            return key.ToString();
-        }
-
-        private static string FormatAxis(JoystickAxisOrButton axis)
-        {
-            return axis switch
-            {
-                JoystickAxisOrButton.AxisNone => "none",
-                JoystickAxisOrButton.AxisXNeg => "X-",
-                JoystickAxisOrButton.AxisXPos => "X+",
-                JoystickAxisOrButton.AxisYNeg => "Y-",
-                JoystickAxisOrButton.AxisYPos => "Y+",
-                JoystickAxisOrButton.AxisZNeg => "Z-",
-                JoystickAxisOrButton.AxisZPos => "Z+",
-                JoystickAxisOrButton.AxisRxNeg => "Rx-",
-                JoystickAxisOrButton.AxisRxPos => "Rx+",
-                JoystickAxisOrButton.AxisRyNeg => "Ry-",
-                JoystickAxisOrButton.AxisRyPos => "Ry+",
-                JoystickAxisOrButton.AxisRzNeg => "Rz-",
-                JoystickAxisOrButton.AxisRzPos => "Rz+",
-                JoystickAxisOrButton.AxisSlider1Neg => "Slider1-",
-                JoystickAxisOrButton.AxisSlider1Pos => "Slider1+",
-                JoystickAxisOrButton.AxisSlider2Neg => "Slider2-",
-                JoystickAxisOrButton.AxisSlider2Pos => "Slider2+",
-                JoystickAxisOrButton.Button1 => "Button 1",
-                JoystickAxisOrButton.Button2 => "Button 2",
-                JoystickAxisOrButton.Button3 => "Button 3",
-                JoystickAxisOrButton.Button4 => "Button 4",
-                JoystickAxisOrButton.Button5 => "Button 5",
-                JoystickAxisOrButton.Button6 => "Button 6",
-                JoystickAxisOrButton.Button7 => "Button 7",
-                JoystickAxisOrButton.Button8 => "Button 8",
-                JoystickAxisOrButton.Button9 => "Button 9",
-                JoystickAxisOrButton.Button10 => "Button 10",
-                JoystickAxisOrButton.Button11 => "Button 11",
-                JoystickAxisOrButton.Button12 => "Button 12",
-                JoystickAxisOrButton.Button13 => "Button 13",
-                JoystickAxisOrButton.Button14 => "Button 14",
-                JoystickAxisOrButton.Button15 => "Button 15",
-                JoystickAxisOrButton.Button16 => "Button 16",
-                JoystickAxisOrButton.Pov1 => "POV 1 up",
-                JoystickAxisOrButton.Pov2 => "POV 1 right",
-                JoystickAxisOrButton.Pov3 => "POV 1 down",
-                JoystickAxisOrButton.Pov4 => "POV 1 left",
-                JoystickAxisOrButton.Pov5 => "POV 2 up",
-                JoystickAxisOrButton.Pov6 => "POV 2 right",
-                JoystickAxisOrButton.Pov7 => "POV 2 down",
-                JoystickAxisOrButton.Pov8 => "POV 2 left",
-                _ => axis.ToString()
-            };
-        }
-
-        private static string GetMappingInstruction(InputMappingMode mode, MappingAction action)
-        {
-            var label = ActionLabel(action).ToLowerInvariant();
-            return mode == InputMappingMode.Keyboard
-                ? $"Press the new key for {label}."
-                : $"Move or press the joystick control for {label}.";
-        }
-
-        private void BeginMapping(InputMappingMode mode, MappingAction action)
+        private void BeginMapping(InputMappingMode mode, InputAction action)
         {
             if (mode == InputMappingMode.Joystick)
             {

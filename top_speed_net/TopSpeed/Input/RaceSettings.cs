@@ -58,6 +58,11 @@ namespace TopSpeed.Input
         public JoystickAxisOrButton JoystickCurrentRacePerc { get; set; }
         public JoystickAxisOrButton JoystickCurrentLapPerc { get; set; }
         public JoystickAxisOrButton JoystickCurrentRaceTime { get; set; }
+        public JoystickAxisOrButton JoystickStartEngine { get; set; }
+        public JoystickAxisOrButton JoystickReportDistance { get; set; }
+        public JoystickAxisOrButton JoystickReportSpeed { get; set; }
+        public JoystickAxisOrButton JoystickTrackName { get; set; }
+        public JoystickAxisOrButton JoystickPause { get; set; }
         public JoystickStateSnapshot JoystickCenter { get; set; }
 
         public Key KeyLeft { get; set; }
@@ -73,6 +78,11 @@ namespace TopSpeed.Input
         public Key KeyCurrentRacePerc { get; set; }
         public Key KeyCurrentLapPerc { get; set; }
         public Key KeyCurrentRaceTime { get; set; }
+        public Key KeyStartEngine { get; set; }
+        public Key KeyReportDistance { get; set; }
+        public Key KeyReportSpeed { get; set; }
+        public Key KeyTrackName { get; set; }
+        public Key KeyPause { get; set; }
 
         public bool ForceFeedback { get; set; }
         public InputDeviceMode DeviceMode { get; set; }
@@ -115,6 +125,11 @@ namespace TopSpeed.Input
             JoystickCurrentRacePerc = JoystickAxisOrButton.Button7;
             JoystickCurrentLapPerc = JoystickAxisOrButton.Button8;
             JoystickCurrentRaceTime = JoystickAxisOrButton.Button9;
+            JoystickStartEngine = JoystickAxisOrButton.Button10;
+            JoystickReportDistance = JoystickAxisOrButton.Button11;
+            JoystickReportSpeed = JoystickAxisOrButton.Button12;
+            JoystickTrackName = JoystickAxisOrButton.Button13;
+            JoystickPause = JoystickAxisOrButton.Button14;
             JoystickCenter = default;
 
             KeyLeft = Key.Left;
@@ -130,6 +145,11 @@ namespace TopSpeed.Input
             KeyCurrentRacePerc = Key.E;
             KeyCurrentLapPerc = Key.R;
             KeyCurrentRaceTime = Key.T;
+            KeyStartEngine = Key.Return;
+            KeyReportDistance = Key.C;
+            KeyReportSpeed = Key.S;
+            KeyTrackName = Key.F9;
+            KeyPause = Key.P;
 
             ForceFeedback = false;
             DeviceMode = InputDeviceMode.Keyboard;

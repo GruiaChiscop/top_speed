@@ -134,6 +134,16 @@ namespace TopSpeed.Core
             AppendValue(lines, settings.SingleRaceCustomVehicles ? 1 : 0);
             AppendValue(lines, (int)Math.Round(settings.MusicVolume * 100f));
             AppendValue(lines, settings.ServerPort);
+            AppendValue(lines, (int)settings.JoystickStartEngine);
+            AppendValue(lines, (int)settings.JoystickReportDistance);
+            AppendValue(lines, (int)settings.JoystickReportSpeed);
+            AppendValue(lines, (int)settings.KeyStartEngine);
+            AppendValue(lines, (int)settings.KeyReportDistance);
+            AppendValue(lines, (int)settings.KeyReportSpeed);
+            AppendValue(lines, (int)settings.JoystickTrackName);
+            AppendValue(lines, (int)settings.JoystickPause);
+            AppendValue(lines, (int)settings.KeyTrackName);
+            AppendValue(lines, (int)settings.KeyPause);
 
             try
             {
@@ -204,6 +214,16 @@ namespace TopSpeed.Core
             if (TryNext(values, ref index, out value)) settings.SingleRaceCustomVehicles = value != 0;
             if (TryNext(values, ref index, out value)) settings.MusicVolume = Math.Max(0f, Math.Min(1f, value / 100f));
             if (TryNext(values, ref index, out value)) settings.ServerPort = ClampPort(value, settings.ServerPort);
+            if (TryNext(values, ref index, out value)) settings.JoystickStartEngine = AsJoystick(value, settings.JoystickStartEngine);
+            if (TryNext(values, ref index, out value)) settings.JoystickReportDistance = AsJoystick(value, settings.JoystickReportDistance);
+            if (TryNext(values, ref index, out value)) settings.JoystickReportSpeed = AsJoystick(value, settings.JoystickReportSpeed);
+            if (TryNext(values, ref index, out value)) settings.KeyStartEngine = AsKey(value, settings.KeyStartEngine);
+            if (TryNext(values, ref index, out value)) settings.KeyReportDistance = AsKey(value, settings.KeyReportDistance);
+            if (TryNext(values, ref index, out value)) settings.KeyReportSpeed = AsKey(value, settings.KeyReportSpeed);
+            if (TryNext(values, ref index, out value)) settings.JoystickTrackName = AsJoystick(value, settings.JoystickTrackName);
+            if (TryNext(values, ref index, out value)) settings.JoystickPause = AsJoystick(value, settings.JoystickPause);
+            if (TryNext(values, ref index, out value)) settings.KeyTrackName = AsKey(value, settings.KeyTrackName);
+            if (TryNext(values, ref index, out value)) settings.KeyPause = AsKey(value, settings.KeyPause);
         }
 
         private static int ClampPort(int value, int fallback)
