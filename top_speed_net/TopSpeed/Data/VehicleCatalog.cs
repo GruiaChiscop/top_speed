@@ -42,6 +42,8 @@ namespace TopSpeed.Data
         public float LaunchRpm { get; }
         public float FinalDriveRatio { get; }
         public float TireCircumferenceM { get; }
+        public float LateralGripCoefficient { get; }
+        public float HighSpeedStability { get; }
         public float PowerFactor { get; }
         public float[]? GearRatios { get; }
         public float BrakeStrength { get; }
@@ -85,6 +87,8 @@ namespace TopSpeed.Data
             float launchRpm = 1800f,
             float finalDriveRatio = 3.5f,
             float tireCircumferenceM = 2.0f,
+            float lateralGripCoefficient = 1.0f,
+            float highSpeedStability = 0.0f,
             float powerFactor = 0.5f,
             float[]? gearRatios = null,
             float brakeStrength = 1.0f)
@@ -125,10 +129,12 @@ namespace TopSpeed.Data
             RedlineTorqueNm = redlineTorqueNm;
             DragCoefficient = dragCoefficient;
             FrontalAreaM2 = frontalAreaM2;
-            RollingResistanceCoefficient = rollingResistanceCoefficient;
+            RollingResistanceCoefficient = rollingResistanceCoefficient;        
             LaunchRpm = launchRpm;
             FinalDriveRatio = finalDriveRatio;
             TireCircumferenceM = tireCircumferenceM;
+            LateralGripCoefficient = lateralGripCoefficient;
+            HighSpeedStability = highSpeedStability;
             PowerFactor = powerFactor;
             GearRatios = gearRatios;
             BrakeStrength = brakeStrength;
@@ -270,6 +276,7 @@ namespace TopSpeed.Data
                 peakTorqueNm: 114.9f, peakTorqueRpm: 11500f, idleTorqueNm: 114.9f * 0.3f, redlineTorqueNm: 114.9f * 0.6f,
                 dragCoefficient: 0.58f, frontalAreaM2: 0.6f, rollingResistanceCoefficient: 0.016f, launchRpm: 4000f,
                 finalDriveRatio: 3.8562f, tireCircumferenceM: TireCircumferenceM(190, 55, 17),
+                lateralGripCoefficient: 0.80f, highSpeedStability: 0.25f,
                 powerFactor: 0.85f, gearRatios: Zx10rRatios),
 
             // Vehicle 11: Superbike - fastest motorcycle
@@ -281,6 +288,7 @@ namespace TopSpeed.Data
                 peakTorqueNm: 121f, peakTorqueRpm: 10000f, idleTorqueNm: 121f * 0.3f, redlineTorqueNm: 121f * 0.6f,
                 dragCoefficient: 0.55f, frontalAreaM2: 0.6f, rollingResistanceCoefficient: 0.016f, launchRpm: 4000f,
                 finalDriveRatio: 4.6125f, tireCircumferenceM: TireCircumferenceM(200, 60, 17),
+                lateralGripCoefficient: 0.80f, highSpeedStability: 0.25f,
                 powerFactor: 0.9f, gearRatios: PanigaleV4Ratios),
 
             // Vehicle 12: Sport motorcycle - balanced
@@ -292,6 +300,7 @@ namespace TopSpeed.Data
                 peakTorqueNm: 112.4f, peakTorqueRpm: 11500f, idleTorqueNm: 112.4f * 0.3f, redlineTorqueNm: 112.4f * 0.6f,
                 dragCoefficient: 0.55f, frontalAreaM2: 0.6f, rollingResistanceCoefficient: 0.016f, launchRpm: 4000f,
                 finalDriveRatio: 4.1807f, tireCircumferenceM: TireCircumferenceM(190, 55, 17),
+                lateralGripCoefficient: 0.80f, highSpeedStability: 0.25f,
                 powerFactor: 0.8f, gearRatios: R1Ratios)
         };
     }

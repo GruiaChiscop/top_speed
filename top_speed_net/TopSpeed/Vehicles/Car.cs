@@ -70,6 +70,8 @@ namespace TopSpeed.Vehicles
         private float _rollingResistanceCoefficient;
         private float _launchRpm;
         private float _lastDriveRpm;
+        private float _lateralGripCoefficient;
+        private float _highSpeedStability;
         private int _idleFreq;
         private int _topFreq;
         private int _shiftFreq;
@@ -204,6 +206,8 @@ namespace TopSpeed.Vehicles
             _frontalAreaM2 = Math.Max(0.1f, definition.FrontalAreaM2);
             _rollingResistanceCoefficient = Math.Max(0.001f, definition.RollingResistanceCoefficient);
             _launchRpm = Math.Max(_idleRpm, Math.Min(_revLimiter, definition.LaunchRpm));
+            _lateralGripCoefficient = Math.Max(0.1f, definition.LateralGripCoefficient);
+            _highSpeedStability = Math.Max(0f, Math.Min(1.0f, definition.HighSpeedStability));
             _idleFreq = definition.IdleFreq;
             _topFreq = definition.TopFreq;
             _shiftFreq = definition.ShiftFreq;
@@ -738,7 +742,11 @@ namespace TopSpeed.Vehicles
                 _positionY += (speedMps * elapsed);
                 var surfaceMultiplier = _surface == TrackSurface.Snow ? 1.44f : 1.0f;
                 var steeringInput = _currentSteering / 100.0f;
-                var lateralSpeed = BaseLateralSpeed * _steering * steeringInput * surfaceMultiplier;
+                var speedFactor = _topSpeed > 0f ? Math.Min(1.0f, _speed / _topSpeed) : 0f;
+                var stabilityScale = 1.0f - (_highSpeedStability * speedFactor);
+                if (stabilityScale < 0.2f)
+                    stabilityScale = 0.2f;
+                var lateralSpeed = BaseLateralSpeed * _steering * steeringInput * surfaceMultiplier * _lateralGripCoefficient * stabilityScale;
                 _positionX += (lateralSpeed * elapsed);
 
                 if (_frame % 4 == 0)

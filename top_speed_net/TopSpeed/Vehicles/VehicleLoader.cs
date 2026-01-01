@@ -56,6 +56,8 @@ namespace TopSpeed.Vehicles
                 LaunchRpm = parameters.LaunchRpm,
                 FinalDriveRatio = parameters.FinalDriveRatio,
                 TireCircumferenceM = parameters.TireCircumferenceM,
+                LateralGripCoefficient = parameters.LateralGripCoefficient,
+                HighSpeedStability = parameters.HighSpeedStability,
                 PowerFactor = parameters.PowerFactor,
                 GearRatios = parameters.GearRatios,
                 BrakeStrength = parameters.BrakeStrength
@@ -118,10 +120,12 @@ namespace TopSpeed.Vehicles
             var frontalArea = ReadFloat(settings, "frontalarea", 2.2f);
             var rollingResistance = ReadFloat(settings, "rollingresistance", 0.015f);
             var launchRpm = ReadFloat(settings, "launchrpm", 1800f);
-            var finalDriveRatio = ReadFloat(settings, "finaldrive", 3.5f);
+            var finalDriveRatio = ReadFloat(settings, "finaldrive", 3.5f);      
             var powerFactor = ReadFloat(settings, "powerfactor", 0.5f);
             var gearRatios = ReadFloatArray(settings, "gearratios");
             var brakeStrength = ReadFloat(settings, "brakestrength", 1.0f);     
+            var lateralGrip = ReadFloat(settings, "lateralgrip", 1.0f);
+            var highSpeedStability = ReadFloat(settings, "highspeedstability", 0.0f);
 
             var tireCircumferenceM = ReadFloat(settings, "tirecircumference", 0f);
             if (tireCircumferenceM <= 0f)
@@ -170,6 +174,8 @@ namespace TopSpeed.Vehicles
                 LaunchRpm = launchRpm,
                 FinalDriveRatio = finalDriveRatio,
                 TireCircumferenceM = tireCircumferenceM,
+                LateralGripCoefficient = lateralGrip,
+                HighSpeedStability = highSpeedStability,
                 PowerFactor = powerFactor,
                 GearRatios = gearRatios,
                 BrakeStrength = brakeStrength
