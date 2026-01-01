@@ -42,6 +42,10 @@ namespace TopSpeed.Vehicles
                 RevLimiter = parameters.RevLimiter,
                 AutoShiftRpm = parameters.AutoShiftRpm > 0f ? parameters.AutoShiftRpm : parameters.RevLimiter * 0.92f,
                 EngineBraking = parameters.EngineBraking,
+                MassKg = parameters.MassKg,
+                DrivetrainEfficiency = parameters.DrivetrainEfficiency,
+                EngineBrakingTorqueNm = parameters.EngineBrakingTorqueNm,
+                TireGripCoefficient = parameters.TireGripCoefficient,
                 FinalDriveRatio = parameters.FinalDriveRatio,
                 TireCircumferenceM = parameters.TireCircumferenceM,
                 PowerFactor = parameters.PowerFactor,
@@ -93,7 +97,11 @@ namespace TopSpeed.Vehicles
             var maxRpm = ReadFloat(settings, "maxrpm", 7000f);
             var revLimiter = ReadFloat(settings, "revlimiter", 6500f);
             var autoShiftRpm = ReadFloat(settings, "autoshiftrpm", 0f);
-            var engineBraking = ReadFloat(settings, "enginebraking", 0.3f);     
+            var engineBraking = ReadFloat(settings, "enginebraking", 0.3f);
+            var massKg = ReadFloat(settings, "masskg", 1500f);
+            var drivetrainEfficiency = ReadFloat(settings, "drivetrain", 0.85f);
+            var engineBrakingTorque = ReadFloat(settings, "enginebrakingtorque", 150f);
+            var tireGrip = ReadFloat(settings, "tiregrip", 0.9f);
             var finalDriveRatio = ReadFloat(settings, "finaldrive", 3.5f);
             var powerFactor = ReadFloat(settings, "powerfactor", 0.5f);
             var gearRatios = ReadFloatArray(settings, "gearratios");
@@ -132,6 +140,10 @@ namespace TopSpeed.Vehicles
                 RevLimiter = revLimiter,
                 AutoShiftRpm = autoShiftRpm > 0f ? autoShiftRpm : revLimiter * 0.92f,
                 EngineBraking = engineBraking,
+                MassKg = massKg,
+                DrivetrainEfficiency = drivetrainEfficiency,
+                EngineBrakingTorqueNm = engineBrakingTorque,
+                TireGripCoefficient = tireGrip,
                 FinalDriveRatio = finalDriveRatio,
                 TireCircumferenceM = tireCircumferenceM,
                 PowerFactor = powerFactor,
@@ -217,7 +229,12 @@ namespace TopSpeed.Vehicles
         {
             // Simple hack to detect the action from the selector if needed for builtin resolution
             // In a production environment, we'd pass the action explicitly.
-            var testParams = new VehicleParameters("Test", "e", "s", "h", "t", "c", "cm", "b", "f", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            var testParams = new VehicleParameters(
+                "Test", "e", "s", "h", "t", "c", "cm", "b", "f",
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                idleRpm: 0, maxRpm: 0, revLimiter: 0, autoShiftRpm: 0, engineBraking: 0,
+                massKg: 0, drivetrainEfficiency: 0, engineBrakingTorqueNm: 0, tireGripCoefficient: 0,
+                finalDriveRatio: 0, tireCircumferenceM: 0, powerFactor: 0, gearRatios: null, brakeStrength: 0);
             var result = selector(testParams);
             switch (result)
             {

@@ -28,6 +28,10 @@ namespace TopSpeed.Data
         public float RevLimiter { get; }
         public float AutoShiftRpm { get; }
         public float EngineBraking { get; }
+        public float MassKg { get; }
+        public float DrivetrainEfficiency { get; }
+        public float EngineBrakingTorqueNm { get; }
+        public float TireGripCoefficient { get; }
         public float FinalDriveRatio { get; }
         public float TireCircumferenceM { get; }
         public float PowerFactor { get; }
@@ -59,6 +63,10 @@ namespace TopSpeed.Data
             float revLimiter = 6500f,
             float autoShiftRpm = 0f,
             float engineBraking = 0.3f,
+            float massKg = 1500f,
+            float drivetrainEfficiency = 0.85f,
+            float engineBrakingTorqueNm = 150f,
+            float tireGripCoefficient = 0.9f,
             float finalDriveRatio = 3.5f,
             float tireCircumferenceM = 2.0f,
             float powerFactor = 0.5f,
@@ -91,6 +99,10 @@ namespace TopSpeed.Data
             RevLimiter = revLimiter;
             AutoShiftRpm = autoShiftRpm;
             EngineBraking = engineBraking;
+            MassKg = massKg;
+            DrivetrainEfficiency = drivetrainEfficiency;
+            EngineBrakingTorqueNm = engineBrakingTorqueNm;
+            TireGripCoefficient = tireGripCoefficient;
             FinalDriveRatio = finalDriveRatio;
             TireCircumferenceM = tireCircumferenceM;
             PowerFactor = powerFactor;
@@ -131,6 +143,7 @@ namespace TopSpeed.Data
                 hasWipers: 1, acceleration: 0.06f, deceleration: 0.40f, topSpeed: 315.0f,
                 idleFreq: 22050, topFreq: 55000, shiftFreq: 26000, gears: 6, steering: 1.60f, steeringFactor: 60,
                 idleRpm: 900f, maxRpm: 8000f, revLimiter: 7600f, autoShiftRpm: 7600f * 0.92f, engineBraking: 0.25f,
+                massKg: 1774f, drivetrainEfficiency: 0.80f, engineBrakingTorqueNm: 652f, tireGripCoefficient: 1.0f,
                 finalDriveRatio: 3.70f, tireCircumferenceM: TireCircumferenceM(285, 35, 20),
                 powerFactor: 0.7f, gearRatios: GtrRatios),
 
@@ -139,6 +152,7 @@ namespace TopSpeed.Data
                 hasWipers: 1, acceleration: 0.07f, deceleration: 0.45f, topSpeed: 312.0f,
                 idleFreq: 22050, topFreq: 60000, shiftFreq: 35000, gears: 7, steering: 1.50f, steeringFactor: 55,
                 idleRpm: 950f, maxRpm: 9000f, revLimiter: 8500f, autoShiftRpm: 8500f * 0.92f, engineBraking: 0.22f,
+                massKg: 1450f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 465f, tireGripCoefficient: 1.05f,
                 finalDriveRatio: 3.97f, tireCircumferenceM: TireCircumferenceM(325, 30, 21),
                 powerFactor: 0.75f, gearRatios: Gt3RsRatios),
 
@@ -147,6 +161,7 @@ namespace TopSpeed.Data
                 hasWipers: 1, acceleration: 0.035f, deceleration: 0.30f, topSpeed: 160.0f,
                 idleFreq: 6000, topFreq: 25000, shiftFreq: 19000, gears: 5, steering: 1.50f, steeringFactor: 72,
                 idleRpm: 750f, maxRpm: 6000f, revLimiter: 5500f, autoShiftRpm: 5500f * 0.92f, engineBraking: 0.40f,
+                massKg: 865f, drivetrainEfficiency: 0.88f, engineBrakingTorqueNm: 102f, tireGripCoefficient: 0.88f,
                 finalDriveRatio: 3.353f, tireCircumferenceM: TireCircumferenceM(195, 45, 16),
                 powerFactor: 0.35f, gearRatios: Fiat500Ratios),
 
@@ -155,6 +170,7 @@ namespace TopSpeed.Data
                 hasWipers: 1, acceleration: 0.045f, deceleration: 0.35f, topSpeed: 235.0f,
                 idleFreq: 6000, topFreq: 27000, shiftFreq: 20000, gears: 6, steering: 1.40f, steeringFactor: 56,
                 idleRpm: 800f, maxRpm: 6500f, revLimiter: 6000f, autoShiftRpm: 6000f * 0.92f, engineBraking: 0.32f,
+                massKg: 1265f, drivetrainEfficiency: 0.88f, engineBrakingTorqueNm: 280f, tireGripCoefficient: 0.95f,
                 finalDriveRatio: 3.59f, tireCircumferenceM: TireCircumferenceM(195, 55, 16),
                 powerFactor: 0.45f, gearRatios: MiniCooperSRatios),
 
@@ -163,6 +179,7 @@ namespace TopSpeed.Data
                 hasWipers: 1, acceleration: 0.04f, deceleration: 0.35f, topSpeed: 200.0f,
                 idleFreq: 6000, topFreq: 33000, shiftFreq: 27500, gears: 4, steering: 2.30f, steeringFactor: 80,
                 idleRpm: 650f, maxRpm: 5500f, revLimiter: 5000f, autoShiftRpm: 5000f * 0.92f, engineBraking: 0.35f,
+                massKg: 1440f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 481f, tireGripCoefficient: 0.90f,
                 finalDriveRatio: 3.25f, tireCircumferenceM: TireCircumferenceM(215, 70, 14),
                 powerFactor: 0.4f, gearRatios: Mustang69Ratios),
 
@@ -171,6 +188,7 @@ namespace TopSpeed.Data
                 hasWipers: 1, acceleration: 0.035f, deceleration: 0.30f, topSpeed: 210.0f,
                 idleFreq: 7025, topFreq: 40000, shiftFreq: 32500, gears: 8, steering: 2.20f, steeringFactor: 95,
                 idleRpm: 700f, maxRpm: 6000f, revLimiter: 5500f, autoShiftRpm: 5500f * 0.92f, engineBraking: 0.38f,
+                massKg: 1470f, drivetrainEfficiency: 0.88f, engineBrakingTorqueNm: 250f, tireGripCoefficient: 0.90f,
                 finalDriveRatio: 2.80f, tireCircumferenceM: TireCircumferenceM(215, 55, 17),
                 powerFactor: 0.35f, gearRatios: CamryRatios),
 
@@ -179,6 +197,7 @@ namespace TopSpeed.Data
                 hasWipers: 1, acceleration: 0.08f, deceleration: 0.80f, topSpeed: 350.0f,
                 idleFreq: 6000, topFreq: 26000, shiftFreq: 21000, gears: 7, steering: 2.10f, steeringFactor: 65,
                 idleRpm: 1000f, maxRpm: 8500f, revLimiter: 8000f, autoShiftRpm: 8000f * 0.92f, engineBraking: 0.20f,
+                massKg: 1640f, drivetrainEfficiency: 0.80f, engineBrakingTorqueNm: 720f, tireGripCoefficient: 1.05f,
                 finalDriveRatio: 2.86f, tireCircumferenceM: TireCircumferenceM(355, 25, 21),
                 powerFactor: 0.8f, gearRatios: AventadorRatios),
 
@@ -187,6 +206,7 @@ namespace TopSpeed.Data
                 hasWipers: 1, acceleration: 0.045f, deceleration: 0.40f, topSpeed: 250.0f,
                 idleFreq: 10000, topFreq: 45000, shiftFreq: 34000, gears: 8, steering: 2.00f, steeringFactor: 70,
                 idleRpm: 750f, maxRpm: 6500f, revLimiter: 6000f, autoShiftRpm: 6000f * 0.92f, engineBraking: 0.30f,
+                massKg: 1524f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 346f, tireGripCoefficient: 0.93f,
                 finalDriveRatio: 3.15f, tireCircumferenceM: TireCircumferenceM(225, 50, 17),
                 powerFactor: 0.45f, gearRatios: Bmw3SeriesRatios),
 
@@ -195,6 +215,7 @@ namespace TopSpeed.Data
                 hasWipers: 1, acceleration: 0.02f, deceleration: 0.20f, topSpeed: 160.0f,
                 idleFreq: 22050, topFreq: 30550, shiftFreq: 22550, gears: 7, steering: 1.50f, steeringFactor: 85,
                 idleRpm: 600f, maxRpm: 4500f, revLimiter: 4000f, autoShiftRpm: 4000f * 0.92f, engineBraking: 0.45f,
+                massKg: 1970f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 380f, tireGripCoefficient: 0.82f,
                 finalDriveRatio: 3.923f, tireCircumferenceM: TireCircumferenceM(245, 75, 16),
                 powerFactor: 0.2f, gearRatios: SprinterRatios),
 
@@ -203,6 +224,7 @@ namespace TopSpeed.Data
                 hasWipers: 0, acceleration: 0.09f, deceleration: 0.50f, topSpeed: 299.0f,
                 idleFreq: 22050, topFreq: 60000, shiftFreq: 35000, gears: 6, steering: 1.40f, steeringFactor: 50,
                 idleRpm: 1100f, maxRpm: 14000f, revLimiter: 13500f, autoShiftRpm: 13500f * 0.92f, engineBraking: 0.28f,
+                massKg: 207f, drivetrainEfficiency: 0.92f, engineBrakingTorqueNm: 114.9f, tireGripCoefficient: 1.10f,
                 finalDriveRatio: 3.8562f, tireCircumferenceM: TireCircumferenceM(190, 55, 17),
                 powerFactor: 0.85f, gearRatios: Zx10rRatios),
 
@@ -211,6 +233,7 @@ namespace TopSpeed.Data
                 hasWipers: 0, acceleration: 0.10f, deceleration: 0.55f, topSpeed: 310.0f,
                 idleFreq: 22050, topFreq: 60000, shiftFreq: 35000, gears: 6, steering: 1.30f, steeringFactor: 50,
                 idleRpm: 1200f, maxRpm: 15000f, revLimiter: 14500f, autoShiftRpm: 14500f * 0.92f, engineBraking: 0.25f,
+                massKg: 191f, drivetrainEfficiency: 0.92f, engineBrakingTorqueNm: 121f, tireGripCoefficient: 1.12f,
                 finalDriveRatio: 4.6125f, tireCircumferenceM: TireCircumferenceM(200, 60, 17),
                 powerFactor: 0.9f, gearRatios: PanigaleV4Ratios),
 
@@ -219,6 +242,7 @@ namespace TopSpeed.Data
                 hasWipers: 0, acceleration: 0.085f, deceleration: 0.48f, topSpeed: 299.0f,
                 idleFreq: 22050, topFreq: 27550, shiftFreq: 23550, gears: 6, steering: 1.50f, steeringFactor: 66,
                 idleRpm: 1100f, maxRpm: 14500f, revLimiter: 14000f, autoShiftRpm: 14000f * 0.92f, engineBraking: 0.30f,
+                massKg: 201f, drivetrainEfficiency: 0.92f, engineBrakingTorqueNm: 113.3f, tireGripCoefficient: 1.10f,
                 finalDriveRatio: 4.1807f, tireCircumferenceM: TireCircumferenceM(190, 55, 17),
                 powerFactor: 0.8f, gearRatios: R1Ratios)
         };

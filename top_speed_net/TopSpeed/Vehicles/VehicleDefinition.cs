@@ -25,6 +25,10 @@ namespace TopSpeed.Vehicles
         public float RevLimiter { get; set; } = 6500f;
         public float AutoShiftRpm { get; set; } = 0f;
         public float EngineBraking { get; set; } = 0.3f;
+        public float MassKg { get; set; } = 1500f;
+        public float DrivetrainEfficiency { get; set; } = 0.85f;
+        public float EngineBrakingTorqueNm { get; set; } = 150f;
+        public float TireGripCoefficient { get; set; } = 0.9f;
         public float FinalDriveRatio { get; set; } = 3.5f;
         public float TireCircumferenceM { get; set; } = 2.0f;
         

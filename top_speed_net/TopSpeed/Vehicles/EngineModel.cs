@@ -110,6 +110,12 @@ namespace TopSpeed.Vehicles
             return Math.Max(0.1f, range * 3.6f);
         }
 
+        public float GetGearRatio(int gear)
+        {
+            var clampedGear = Math.Max(1, Math.Min(_gearCount, gear));
+            return _gearRatios[clampedGear - 1];
+        }
+
         public int GetGearForSpeedKmh(float speedKmh)
         {
             var speedMps = Math.Max(0f, speedKmh / 3.6f);

@@ -80,6 +80,8 @@ namespace TopSpeed.Vehicles
         private AudioSourceHandle _soundBump;
         private AudioSourceHandle? _soundBackfire;
 
+        private EngineModel _engine;
+
         public ComputerPlayer(
             AudioManager audio,
             Track track,
@@ -137,6 +139,18 @@ namespace TopSpeed.Vehicles
             _steering = definition.Steering;
             _steeringFactor = definition.SteeringFactor;
             _frequency = _idleFreq;
+
+            _engine = new EngineModel(
+                definition.IdleRpm,
+                definition.MaxRpm,
+                definition.RevLimiter,
+                definition.AutoShiftRpm,
+                definition.EngineBraking,
+                definition.TopSpeed,
+                definition.FinalDriveRatio,
+                definition.TireCircumferenceM,
+                definition.Gears,
+                definition.GearRatios);
 
             _soundEngine = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Engine), "engine", looped: true);
             _soundStart = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Start), "start");
@@ -361,6 +375,14 @@ namespace TopSpeed.Vehicles
                     _speed = _topSpeed;
                 if (_speed < 0)
                     _speed = 0;
+
+                var desiredGear = _engine.GetGearForSpeedKmh(_speed);
+                if (desiredGear != _gear)
+                {
+                    _switchingGear = desiredGear > _gear ? 1 : -1;
+                    _gear = desiredGear;
+                    PushEvent(BotEventType.InGear, 0.2f);
+                }
                 if (_thrust < -50 && _speed > 50.0f)
                     _currentSteering = _currentSteering * 2 / 3;
 
@@ -730,22 +752,18 @@ namespace TopSpeed.Vehicles
 
         private void UpdateEngineFreq()
         {
-            var gearRange = _topSpeed / _gears;
-            var gearForSound = (int)(_speed / gearRange) + 1;
-            if (gearForSound > _gears)
-                gearForSound = _gears;
-            if (gearForSound < 1)
-                gearForSound = 1;
+            var gearForSound = _engine.GetGearForSpeedKmh(_speed);
+            var gearRange = _engine.GetGearRangeKmh(gearForSound);
+            var gearMin = _engine.GetGearMinSpeedKmh(gearForSound);
 
             if (gearForSound == 1)
             {
-                var gearSpeed = Math.Min(1.0f, _speed / gearRange);
+                var gearSpeed = gearRange <= 0f ? 0f : Math.Min(1.0f, _speed / gearRange);
                 _frequency = (int)(gearSpeed * (_topFreq - _idleFreq)) + _idleFreq;
             }
             else
             {
-                var gearStart = (gearForSound - 1) * gearRange;
-                var gearSpeed = (_speed - gearStart) / (float)gearRange;
+                var gearSpeed = (_speed - gearMin) / (float)gearRange;
                 if (gearSpeed < 0.07f)
                 {
                     _frequency = (int)(((0.07f - gearSpeed) / 0.07f) * (_topFreq - _shiftFreq) + _shiftFreq);
@@ -779,23 +797,11 @@ namespace TopSpeed.Vehicles
 
         private int CalculateAcceleration()
         {
-            var gearSpeed = _topSpeed / _gears;
-            var gearCenter = (int)(gearSpeed * (_gear - 0.82f));
+            var gearRange = _engine.GetGearRangeKmh(_gear);
+            var gearMin = _engine.GetGearMinSpeedKmh(_gear);
+            var gearCenter = gearMin + (gearRange * 0.18f);
             _speedDiff = _speed - gearCenter;
-            var relSpeedDiff = _speedDiff / (gearSpeed * 1.0f);
-            if (relSpeedDiff > 1.1f)
-            {
-                _switchingGear = 1;
-                _gear++;
-                PushEvent(BotEventType.InGear, 0.2f);
-            }
-            else if (relSpeedDiff < -1.1f)
-            {
-                _switchingGear = -1;
-                _gear--;
-                PushEvent(BotEventType.InGear, 0.2f);
-            }
-
+            var relSpeedDiff = _speedDiff / (gearRange * 1.0f);
             if (Math.Abs(relSpeedDiff) < 1.9f)
             {
                 var acceleration = (int)(100 * (0.5f + Math.Cos(relSpeedDiff * Math.PI * 0.5f)));
