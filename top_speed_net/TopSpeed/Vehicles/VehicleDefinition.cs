@@ -29,6 +29,14 @@ namespace TopSpeed.Vehicles
         public float DrivetrainEfficiency { get; set; } = 0.85f;
         public float EngineBrakingTorqueNm { get; set; } = 150f;
         public float TireGripCoefficient { get; set; } = 0.9f;
+        public float PeakTorqueNm { get; set; } = 200f;
+        public float PeakTorqueRpm { get; set; } = 4000f;
+        public float IdleTorqueNm { get; set; } = 60f;
+        public float RedlineTorqueNm { get; set; } = 140f;
+        public float DragCoefficient { get; set; } = 0.30f;
+        public float FrontalAreaM2 { get; set; } = 2.2f;
+        public float RollingResistanceCoefficient { get; set; } = 0.015f;
+        public float LaunchRpm { get; set; } = 1800f;
         public float FinalDriveRatio { get; set; } = 3.5f;
         public float TireCircumferenceM { get; set; } = 2.0f;
         

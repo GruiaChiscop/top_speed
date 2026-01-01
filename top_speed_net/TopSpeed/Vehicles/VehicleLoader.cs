@@ -46,6 +46,14 @@ namespace TopSpeed.Vehicles
                 DrivetrainEfficiency = parameters.DrivetrainEfficiency,
                 EngineBrakingTorqueNm = parameters.EngineBrakingTorqueNm,
                 TireGripCoefficient = parameters.TireGripCoefficient,
+                PeakTorqueNm = parameters.PeakTorqueNm,
+                PeakTorqueRpm = parameters.PeakTorqueRpm,
+                IdleTorqueNm = parameters.IdleTorqueNm,
+                RedlineTorqueNm = parameters.RedlineTorqueNm,
+                DragCoefficient = parameters.DragCoefficient,
+                FrontalAreaM2 = parameters.FrontalAreaM2,
+                RollingResistanceCoefficient = parameters.RollingResistanceCoefficient,
+                LaunchRpm = parameters.LaunchRpm,
                 FinalDriveRatio = parameters.FinalDriveRatio,
                 TireCircumferenceM = parameters.TireCircumferenceM,
                 PowerFactor = parameters.PowerFactor,
@@ -102,6 +110,14 @@ namespace TopSpeed.Vehicles
             var drivetrainEfficiency = ReadFloat(settings, "drivetrain", 0.85f);
             var engineBrakingTorque = ReadFloat(settings, "enginebrakingtorque", 150f);
             var tireGrip = ReadFloat(settings, "tiregrip", 0.9f);
+            var peakTorqueNm = ReadFloat(settings, "peaktorque", 200f);
+            var peakTorqueRpm = ReadFloat(settings, "peaktorquerpm", 4000f);
+            var idleTorqueNm = ReadFloat(settings, "idletorque", peakTorqueNm * 0.3f);
+            var redlineTorqueNm = ReadFloat(settings, "redlinetorque", peakTorqueNm * 0.6f);
+            var dragCoefficient = ReadFloat(settings, "dragcoefficient", 0.30f);
+            var frontalArea = ReadFloat(settings, "frontalarea", 2.2f);
+            var rollingResistance = ReadFloat(settings, "rollingresistance", 0.015f);
+            var launchRpm = ReadFloat(settings, "launchrpm", 1800f);
             var finalDriveRatio = ReadFloat(settings, "finaldrive", 3.5f);
             var powerFactor = ReadFloat(settings, "powerfactor", 0.5f);
             var gearRatios = ReadFloatArray(settings, "gearratios");
@@ -144,6 +160,14 @@ namespace TopSpeed.Vehicles
                 DrivetrainEfficiency = drivetrainEfficiency,
                 EngineBrakingTorqueNm = engineBrakingTorque,
                 TireGripCoefficient = tireGrip,
+                PeakTorqueNm = peakTorqueNm,
+                PeakTorqueRpm = peakTorqueRpm,
+                IdleTorqueNm = idleTorqueNm,
+                RedlineTorqueNm = redlineTorqueNm,
+                DragCoefficient = dragCoefficient,
+                FrontalAreaM2 = frontalArea,
+                RollingResistanceCoefficient = rollingResistance,
+                LaunchRpm = launchRpm,
                 FinalDriveRatio = finalDriveRatio,
                 TireCircumferenceM = tireCircumferenceM,
                 PowerFactor = powerFactor,
@@ -317,4 +341,5 @@ namespace TopSpeed.Vehicles
         }
     }
 }
+
 

@@ -32,6 +32,14 @@ namespace TopSpeed.Data
         public float DrivetrainEfficiency { get; }
         public float EngineBrakingTorqueNm { get; }
         public float TireGripCoefficient { get; }
+        public float PeakTorqueNm { get; }
+        public float PeakTorqueRpm { get; }
+        public float IdleTorqueNm { get; }
+        public float RedlineTorqueNm { get; }
+        public float DragCoefficient { get; }
+        public float FrontalAreaM2 { get; }
+        public float RollingResistanceCoefficient { get; }
+        public float LaunchRpm { get; }
         public float FinalDriveRatio { get; }
         public float TireCircumferenceM { get; }
         public float PowerFactor { get; }
@@ -67,6 +75,14 @@ namespace TopSpeed.Data
             float drivetrainEfficiency = 0.85f,
             float engineBrakingTorqueNm = 150f,
             float tireGripCoefficient = 0.9f,
+            float peakTorqueNm = 200f,
+            float peakTorqueRpm = 4000f,
+            float idleTorqueNm = 60f,
+            float redlineTorqueNm = 140f,
+            float dragCoefficient = 0.30f,
+            float frontalAreaM2 = 2.2f,
+            float rollingResistanceCoefficient = 0.015f,
+            float launchRpm = 1800f,
             float finalDriveRatio = 3.5f,
             float tireCircumferenceM = 2.0f,
             float powerFactor = 0.5f,
@@ -103,6 +119,14 @@ namespace TopSpeed.Data
             DrivetrainEfficiency = drivetrainEfficiency;
             EngineBrakingTorqueNm = engineBrakingTorqueNm;
             TireGripCoefficient = tireGripCoefficient;
+            PeakTorqueNm = peakTorqueNm;
+            PeakTorqueRpm = peakTorqueRpm;
+            IdleTorqueNm = idleTorqueNm;
+            RedlineTorqueNm = redlineTorqueNm;
+            DragCoefficient = dragCoefficient;
+            FrontalAreaM2 = frontalAreaM2;
+            RollingResistanceCoefficient = rollingResistanceCoefficient;
+            LaunchRpm = launchRpm;
             FinalDriveRatio = finalDriveRatio;
             TireCircumferenceM = tireCircumferenceM;
             PowerFactor = powerFactor;
@@ -144,6 +168,8 @@ namespace TopSpeed.Data
                 idleFreq: 22050, topFreq: 55000, shiftFreq: 26000, gears: 6, steering: 1.60f, steeringFactor: 60,
                 idleRpm: 900f, maxRpm: 8000f, revLimiter: 7600f, autoShiftRpm: 7600f * 0.92f, engineBraking: 0.25f,
                 massKg: 1774f, drivetrainEfficiency: 0.80f, engineBrakingTorqueNm: 652f, tireGripCoefficient: 1.0f,
+                peakTorqueNm: 652f, peakTorqueRpm: 3600f, idleTorqueNm: 652f * 0.3f, redlineTorqueNm: 652f * 0.6f,
+                dragCoefficient: 0.26f, frontalAreaM2: 2.2f, rollingResistanceCoefficient: 0.015f, launchRpm: 2500f,
                 finalDriveRatio: 3.70f, tireCircumferenceM: TireCircumferenceM(285, 35, 20),
                 powerFactor: 0.7f, gearRatios: GtrRatios),
 
@@ -153,6 +179,8 @@ namespace TopSpeed.Data
                 idleFreq: 22050, topFreq: 60000, shiftFreq: 35000, gears: 7, steering: 1.50f, steeringFactor: 55,
                 idleRpm: 950f, maxRpm: 9000f, revLimiter: 8500f, autoShiftRpm: 8500f * 0.92f, engineBraking: 0.22f,
                 massKg: 1450f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 465f, tireGripCoefficient: 1.05f,
+                peakTorqueNm: 465f, peakTorqueRpm: 6250f, idleTorqueNm: 465f * 0.3f, redlineTorqueNm: 465f * 0.6f,
+                dragCoefficient: 0.33f, frontalAreaM2: 2.0f, rollingResistanceCoefficient: 0.015f, launchRpm: 3000f,
                 finalDriveRatio: 3.97f, tireCircumferenceM: TireCircumferenceM(325, 30, 21),
                 powerFactor: 0.75f, gearRatios: Gt3RsRatios),
 
@@ -162,6 +190,8 @@ namespace TopSpeed.Data
                 idleFreq: 6000, topFreq: 25000, shiftFreq: 19000, gears: 5, steering: 1.50f, steeringFactor: 72,
                 idleRpm: 750f, maxRpm: 6000f, revLimiter: 5500f, autoShiftRpm: 5500f * 0.92f, engineBraking: 0.40f,
                 massKg: 865f, drivetrainEfficiency: 0.88f, engineBrakingTorqueNm: 102f, tireGripCoefficient: 0.88f,
+                peakTorqueNm: 102f, peakTorqueRpm: 3000f, idleTorqueNm: 102f * 0.3f, redlineTorqueNm: 102f * 0.6f,
+                dragCoefficient: 0.33f, frontalAreaM2: 2.1f, rollingResistanceCoefficient: 0.015f, launchRpm: 1800f,
                 finalDriveRatio: 3.353f, tireCircumferenceM: TireCircumferenceM(195, 45, 16),
                 powerFactor: 0.35f, gearRatios: Fiat500Ratios),
 
@@ -171,6 +201,8 @@ namespace TopSpeed.Data
                 idleFreq: 6000, topFreq: 27000, shiftFreq: 20000, gears: 6, steering: 1.40f, steeringFactor: 56,
                 idleRpm: 800f, maxRpm: 6500f, revLimiter: 6000f, autoShiftRpm: 6000f * 0.92f, engineBraking: 0.32f,
                 massKg: 1265f, drivetrainEfficiency: 0.88f, engineBrakingTorqueNm: 280f, tireGripCoefficient: 0.95f,
+                peakTorqueNm: 280f, peakTorqueRpm: 1250f, idleTorqueNm: 280f * 0.3f, redlineTorqueNm: 280f * 0.6f,
+                dragCoefficient: 0.33f, frontalAreaM2: 2.1f, rollingResistanceCoefficient: 0.015f, launchRpm: 2200f,
                 finalDriveRatio: 3.59f, tireCircumferenceM: TireCircumferenceM(195, 55, 16),
                 powerFactor: 0.45f, gearRatios: MiniCooperSRatios),
 
@@ -180,6 +212,8 @@ namespace TopSpeed.Data
                 idleFreq: 6000, topFreq: 33000, shiftFreq: 27500, gears: 4, steering: 2.30f, steeringFactor: 80,
                 idleRpm: 650f, maxRpm: 5500f, revLimiter: 5000f, autoShiftRpm: 5000f * 0.92f, engineBraking: 0.35f,
                 massKg: 1440f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 481f, tireGripCoefficient: 0.90f,
+                peakTorqueNm: 481f, peakTorqueRpm: 3000f, idleTorqueNm: 481f * 0.3f, redlineTorqueNm: 481f * 0.6f,
+                dragCoefficient: 0.45f, frontalAreaM2: 2.5f, rollingResistanceCoefficient: 0.018f, launchRpm: 2000f,
                 finalDriveRatio: 3.25f, tireCircumferenceM: TireCircumferenceM(215, 70, 14),
                 powerFactor: 0.4f, gearRatios: Mustang69Ratios),
 
@@ -189,6 +223,8 @@ namespace TopSpeed.Data
                 idleFreq: 7025, topFreq: 40000, shiftFreq: 32500, gears: 8, steering: 2.20f, steeringFactor: 95,
                 idleRpm: 700f, maxRpm: 6000f, revLimiter: 5500f, autoShiftRpm: 5500f * 0.92f, engineBraking: 0.38f,
                 massKg: 1470f, drivetrainEfficiency: 0.88f, engineBrakingTorqueNm: 250f, tireGripCoefficient: 0.90f,
+                peakTorqueNm: 250f, peakTorqueRpm: 5000f, idleTorqueNm: 250f * 0.3f, redlineTorqueNm: 250f * 0.6f,
+                dragCoefficient: 0.29f, frontalAreaM2: 2.2f, rollingResistanceCoefficient: 0.015f, launchRpm: 2000f,
                 finalDriveRatio: 2.80f, tireCircumferenceM: TireCircumferenceM(215, 55, 17),
                 powerFactor: 0.35f, gearRatios: CamryRatios),
 
@@ -198,6 +234,8 @@ namespace TopSpeed.Data
                 idleFreq: 6000, topFreq: 26000, shiftFreq: 21000, gears: 7, steering: 2.10f, steeringFactor: 65,
                 idleRpm: 1000f, maxRpm: 8500f, revLimiter: 8000f, autoShiftRpm: 8000f * 0.92f, engineBraking: 0.20f,
                 massKg: 1640f, drivetrainEfficiency: 0.80f, engineBrakingTorqueNm: 720f, tireGripCoefficient: 1.05f,
+                peakTorqueNm: 720f, peakTorqueRpm: 5500f, idleTorqueNm: 720f * 0.3f, redlineTorqueNm: 720f * 0.6f,
+                dragCoefficient: 0.33f, frontalAreaM2: 2.0f, rollingResistanceCoefficient: 0.015f, launchRpm: 3000f,
                 finalDriveRatio: 2.86f, tireCircumferenceM: TireCircumferenceM(355, 25, 21),
                 powerFactor: 0.8f, gearRatios: AventadorRatios),
 
@@ -207,6 +245,8 @@ namespace TopSpeed.Data
                 idleFreq: 10000, topFreq: 45000, shiftFreq: 34000, gears: 8, steering: 2.00f, steeringFactor: 70,
                 idleRpm: 750f, maxRpm: 6500f, revLimiter: 6000f, autoShiftRpm: 6000f * 0.92f, engineBraking: 0.30f,
                 massKg: 1524f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 346f, tireGripCoefficient: 0.93f,
+                peakTorqueNm: 350f, peakTorqueRpm: 1250f, idleTorqueNm: 350f * 0.3f, redlineTorqueNm: 350f * 0.6f,
+                dragCoefficient: 0.29f, frontalAreaM2: 2.2f, rollingResistanceCoefficient: 0.015f, launchRpm: 2000f,
                 finalDriveRatio: 3.15f, tireCircumferenceM: TireCircumferenceM(225, 50, 17),
                 powerFactor: 0.45f, gearRatios: Bmw3SeriesRatios),
 
@@ -216,6 +256,8 @@ namespace TopSpeed.Data
                 idleFreq: 22050, topFreq: 30550, shiftFreq: 22550, gears: 7, steering: 1.50f, steeringFactor: 85,
                 idleRpm: 600f, maxRpm: 4500f, revLimiter: 4000f, autoShiftRpm: 4000f * 0.92f, engineBraking: 0.45f,
                 massKg: 1970f, drivetrainEfficiency: 0.85f, engineBrakingTorqueNm: 380f, tireGripCoefficient: 0.82f,
+                peakTorqueNm: 440f, peakTorqueRpm: 1400f, idleTorqueNm: 440f * 0.3f, redlineTorqueNm: 440f * 0.6f,
+                dragCoefficient: 0.35f, frontalAreaM2: 2.9f, rollingResistanceCoefficient: 0.020f, launchRpm: 1800f,
                 finalDriveRatio: 3.923f, tireCircumferenceM: TireCircumferenceM(245, 75, 16),
                 powerFactor: 0.2f, gearRatios: SprinterRatios),
 
@@ -225,6 +267,8 @@ namespace TopSpeed.Data
                 idleFreq: 22050, topFreq: 60000, shiftFreq: 35000, gears: 6, steering: 1.40f, steeringFactor: 50,
                 idleRpm: 1100f, maxRpm: 14000f, revLimiter: 13500f, autoShiftRpm: 13500f * 0.92f, engineBraking: 0.28f,
                 massKg: 207f, drivetrainEfficiency: 0.92f, engineBrakingTorqueNm: 114.9f, tireGripCoefficient: 1.10f,
+                peakTorqueNm: 114.9f, peakTorqueRpm: 11500f, idleTorqueNm: 114.9f * 0.3f, redlineTorqueNm: 114.9f * 0.6f,
+                dragCoefficient: 0.58f, frontalAreaM2: 0.6f, rollingResistanceCoefficient: 0.016f, launchRpm: 4000f,
                 finalDriveRatio: 3.8562f, tireCircumferenceM: TireCircumferenceM(190, 55, 17),
                 powerFactor: 0.85f, gearRatios: Zx10rRatios),
 
@@ -234,6 +278,8 @@ namespace TopSpeed.Data
                 idleFreq: 22050, topFreq: 60000, shiftFreq: 35000, gears: 6, steering: 1.30f, steeringFactor: 50,
                 idleRpm: 1200f, maxRpm: 15000f, revLimiter: 14500f, autoShiftRpm: 14500f * 0.92f, engineBraking: 0.25f,
                 massKg: 191f, drivetrainEfficiency: 0.92f, engineBrakingTorqueNm: 121f, tireGripCoefficient: 1.12f,
+                peakTorqueNm: 121f, peakTorqueRpm: 10000f, idleTorqueNm: 121f * 0.3f, redlineTorqueNm: 121f * 0.6f,
+                dragCoefficient: 0.55f, frontalAreaM2: 0.6f, rollingResistanceCoefficient: 0.016f, launchRpm: 4000f,
                 finalDriveRatio: 4.6125f, tireCircumferenceM: TireCircumferenceM(200, 60, 17),
                 powerFactor: 0.9f, gearRatios: PanigaleV4Ratios),
 
@@ -243,6 +289,8 @@ namespace TopSpeed.Data
                 idleFreq: 22050, topFreq: 27550, shiftFreq: 23550, gears: 6, steering: 1.50f, steeringFactor: 66,
                 idleRpm: 1100f, maxRpm: 14500f, revLimiter: 14000f, autoShiftRpm: 14000f * 0.92f, engineBraking: 0.30f,
                 massKg: 201f, drivetrainEfficiency: 0.92f, engineBrakingTorqueNm: 113.3f, tireGripCoefficient: 1.10f,
+                peakTorqueNm: 112.4f, peakTorqueRpm: 11500f, idleTorqueNm: 112.4f * 0.3f, redlineTorqueNm: 112.4f * 0.6f,
+                dragCoefficient: 0.55f, frontalAreaM2: 0.6f, rollingResistanceCoefficient: 0.016f, launchRpm: 4000f,
                 finalDriveRatio: 4.1807f, tireCircumferenceM: TireCircumferenceM(190, 55, 17),
                 powerFactor: 0.8f, gearRatios: R1Ratios)
         };

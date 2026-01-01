@@ -91,6 +91,13 @@ namespace TopSpeed.Vehicles
         /// <summary>Total distance traveled in meters.</summary>
         public float DistanceMeters => _distanceMeters;
 
+        public void OverrideRpm(float rpm)
+        {
+            var clamped = Math.Max(_idleRpm, Math.Min(_revLimiter, rpm));
+            if (clamped > _rpm)
+                _rpm = clamped;
+        }
+
         public float GetGearMaxSpeedKmh(int gear)
         {
             var clampedGear = Math.Max(1, Math.Min(_gearCount, gear));

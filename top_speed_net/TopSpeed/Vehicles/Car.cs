@@ -60,6 +60,16 @@ namespace TopSpeed.Vehicles
         private float _idleRpm;
         private float _revLimiter;
         private float _finalDriveRatio;
+        private float _powerFactor;
+        private float _peakTorqueNm;
+        private float _peakTorqueRpm;
+        private float _idleTorqueNm;
+        private float _redlineTorqueNm;
+        private float _dragCoefficient;
+        private float _frontalAreaM2;
+        private float _rollingResistanceCoefficient;
+        private float _launchRpm;
+        private float _lastDriveRpm;
         private int _idleFreq;
         private int _topFreq;
         private int _shiftFreq;
@@ -185,6 +195,15 @@ namespace TopSpeed.Vehicles
             _idleRpm = definition.IdleRpm;
             _revLimiter = definition.RevLimiter;
             _finalDriveRatio = definition.FinalDriveRatio;
+            _powerFactor = Math.Max(0.1f, definition.PowerFactor);
+            _peakTorqueNm = Math.Max(0f, definition.PeakTorqueNm);
+            _peakTorqueRpm = Math.Max(_idleRpm + 100f, definition.PeakTorqueRpm);
+            _idleTorqueNm = Math.Max(0f, definition.IdleTorqueNm);
+            _redlineTorqueNm = Math.Max(0f, definition.RedlineTorqueNm);
+            _dragCoefficient = Math.Max(0.01f, definition.DragCoefficient);
+            _frontalAreaM2 = Math.Max(0.1f, definition.FrontalAreaM2);
+            _rollingResistanceCoefficient = Math.Max(0.001f, definition.RollingResistanceCoefficient);
+            _launchRpm = Math.Max(_idleRpm, Math.Min(_revLimiter, definition.LaunchRpm));
             _idleFreq = definition.IdleFreq;
             _topFreq = definition.TopFreq;
             _shiftFreq = definition.ShiftFreq;
@@ -620,7 +639,30 @@ namespace TopSpeed.Vehicles
                 // Original speed calculation with proper gear physics
                 if (_thrust > 10)
                 {
-                    _speedDiff = (elapsed * _thrust * _currentAcceleration * _factor1 * (float)_factor2 / 100f);
+                    var speedMpsCurrent = _speed / 3.6f;
+                    var throttle = Math.Max(0f, Math.Min(100f, _currentThrottle)) / 100f;
+                    var surfaceAccelMod = _acceleration > 0f ? _currentAcceleration / _acceleration : 1.0f;
+                    var driveRpm = CalculateDriveRpm(speedMpsCurrent, throttle);
+                    var engineTorque = CalculateEngineTorqueNm(driveRpm) * throttle * _powerFactor;
+                    var gearRatio = _engine.GetGearRatio(_gear);
+                    var wheelTorque = engineTorque * gearRatio * _finalDriveRatio * _drivetrainEfficiency;
+                    var wheelForce = wheelTorque / _wheelRadiusM;
+                    var tractionLimit = _tireGripCoefficient * surfaceAccelMod * _massKg * 9.80665f;
+                    if (wheelForce > tractionLimit)
+                        wheelForce = tractionLimit;
+                    wheelForce *= (float)_factor2;
+                    wheelForce *= (_factor1 / 100f);
+
+                    var dragForce = 0.5f * 1.225f * _dragCoefficient * _frontalAreaM2 * speedMpsCurrent * speedMpsCurrent;
+                    var rollingForce = _rollingResistanceCoefficient * _massKg * 9.80665f;
+                    var netForce = wheelForce - dragForce - rollingForce;
+                    var accelMps2 = netForce / _massKg;
+                    var newSpeedMps = speedMpsCurrent + (accelMps2 * elapsed);
+                    if (newSpeedMps < 0f)
+                        newSpeedMps = 0f;
+                    _speedDiff = (newSpeedMps - speedMpsCurrent) * 3.6f;
+                    _lastDriveRpm = CalculateDriveRpm(newSpeedMps, throttle);
+
                     if (_backfirePlayed)
                         _backfirePlayed = false;
                 }
@@ -632,10 +674,9 @@ namespace TopSpeed.Vehicles
                     var engineBrakeDecel = CalculateEngineBrakingDecel(surfaceDecelMod);
                     var totalDecel = _thrust < -10 ? (brakeDecel + engineBrakeDecel) : engineBrakeDecel;
                     _speedDiff = -totalDecel * elapsed;
+                    _lastDriveRpm = 0f;
                 }
 
-                if (_speedDiff > 0)
-                    _speedDiff = (_speedDiff * (2.0f - ((_topSpeed + _speed) * 1.0f / (2.0f * _topSpeed))));
                 _speed += _speedDiff;
                 if (_speed > _topSpeed)
                     _speed = _topSpeed;
@@ -655,6 +696,8 @@ namespace TopSpeed.Vehicles
 
                 // Update engine model for RPM and distance tracking (reporting only)
                 _engine.SyncFromSpeed(_speed, _gear, elapsed, _currentThrottle);
+                if (_lastDriveRpm > 0f && _lastDriveRpm > _engine.Rpm)
+                    _engine.OverrideRpm(_lastDriveRpm);
 
                 if (_thrust <= 0)
                 {
@@ -1251,6 +1294,48 @@ namespace TopSpeed.Vehicles
                 var acceleration = (int)(100.0f * (0.5f + Math.Cos(0.95f * Math.PI)));
                 return acceleration < 5 ? 5 : acceleration;
             }
+        }
+
+        private float CalculateDriveRpm(float speedMps, float throttle)
+        {
+            var wheelCircumference = _wheelRadiusM * 2.0f * (float)Math.PI;
+            var gearRatio = _engine.GetGearRatio(_gear);
+            var speedBasedRpm = wheelCircumference > 0f
+                ? (speedMps / wheelCircumference) * 60f * gearRatio * _finalDriveRatio
+                : 0f;
+            var launchTarget = _idleRpm + (throttle * (_launchRpm - _idleRpm));
+            var rpm = Math.Max(speedBasedRpm, launchTarget);
+            if (rpm < _idleRpm)
+                rpm = _idleRpm;
+            if (rpm > _revLimiter)
+                rpm = _revLimiter;
+            return rpm;
+        }
+
+        private float CalculateEngineTorqueNm(float rpm)
+        {
+            if (_peakTorqueNm <= 0f)
+                return 0f;
+            var clampedRpm = Math.Max(_idleRpm, Math.Min(_revLimiter, rpm));
+            if (clampedRpm <= _peakTorqueRpm)
+            {
+                var denom = _peakTorqueRpm - _idleRpm;
+                var t = denom > 0f ? (clampedRpm - _idleRpm) / denom : 0f;
+                return SmoothStep(_idleTorqueNm, _peakTorqueNm, t);
+            }
+            else
+            {
+                var denom = _revLimiter - _peakTorqueRpm;
+                var t = denom > 0f ? (clampedRpm - _peakTorqueRpm) / denom : 0f;
+                return SmoothStep(_peakTorqueNm, _redlineTorqueNm, t);
+            }
+        }
+
+        private static float SmoothStep(float a, float b, float t)
+        {
+            var clamped = Math.Max(0f, Math.Min(1f, t));
+            clamped = clamped * clamped * (3f - 2f * clamped);
+            return a + (b - a) * clamped;
         }
 
         private float CalculateBrakeDecel(float brakeInput, float surfaceDecelMod)
