@@ -41,9 +41,17 @@ namespace TopSpeed.Server.Tracks
             }
 
             var values = new List<int>();
+            string? name = null;
             foreach (var line in File.ReadLines(resolvedPath))
             {
-                if (int.TryParse(line.Trim(), out var value))
+                var trimmed = line.Trim();
+                if (TryParseCustomTrackName(trimmed, out var parsedName))
+                {
+                    if (string.IsNullOrWhiteSpace(name))
+                        name = parsedName;
+                    continue;
+                }
+                if (int.TryParse(trimmed, out var value))
                     values.Add(value);
             }
 
@@ -120,7 +128,7 @@ namespace TopSpeed.Server.Tracks
             if (ambienceValue < 0)
                 ambienceValue = 0;
 
-            return new TrackData(true, (TrackWeather)weatherValue, (TrackAmbience)ambienceValue, definitions);
+            return new TrackData(true, (TrackWeather)weatherValue, (TrackAmbience)ambienceValue, definitions, name: name);
         }
 
         private static string? ResolveTrackPath(string nameOrPath)
@@ -144,6 +152,41 @@ namespace TopSpeed.Server.Tracks
             };
 
             return new TrackData(true, TrackWeather.Sunny, TrackAmbience.NoAmbience, definitions);
+        }
+
+        private static bool TryParseCustomTrackName(string line, out string name)
+        {
+            name = string.Empty;
+            if (string.IsNullOrWhiteSpace(line))
+                return false;
+
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("#", StringComparison.Ordinal) ||
+                trimmed.StartsWith(";", StringComparison.Ordinal))
+            {
+                trimmed = trimmed.Substring(1).TrimStart();
+            }
+
+            var separatorIndex = trimmed.IndexOf('=');
+            if (separatorIndex < 0)
+                separatorIndex = trimmed.IndexOf(':');
+            if (separatorIndex <= 0)
+                return false;
+
+            var key = trimmed.Substring(0, separatorIndex).Trim();
+            if (!key.Equals("name", StringComparison.OrdinalIgnoreCase) &&
+                !key.Equals("trackname", StringComparison.OrdinalIgnoreCase) &&
+                !key.Equals("title", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var value = trimmed.Substring(separatorIndex + 1).Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            name = value;
+            return true;
         }
     }
 }

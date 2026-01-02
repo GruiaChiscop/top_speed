@@ -10,7 +10,8 @@ namespace TopSpeed.Core
     internal enum TrackCategory
     {
         RaceTrack,
-        StreetAdventure
+        StreetAdventure,
+        CustomTrack
     }
 
     internal enum TransmissionMode

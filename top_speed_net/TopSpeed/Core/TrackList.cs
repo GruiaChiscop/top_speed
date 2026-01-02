@@ -53,13 +53,23 @@ namespace TopSpeed.Core
 
         public static IReadOnlyList<TrackInfo> GetTracks(TrackCategory category)
         {
-            return category == TrackCategory.RaceTrack ? RaceTracks : AdventureTracks;
+            return category switch
+            {
+                TrackCategory.RaceTrack => RaceTracks,
+                TrackCategory.StreetAdventure => AdventureTracks,
+                _ => Array.Empty<TrackInfo>()
+            };
         }
 
         public static string GetRandomTrackKey(TrackCategory category, IEnumerable<string> customTracks)
         {
             var candidates = new List<string>();
-            var source = category == TrackCategory.RaceTrack ? RaceTracks : AdventureTracks;
+            var source = category switch
+            {
+                TrackCategory.RaceTrack => RaceTracks,
+                TrackCategory.StreetAdventure => AdventureTracks,
+                _ => Array.Empty<TrackInfo>()
+            };
             candidates.AddRange(source.Select(t => t.Key));
 
             if (customTracks != null)
@@ -78,7 +88,7 @@ namespace TopSpeed.Core
             candidates.AddRange(RaceTracks.Select(track => (track.Key, TrackCategory.RaceTrack)));
             candidates.AddRange(AdventureTracks.Select(track => (track.Key, TrackCategory.StreetAdventure)));
             if (customTracks != null)
-                candidates.AddRange(customTracks.Select(file => (file, TrackCategory.RaceTrack)));
+                candidates.AddRange(customTracks.Select(file => (file, TrackCategory.CustomTrack)));
 
             if (candidates.Count == 0)
                 return (RaceTracks[0].Key, TrackCategory.RaceTrack);

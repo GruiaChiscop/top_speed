@@ -91,7 +91,8 @@ namespace TopSpeed.Tracks
             }
 
             var data = ReadCustomTrackData(nameOrPath);
-            return new Track(nameOrPath, data, audio, userDefined: true);
+            var displayName = ResolveCustomTrackName(nameOrPath, data.Name);
+            return new Track(displayName, data, audio, userDefined: true);
         }
 
         public static Track LoadFromData(string trackName, TrackData data, AudioManager audio, bool userDefined)
@@ -529,6 +530,50 @@ namespace TopSpeed.Tracks
                 _curveScale = 0.01f;
         }
 
+        private static string ResolveCustomTrackName(string path, string? name)
+        {
+            var trimmedName = name?.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmedName))
+                return trimmedName!;
+            var fileName = Path.GetFileNameWithoutExtension(path);
+            return string.IsNullOrWhiteSpace(fileName) ? path : fileName;
+        }
+
+        private static bool TryParseCustomTrackName(string line, out string name)
+        {
+            name = string.Empty;
+            if (string.IsNullOrWhiteSpace(line))
+                return false;
+
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("#", StringComparison.Ordinal) ||
+                trimmed.StartsWith(";", StringComparison.Ordinal))
+            {
+                trimmed = trimmed.Substring(1).TrimStart();
+            }
+
+            var separatorIndex = trimmed.IndexOf('=');
+            if (separatorIndex < 0)
+                separatorIndex = trimmed.IndexOf(':');
+            if (separatorIndex <= 0)
+                return false;
+
+            var key = trimmed.Substring(0, separatorIndex).Trim();
+            if (!key.Equals("name", StringComparison.OrdinalIgnoreCase) &&
+                !key.Equals("trackname", StringComparison.OrdinalIgnoreCase) &&
+                !key.Equals("title", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var value = trimmed.Substring(separatorIndex + 1).Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            name = value;
+            return true;
+        }
+
         private static TrackData ReadCustomTrackData(string filename)
         {
             if (!File.Exists(filename))
@@ -538,9 +583,17 @@ namespace TopSpeed.Tracks
             }
 
             var ints = new List<int>();
+            string? name = null;
             foreach (var line in File.ReadLines(filename))
             {
-                if (int.TryParse(line.Trim(), out var value))
+                var trimmed = line.Trim();
+                if (TryParseCustomTrackName(trimmed, out var parsedName))
+                {
+                    if (string.IsNullOrWhiteSpace(name))
+                        name = parsedName;
+                    continue;
+                }
+                if (int.TryParse(trimmed, out var value))
                     ints.Add(value);
             }
 
@@ -564,7 +617,8 @@ namespace TopSpeed.Tracks
             if (length == 0)
             {
                 return new TrackData(true, TrackWeather.Sunny, TrackAmbience.NoAmbience,
-                    new[] { new TrackDefinition(TrackType.Straight, TrackSurface.Asphalt, TrackNoise.NoNoise, MinPartLengthMeters) });
+                    new[] { new TrackDefinition(TrackType.Straight, TrackSurface.Asphalt, TrackNoise.NoNoise, MinPartLengthMeters) },
+                    name: name);
             }
 
             var definitions = new TrackDefinition[length];
@@ -620,7 +674,7 @@ namespace TopSpeed.Tracks
 
             var weather = (TrackWeather)weatherValue;
             var ambience = (TrackAmbience)ambienceValue;
-            return new TrackData(true, weather, ambience, definitions);
+            return new TrackData(true, weather, ambience, definitions, name: name);
         }
 
         public void Dispose()

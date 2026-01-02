@@ -72,19 +72,28 @@ namespace TopSpeed.Data
     public sealed class TrackData
     {
         public bool UserDefined { get; }
+        public string? Name { get; }
         public TrackWeather Weather { get; }
         public TrackAmbience Ambience { get; }
         public TrackDefinition[] Definitions { get; }
         public int Length => Definitions.Length;
         public byte Laps { get; set; }
 
-        public TrackData(bool userDefined, TrackWeather weather, TrackAmbience ambience, TrackDefinition[] definitions, byte laps = 0)
+        public TrackData(
+            bool userDefined,
+            TrackWeather weather,
+            TrackAmbience ambience,
+            TrackDefinition[] definitions,
+            byte laps = 0,
+            string? name = null)
         {
             UserDefined = userDefined;
             Weather = weather;
             Ambience = ambience;
             Definitions = definitions;
             Laps = laps;
+            var trimmedName = name?.Trim();
+            Name = string.IsNullOrWhiteSpace(trimmedName) ? null : trimmedName;
         }
     }
 }
