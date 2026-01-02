@@ -15,7 +15,7 @@ namespace TopSpeed.Vehicles
     internal sealed class ComputerPlayer : IDisposable
     {
         private const float CallLength = 30.0f;
-        private const float BaseLateralSpeed = 4.0f;
+        private const float BaseLateralSpeed = 7.0f;
         private const float StabilitySpeedRef = 45.0f;
 
         private readonly AudioManager _audio;
@@ -706,10 +706,11 @@ namespace TopSpeed.Vehicles
                     _relPos = (_positionX - road.Left) / (_laneWidth * 2.0f);
                     if (_relPos < 0 || _relPos > 1)
                     {
-                        if (_speed < _topSpeed / 2)
-                            MiniCrash((road.Right + road.Left) / 2);
-                        else
+                        var fullCrash = _gear > 1 || _speed >= 50.0f;
+                        if (fullCrash)
                             Crash((road.Right + road.Left) / 2);
+                        else
+                            MiniCrash((road.Right + road.Left) / 2);
                     }
                 }
             }

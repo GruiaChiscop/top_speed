@@ -15,7 +15,7 @@ namespace TopSpeed.Vehicles
     internal sealed class Car : IDisposable
     {
         private const int MaxSurfaceFreq = 100000;
-        private const float BaseLateralSpeed = 4.0f;
+        private const float BaseLateralSpeed = 7.0f;
         private const float StabilitySpeedRef = 45.0f;
         private const float CrashVibrationSeconds = 1.5f;
         private const float BumpVibrationSeconds = 0.2f;
@@ -1083,12 +1083,11 @@ namespace TopSpeed.Vehicles
                     }
                     if (_relPos < 0 || _relPos > 1)
                     {
-                        // Crash if speed is above 1.5 gear ranges (e.g. 60 km/h for 5-gear 200 km/h car)
-                        var crashThreshold = 1.5f * _engine.GetGearMaxSpeedKmh(1);
-                        if (_speed < crashThreshold)
-                            MiniCrash((road.Right + road.Left) / 2);
-                        else
+                        var fullCrash = _gear > 1 || _speed >= 50.0f;
+                        if (fullCrash)
                             Crash();
+                        else
+                            MiniCrash((road.Right + road.Left) / 2);
                     }
                 }
             }
