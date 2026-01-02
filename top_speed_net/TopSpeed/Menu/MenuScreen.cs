@@ -16,6 +16,7 @@ namespace TopSpeed.Menu
         private const string DefaultNavigateSound = "menu_navigate.wav";
         private const string DefaultWrapSound = "menu_wrap.wav";
         private const string DefaultActivateSound = "menu_enter.wav";
+        private const int JoystickThreshold = 50;
         private const int NoSelection = -1;
         private readonly List<MenuItem> _items;
         private readonly AudioManager _audio;
@@ -30,6 +31,10 @@ namespace TopSpeed.Menu
         private AudioSourceHandle? _navigateSound;
         private AudioSourceHandle? _wrapSound;
         private AudioSourceHandle? _activateSound;
+        private JoystickStateSnapshot _prevJoystick;
+        private JoystickStateSnapshot _joystickCenter;
+        private bool _hasPrevJoystick;
+        private bool _hasJoystickCenter;
 
         public string Id { get; }
         public IReadOnlyList<MenuItem> Items => _items;
@@ -90,40 +95,67 @@ namespace TopSpeed.Menu
             if (_items.Count == 0)
                 return MenuUpdateResult.None;
 
+            var moveUp = input.WasPressed(Key.Up);
+            var moveDown = input.WasPressed(Key.Down);
+            var moveHome = input.WasPressed(Key.Home);
+            var moveEnd = input.WasPressed(Key.End);
+            var activate = input.WasPressed(Key.Return) || input.WasPressed(Key.NumberPadEnter);
+            var back = input.WasPressed(Key.Escape);
+
+            if (input.TryGetJoystickState(out var joystick))
+            {
+                if (!_hasJoystickCenter && IsNearCenter(joystick))
+                {
+                    _joystickCenter = joystick;
+                    _hasJoystickCenter = true;
+                }
+
+                var previous = _hasPrevJoystick ? _prevJoystick : _joystickCenter;
+                moveUp |= WasJoystickUpPressed(joystick, previous);
+                moveDown |= WasJoystickDownPressed(joystick, previous);
+                activate |= WasJoystickActivatePressed(joystick, previous);
+                _prevJoystick = joystick;
+                _hasPrevJoystick = true;
+            }
+            else
+            {
+                _hasPrevJoystick = false;
+            }
+
             if (_index == NoSelection)
             {
-                if (input.WasPressed(Key.Down))
+                if (moveDown)
                 {
                     MoveToIndex(0);
                 }
-                else if (input.WasPressed(Key.Up))
+                else if (moveUp)
                 {
                     MoveToIndex(_items.Count - 1);
                 }
-                else if (input.WasPressed(Key.Home))
+                else if (moveHome)
                 {
                     MoveToIndex(0);
                 }
-                else if (input.WasPressed(Key.End))
+                else if (moveEnd)
                 {
                     MoveToIndex(_items.Count - 1);
                 }
             }
             else
             {
-                if (input.WasPressed(Key.Up))
+                if (moveUp)
                 {
                     MoveSelectionAndAnnounce(-1);
                 }
-                else if (input.WasPressed(Key.Down))
+                else if (moveDown)
                 {
                     MoveSelectionAndAnnounce(1);
                 }
-                else if (input.WasPressed(Key.Home))
+                else if (moveHome)
                 {
                     MoveToIndex(0);
                 }
-                else if (input.WasPressed(Key.End))
+                else if (moveEnd)
                 {
                     MoveToIndex(_items.Count - 1);
                 }
@@ -138,7 +170,7 @@ namespace TopSpeed.Menu
                 SetMusicVolume(_musicVolume - 0.05f);
             }
 
-            if (input.WasPressed(Key.Return) || input.WasPressed(Key.NumberPadEnter))
+            if (activate)
             {
                 if (_index == NoSelection)
                     return MenuUpdateResult.None;
@@ -146,7 +178,7 @@ namespace TopSpeed.Menu
                 return MenuUpdateResult.Activated(_items[_index]);
             }
 
-            if (input.WasPressed(Key.Escape))
+            if (back)
                 return MenuUpdateResult.Back;
 
             return MenuUpdateResult.None;
@@ -334,6 +366,34 @@ namespace TopSpeed.Menu
             sound.Stop();
             sound.SeekToStart();
             sound.Play(loop: false);
+        }
+
+        private static bool IsNearCenter(JoystickStateSnapshot state)
+        {
+            return Math.Abs(state.X) <= JoystickThreshold && Math.Abs(state.Y) <= JoystickThreshold;
+        }
+
+        private static bool WasJoystickUpPressed(JoystickStateSnapshot current, JoystickStateSnapshot previous)
+        {
+            var currentUp = current.Y < -JoystickThreshold || current.Pov1;
+            var previousUp = previous.Y < -JoystickThreshold || previous.Pov1;
+            return currentUp && !previousUp;
+        }
+
+        private static bool WasJoystickDownPressed(JoystickStateSnapshot current, JoystickStateSnapshot previous)
+        {
+            var currentDown = current.Y > JoystickThreshold || current.Pov3;
+            var previousDown = previous.Y > JoystickThreshold || previous.Pov3;
+            return currentDown && !previousDown;
+        }
+
+        private static bool WasJoystickActivatePressed(JoystickStateSnapshot current, JoystickStateSnapshot previous)
+        {
+            var currentRight = current.X > JoystickThreshold || current.Pov2;
+            var previousRight = previous.X > JoystickThreshold || previous.Pov2;
+            if (currentRight && !previousRight)
+                return true;
+            return current.B1 && !previous.B1;
         }
 
         public void Dispose()
