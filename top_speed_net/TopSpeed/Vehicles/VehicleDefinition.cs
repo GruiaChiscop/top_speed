@@ -46,6 +46,8 @@ namespace TopSpeed.Vehicles
         public float HighSpeedStability { get; set; } = 0.0f;
         public float WheelbaseM { get; set; } = 2.7f;
         public float MaxSteerDeg { get; set; } = 35f;
+        public float WidthM { get; set; } = 1.8f;
+        public float LengthM { get; set; } = 4.5f;
         
         /// <summary>
         /// Power factor controls how fast the vehicle accelerates (0.1 = very slow, 1.0 = fast).

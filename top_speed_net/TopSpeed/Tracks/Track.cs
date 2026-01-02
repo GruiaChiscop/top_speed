@@ -10,7 +10,8 @@ namespace TopSpeed.Tracks
 {
     internal sealed class Track : IDisposable
     {
-        private const float LaneWidthMeters = 50.0f;
+        private const float LaneWidthMeters = 5.0f;
+        private const float LegacyLaneWidthMeters = 50.0f;
         private const float CallLengthMeters = 30.0f;
         private const int Types = 9;
         private const int Surfaces = 5;
@@ -35,6 +36,7 @@ namespace TopSpeed.Tracks
         private readonly TrackAmbience _ambience;
 
         private float _laneWidth;
+        private float _curveScale;
         private float _callLength;
         private float _lapDistance;
         private float _lapCenter;
@@ -67,10 +69,11 @@ namespace TopSpeed.Tracks
 
         private Track(string trackName, TrackData data, AudioManager audio, bool userDefined)
         {
-            _trackName = trackName.Length < 64 ? trackName : string.Empty;
+            _trackName = trackName.Length < 64 ? trackName : string.Empty;      
             _userDefined = userDefined;
             _audio = audio;
             _laneWidth = LaneWidthMeters;
+            UpdateCurveScale();
             _callLength = CallLengthMeters;
             _weather = data.Weather;
             _ambience = data.Ambience;
@@ -111,6 +114,7 @@ namespace TopSpeed.Tracks
         public void SetLaneWidth(float laneWidth)
         {
             _laneWidth = laneWidth;
+            UpdateCurveScale();
         }
 
         public int Lap(float position)
@@ -131,28 +135,28 @@ namespace TopSpeed.Tracks
                 switch (_definition[i].Type)
                 {
                     case TrackType.EasyLeft:
-                        _lapCenter -= _definition[i].Length / 2;
+                        _lapCenter -= (_definition[i].Length * _curveScale) / 2;
                         break;
                     case TrackType.Left:
-                        _lapCenter -= _definition[i].Length * 2 / 3;
+                        _lapCenter -= (_definition[i].Length * _curveScale) * 2 / 3;
                         break;
                     case TrackType.HardLeft:
-                        _lapCenter -= _definition[i].Length;
+                        _lapCenter -= _definition[i].Length * _curveScale;
                         break;
                     case TrackType.HairpinLeft:
-                        _lapCenter -= _definition[i].Length * 3 / 2;
+                        _lapCenter -= (_definition[i].Length * _curveScale) * 3 / 2;
                         break;
                     case TrackType.EasyRight:
-                        _lapCenter += _definition[i].Length / 2;
+                        _lapCenter += (_definition[i].Length * _curveScale) / 2;
                         break;
                     case TrackType.Right:
-                        _lapCenter += _definition[i].Length * 2 / 3;
+                        _lapCenter += (_definition[i].Length * _curveScale) * 2 / 3;
                         break;
                     case TrackType.HardRight:
-                        _lapCenter += _definition[i].Length;
+                        _lapCenter += _definition[i].Length * _curveScale;
                         break;
                     case TrackType.HairpinRight:
-                        _lapCenter += _definition[i].Length * 3 / 2;
+                        _lapCenter += (_definition[i].Length * _curveScale) * 3 / 2;
                         break;
                 }
             }
@@ -445,26 +449,26 @@ namespace TopSpeed.Tracks
             return _audio.CreateLoopingSource(path);
         }
 
-        private float UpdateCenter(float center, TrackDefinition definition)
+        private float UpdateCenter(float center, TrackDefinition definition)    
         {
             switch (definition.Type)
             {
                 case TrackType.EasyLeft:
-                    return center - definition.Length / 2;
+                    return center - (definition.Length * _curveScale) / 2;
                 case TrackType.Left:
-                    return center - definition.Length * 2 / 3;
+                    return center - (definition.Length * _curveScale) * 2 / 3;
                 case TrackType.HardLeft:
-                    return center - definition.Length;
+                    return center - definition.Length * _curveScale;
                 case TrackType.HairpinLeft:
-                    return center - definition.Length * 3 / 2;
+                    return center - (definition.Length * _curveScale) * 3 / 2;
                 case TrackType.EasyRight:
-                    return center + definition.Length / 2;
+                    return center + (definition.Length * _curveScale) / 2;
                 case TrackType.Right:
-                    return center + definition.Length * 2 / 3;
+                    return center + (definition.Length * _curveScale) * 2 / 3;
                 case TrackType.HardRight:
-                    return center + definition.Length;
+                    return center + definition.Length * _curveScale;
                 case TrackType.HairpinRight:
-                    return center + definition.Length * 3 / 2;
+                    return center + (definition.Length * _curveScale) * 3 / 2;
                 default:
                     return center;
             }
@@ -472,6 +476,7 @@ namespace TopSpeed.Tracks
 
         private void ApplyRoadOffset(ref Road road, float center, float relPos, TrackType type)
         {
+            var offset = relPos * _curveScale;
             switch (type)
             {
                 case TrackType.Straight:
@@ -479,42 +484,49 @@ namespace TopSpeed.Tracks
                     road.Right = center + _laneWidth;
                     break;
                 case TrackType.EasyLeft:
-                    road.Left = center - _laneWidth - relPos / 2;
-                    road.Right = center + _laneWidth - relPos / 2;
+                    road.Left = center - _laneWidth - offset / 2;
+                    road.Right = center + _laneWidth - offset / 2;
                     break;
                 case TrackType.Left:
-                    road.Left = center - _laneWidth - relPos * 2 / 3;
-                    road.Right = center + _laneWidth - relPos * 2 / 3;
+                    road.Left = center - _laneWidth - offset * 2 / 3;
+                    road.Right = center + _laneWidth - offset * 2 / 3;
                     break;
                 case TrackType.HardLeft:
-                    road.Left = center - _laneWidth - relPos;
-                    road.Right = center + _laneWidth - relPos;
+                    road.Left = center - _laneWidth - offset;
+                    road.Right = center + _laneWidth - offset;
                     break;
                 case TrackType.HairpinLeft:
-                    road.Left = center - _laneWidth - relPos * 3 / 2;
-                    road.Right = center + _laneWidth - relPos * 3 / 2;
+                    road.Left = center - _laneWidth - offset * 3 / 2;
+                    road.Right = center + _laneWidth - offset * 3 / 2;
                     break;
                 case TrackType.EasyRight:
-                    road.Left = center - _laneWidth + relPos / 2;
-                    road.Right = center + _laneWidth + relPos / 2;
+                    road.Left = center - _laneWidth + offset / 2;
+                    road.Right = center + _laneWidth + offset / 2;
                     break;
                 case TrackType.Right:
-                    road.Left = center - _laneWidth + relPos * 2 / 3;
-                    road.Right = center + _laneWidth + relPos * 2 / 3;
+                    road.Left = center - _laneWidth + offset * 2 / 3;
+                    road.Right = center + _laneWidth + offset * 2 / 3;
                     break;
                 case TrackType.HardRight:
-                    road.Left = center - _laneWidth + relPos;
-                    road.Right = center + _laneWidth + relPos;
+                    road.Left = center - _laneWidth + offset;
+                    road.Right = center + _laneWidth + offset;
                     break;
                 case TrackType.HairpinRight:
-                    road.Left = center - _laneWidth + relPos * 3 / 2;
-                    road.Right = center + _laneWidth + relPos * 3 / 2;
+                    road.Left = center - _laneWidth + offset * 3 / 2;
+                    road.Right = center + _laneWidth + offset * 3 / 2;
                     break;
                 default:
                     road.Left = center - _laneWidth;
                     road.Right = center + _laneWidth;
                     break;
             }
+        }
+
+        private void UpdateCurveScale()
+        {
+            _curveScale = LegacyLaneWidthMeters > 0f ? _laneWidth / LegacyLaneWidthMeters : 1.0f;
+            if (_curveScale <= 0f)
+                _curveScale = 0.01f;
         }
 
         private static TrackData ReadCustomTrackData(string filename)

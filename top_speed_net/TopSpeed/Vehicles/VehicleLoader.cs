@@ -60,6 +60,8 @@ namespace TopSpeed.Vehicles
                 HighSpeedStability = parameters.HighSpeedStability,
                 WheelbaseM = parameters.WheelbaseM,
                 MaxSteerDeg = parameters.MaxSteerDeg,
+                WidthM = parameters.WidthM,
+                LengthM = parameters.LengthM,
                 PowerFactor = parameters.PowerFactor,
                 GearRatios = parameters.GearRatios,
                 BrakeStrength = parameters.BrakeStrength
@@ -130,6 +132,8 @@ namespace TopSpeed.Vehicles
             var highSpeedStability = ReadFloat(settings, "highspeedstability", 0.0f);
             var wheelbase = ReadFloat(settings, "wheelbase", 2.7f);
             var maxSteerDeg = ReadFloat(settings, "maxsteerdeg", 35f);
+            var widthM = ReadFloat(settings, "vehiclewidth", 1.8f);
+            var lengthM = ReadFloat(settings, "vehiclelength", 4.5f);
 
             var tireCircumferenceM = ReadFloat(settings, "tirecircumference", 0f);
             if (tireCircumferenceM <= 0f)
@@ -182,6 +186,8 @@ namespace TopSpeed.Vehicles
                 HighSpeedStability = highSpeedStability,
                 WheelbaseM = wheelbase,
                 MaxSteerDeg = maxSteerDeg,
+                WidthM = widthM,
+                LengthM = lengthM,
                 PowerFactor = powerFactor,
                 GearRatios = gearRatios,
                 BrakeStrength = brakeStrength

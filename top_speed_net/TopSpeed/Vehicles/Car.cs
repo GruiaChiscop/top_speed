@@ -17,7 +17,6 @@ namespace TopSpeed.Vehicles
         private const int MaxSurfaceFreq = 100000;
         private const float BaseLateralSpeed = 15.0f;
         private const float StabilitySpeedRef = 60.0f;
-        private const float RealLaneWidthMeters = 8.33f;
         private const float CrashVibrationSeconds = 1.5f;
         private const float BumpVibrationSeconds = 0.2f;
 
@@ -76,6 +75,8 @@ namespace TopSpeed.Vehicles
         private float _highSpeedStability;
         private float _wheelbaseM;
         private float _maxSteerDeg;
+        private float _widthM;
+        private float _lengthM;
         private int _idleFreq;
         private int _topFreq;
         private int _shiftFreq;
@@ -212,6 +213,8 @@ namespace TopSpeed.Vehicles
             _highSpeedStability = Math.Max(0f, Math.Min(1.0f, definition.HighSpeedStability));
             _wheelbaseM = Math.Max(0.5f, definition.WheelbaseM);
             _maxSteerDeg = Math.Max(5f, Math.Min(60f, definition.MaxSteerDeg));
+            _widthM = Math.Max(0.5f, definition.WidthM);
+            _lengthM = Math.Max(0.5f, definition.LengthM);
             _idleFreq = definition.IdleFreq;
             _topFreq = definition.TopFreq;
             _shiftFreq = definition.ShiftFreq;
@@ -297,6 +300,8 @@ namespace TopSpeed.Vehicles
         public bool UserDefined => _userDefined;
         public string? CustomFile => _customFile;
         public string VehicleName { get; private set; } = "Vehicle";
+        public float WidthM => _widthM;
+        public float LengthM => _lengthM;
 
         // Engine simulation properties for reporting
         public float SpeedKmh => _engine.SpeedKmh;
@@ -776,11 +781,6 @@ namespace TopSpeed.Vehicles
                 var responseTime = BaseLateralSpeed / 20.0f;
                 var maxLatSpeed = maxLatAccelLat * responseTime * stabilityScale;
                 var desiredLatSpeed = desiredLatAccelLat * responseTime;
-                var trackScale = _track.LaneWidth / RealLaneWidthMeters;
-                if (trackScale < 0.1f)
-                    trackScale = 0.1f;
-                maxLatSpeed *= trackScale;
-                desiredLatSpeed *= trackScale;
                 if (desiredLatSpeed > maxLatSpeed)
                     desiredLatSpeed = maxLatSpeed;
                 else if (desiredLatSpeed < -maxLatSpeed)
