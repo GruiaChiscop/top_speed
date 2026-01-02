@@ -593,8 +593,8 @@ namespace TopSpeed.Tracks
                         name = parsedName;
                     continue;
                 }
-                if (int.TryParse(trimmed, out var value))
-                    ints.Add(value);
+
+                AppendIntsFromLine(trimmed, ints);
             }
 
             var length = 0;
@@ -675,6 +675,32 @@ namespace TopSpeed.Tracks
             var weather = (TrackWeather)weatherValue;
             var ambience = (TrackAmbience)ambienceValue;
             return new TrackData(true, weather, ambience, definitions, name: name);
+        }
+
+        private static int AppendIntsFromLine(string line, List<int> values)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                return 0;
+
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("#", StringComparison.Ordinal) ||
+                trimmed.StartsWith(";", StringComparison.Ordinal))
+            {
+                return 0;
+            }
+
+            var added = 0;
+            var parts = trimmed.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                if (int.TryParse(part, out var value))
+                {
+                    values.Add(value);
+                    added++;
+                }
+            }
+
+            return added;
         }
 
         public void Dispose()

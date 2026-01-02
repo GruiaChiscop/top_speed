@@ -51,8 +51,8 @@ namespace TopSpeed.Server.Tracks
                         name = parsedName;
                     continue;
                 }
-                if (int.TryParse(trimmed, out var value))
-                    values.Add(value);
+
+                AppendIntsFromLine(trimmed, values);
             }
 
             var length = 0;
@@ -129,6 +129,32 @@ namespace TopSpeed.Server.Tracks
                 ambienceValue = 0;
 
             return new TrackData(true, (TrackWeather)weatherValue, (TrackAmbience)ambienceValue, definitions, name: name);
+        }
+
+        private static int AppendIntsFromLine(string line, List<int> values)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                return 0;
+
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("#", StringComparison.Ordinal) ||
+                trimmed.StartsWith(";", StringComparison.Ordinal))
+            {
+                return 0;
+            }
+
+            var added = 0;
+            var parts = trimmed.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                if (int.TryParse(part, out var value))
+                {
+                    values.Add(value);
+                    added++;
+                }
+            }
+
+            return added;
         }
 
         private static string? ResolveTrackPath(string nameOrPath)

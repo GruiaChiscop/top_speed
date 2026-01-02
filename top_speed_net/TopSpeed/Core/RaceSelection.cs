@@ -169,7 +169,7 @@ namespace TopSpeed.Core
                         break;
                     }
 
-                    if (int.TryParse(trimmed, out _))
+                    if (LooksLikeTrackDataLine(trimmed))
                         break;
                 }
 
@@ -187,7 +187,7 @@ namespace TopSpeed.Core
             }
         }
 
-        private static bool TryParseNameLine(string line, out string name)
+        private static bool TryParseNameLine(string line, out string name)      
         {
             name = string.Empty;
             if (string.IsNullOrWhiteSpace(line))
@@ -220,6 +220,28 @@ namespace TopSpeed.Core
 
             name = value;
             return true;
+        }
+
+        private static bool LooksLikeTrackDataLine(string line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                return false;
+
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("#", StringComparison.Ordinal) ||
+                trimmed.StartsWith(";", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var parts = trimmed.Split((char[])null!, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                if (int.TryParse(part, out _))
+                    return true;
+            }
+
+            return false;
         }
     }
 }
