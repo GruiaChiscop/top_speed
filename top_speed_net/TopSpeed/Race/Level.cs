@@ -22,6 +22,9 @@ namespace TopSpeed.Race
         protected const int RandomSoundGroups = 16;
         protected const int RandomSoundMax = 32;
         protected const float AdventureLaneWidth = 80.0f;
+        private const float KmToMiles = 0.621371f;
+        private const float MetersPerMile = 1609.344f;
+        private const float MetersToFeet = 3.28084f;
 
         public enum RandomSound
         {
@@ -366,7 +369,15 @@ namespace TopSpeed.Race
                 _acceptCurrentRaceInfo = false;
                 var speedKmh = _car.SpeedKmh;
                 var rpm = _car.EngineRpm;
-                SpeakText($"{speedKmh:F0} kilometers per hour, {rpm:F0} RPM");
+                if (_settings.Units == UnitSystem.Imperial)
+                {
+                    var speedMph = speedKmh * KmToMiles;
+                    SpeakText($"{speedMph:F0} miles per hour, {rpm:F0} RPM");
+                }
+                else
+                {
+                    SpeakText($"{speedKmh:F0} kilometers per hour, {rpm:F0} RPM");
+                }
                 PushEvent(RaceEventType.AcceptCurrentRaceInfo, 0.5f);
             }
         }
@@ -377,11 +388,22 @@ namespace TopSpeed.Race
             {
                 _acceptCurrentRaceInfo = false;
                 var distanceM = _car.DistanceMeters;
-                var distanceKm = distanceM / 1000f;
-                if (distanceKm >= 1f)
-                    SpeakText($"{distanceKm:F1} kilometers traveled");
+                if (_settings.Units == UnitSystem.Imperial)
+                {
+                    var distanceMiles = distanceM / MetersPerMile;
+                    if (distanceMiles >= 1f)
+                        SpeakText($"{distanceMiles:F1} miles traveled");
+                    else
+                        SpeakText($"{distanceM * MetersToFeet:F0} feet traveled");
+                }
                 else
-                    SpeakText($"{distanceM:F0} meters traveled");
+                {
+                    var distanceKm = distanceM / 1000f;
+                    if (distanceKm >= 1f)
+                        SpeakText($"{distanceKm:F1} kilometers traveled");
+                    else
+                        SpeakText($"{distanceM:F0} meters traveled");
+                }
                 PushEvent(RaceEventType.AcceptCurrentRaceInfo, 0.5f);
             }
         }

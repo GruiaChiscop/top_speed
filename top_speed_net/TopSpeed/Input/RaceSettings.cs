@@ -37,6 +37,12 @@ namespace TopSpeed.Input
         Hard = 2
     }
 
+    internal enum UnitSystem
+    {
+        Metric = 0,
+        Imperial = 1
+    }
+
     internal sealed class RaceSettings
     {
         public RaceSettings()
@@ -93,6 +99,7 @@ namespace TopSpeed.Input
         public int NrOfLaps { get; set; }
         public int NrOfComputers { get; set; }
         public RaceDifficulty Difficulty { get; set; }
+        public UnitSystem Units { get; set; }
         public int ServerNumber { get; set; }
         public float MusicVolume { get; set; }
         public bool ThreeDSound { get; set; }
@@ -159,6 +166,7 @@ namespace TopSpeed.Input
             NrOfLaps = 3;
             NrOfComputers = 3;
             Difficulty = RaceDifficulty.Easy;
+            Units = UnitSystem.Metric;
             ServerNumber = Algorithm.RandomInt(4999) + 1000;
             MusicVolume = 0.6f;
             ThreeDSound = true;

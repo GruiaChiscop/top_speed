@@ -398,9 +398,10 @@ namespace TopSpeed.Core
                 new MenuItem(() => $"Include custom tracks in randomization: {FormatOnOff(_settings.RandomCustomTracks)}", MenuAction.None, onActivate: () => ToggleSetting(() => _settings.RandomCustomTracks = !_settings.RandomCustomTracks)),
                 new MenuItem(() => $"Include custom vehicles in randomization: {FormatOnOff(_settings.RandomCustomVehicles)}", MenuAction.None, onActivate: () => ToggleSetting(() => _settings.RandomCustomVehicles = !_settings.RandomCustomVehicles)),
                 new MenuItem(() => $"Enable Three-D sound: {FormatOnOff(_settings.ThreeDSound)}", MenuAction.None, onActivate: () => ToggleSetting(() => _settings.ThreeDSound = !_settings.ThreeDSound)),
+                new MenuItem(() => $"Units: {UnitsLabel(_settings.Units)}", MenuAction.None, onActivate: () => ToggleSetting(() => _settings.Units = _settings.Units == UnitSystem.Metric ? UnitSystem.Imperial : UnitSystem.Metric)),
                 BackItem()
             };
-            return _menu.CreateMenu("options_game", items, "Game settings");
+            return _menu.CreateMenu("options_game", items, "Game settings");    
         }
 
         private MenuScreen BuildOptionsServerSettingsMenu()
@@ -1273,7 +1274,7 @@ namespace TopSpeed.Core
             };
         }
 
-        private static string DifficultyLabel(RaceDifficulty difficulty)
+        private static string DifficultyLabel(RaceDifficulty difficulty)        
         {
             return difficulty switch
             {
@@ -1281,6 +1282,16 @@ namespace TopSpeed.Core
                 RaceDifficulty.Normal => "normal",
                 RaceDifficulty.Hard => "hard",
                 _ => "easy"
+            };
+        }
+
+        private static string UnitsLabel(UnitSystem units)
+        {
+            return units switch
+            {
+                UnitSystem.Metric => "metric",
+                UnitSystem.Imperial => "imperial",
+                _ => "metric"
             };
         }
 

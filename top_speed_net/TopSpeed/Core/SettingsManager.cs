@@ -144,6 +144,7 @@ namespace TopSpeed.Core
             AppendValue(lines, (int)settings.JoystickPause);
             AppendValue(lines, (int)settings.KeyTrackName);
             AppendValue(lines, (int)settings.KeyPause);
+            AppendValue(lines, (int)settings.Units);
 
             try
             {
@@ -224,6 +225,7 @@ namespace TopSpeed.Core
             if (TryNext(values, ref index, out value)) settings.JoystickPause = AsJoystick(value, settings.JoystickPause);
             if (TryNext(values, ref index, out value)) settings.KeyTrackName = AsKey(value, settings.KeyTrackName);
             if (TryNext(values, ref index, out value)) settings.KeyPause = AsKey(value, settings.KeyPause);
+            if (TryNext(values, ref index, out value)) settings.Units = AsUnitSystem(value, settings.Units);
         }
 
         private static int ClampPort(int value, int fallback)
@@ -302,6 +304,16 @@ namespace TopSpeed.Core
                 0 => RaceDifficulty.Easy,
                 1 => RaceDifficulty.Normal,
                 2 => RaceDifficulty.Hard,
+                _ => fallback
+            };
+        }
+
+        private static UnitSystem AsUnitSystem(int value, UnitSystem fallback)
+        {
+            return value switch
+            {
+                0 => UnitSystem.Metric,
+                1 => UnitSystem.Imperial,
                 _ => fallback
             };
         }
