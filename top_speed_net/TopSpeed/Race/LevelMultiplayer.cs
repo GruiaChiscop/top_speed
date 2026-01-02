@@ -17,6 +17,7 @@ namespace TopSpeed.Race
     {
         private const int MaxPlayers = 8;
         private const float SendIntervalSeconds = 0.1f;
+        private const float StartLineY = 140.0f;
 
         private sealed class RemotePlayer
         {
@@ -92,8 +93,9 @@ namespace TopSpeed.Race
             _sentStart = false;
             _sentFinish = false;
 
-            var positionX = _playerNumber % 2 == 1 ? 30.0f : -30.0f;
-            var positionY = 140.0f - _playerNumber * 20.0f;
+            var rowSpacing = Math.Max(10.0f, _car.LengthM * 1.5f);
+            var positionX = CalculateStartX(_playerNumber, _car.WidthM);
+            var positionY = CalculateStartY(_playerNumber, rowSpacing);
             _car.SetPosition(positionX, positionY);
 
             for (var i = 0; i < MaxPlayers; i++)
@@ -408,6 +410,23 @@ namespace TopSpeed.Race
                 if (remote.Player.PositionY > _car.PositionY)
                     _position++;
             }
+        }
+
+        private float CalculateStartX(int gridIndex, float vehicleWidth)
+        {
+            var halfWidth = Math.Max(0.1f, vehicleWidth * 0.5f);
+            var margin = 0.3f;
+            var laneHalfWidth = _track.LaneWidth;
+            var laneOffset = laneHalfWidth - halfWidth - margin;
+            if (laneOffset < 0f)
+                laneOffset = 0f;
+            return gridIndex % 2 == 1 ? laneOffset : -laneOffset;
+        }
+
+        private float CalculateStartY(int gridIndex, float rowSpacing)
+        {
+            var row = gridIndex / 2;
+            return StartLineY - (row * rowSpacing);
         }
 
         private void Comment(bool automatic)

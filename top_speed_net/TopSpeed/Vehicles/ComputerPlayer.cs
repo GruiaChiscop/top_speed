@@ -23,6 +23,7 @@ namespace TopSpeed.Vehicles
         private readonly RaceSettings _settings;
         private readonly Func<float> _currentTime;
         private readonly Func<bool> _started;
+        private readonly Action<string>? _debugSpeak;
         private readonly int _playerNumber;
         private readonly int _vehicleIndex;
 
@@ -116,7 +117,8 @@ namespace TopSpeed.Vehicles
             int vehicleIndex,
             int playerNumber,
             Func<float> currentTime,
-            Func<bool> started)
+            Func<bool> started,
+            Action<string>? debugSpeak = null)
         {
             _audio = audio;
             _track = track;
@@ -125,6 +127,7 @@ namespace TopSpeed.Vehicles
             _vehicleIndex = vehicleIndex;
             _currentTime = currentTime;
             _started = started;
+            _debugSpeak = debugSpeak;
             _events = new List<BotEvent>();
             _legacyRoot = Path.Combine(AssetPaths.SoundsRoot, "Legacy");
 
@@ -564,14 +567,32 @@ namespace TopSpeed.Vehicles
                     switch (e.Type)
                     {
                         case BotEventType.CarStart:
+                            if (!_started())
+                            {
+                                PushEvent(BotEventType.CarStart, 0.25f);
+                                break;
+                            }
+                            _debugSpeak?.Invoke($"Debug: bot {_playerNumber + 1} engine start.");
                             _soundEngine.SetFrequency(_idleFreq);
                             _soundEngine.Play(loop: true);
                             _state = ComputerState.Running;
                             break;
                         case BotEventType.CarComputerStart:
+                            if (!_started())
+                            {
+                                PushEvent(BotEventType.CarComputerStart, 0.25f);
+                                break;
+                            }
+                            _debugSpeak?.Invoke($"Debug: bot {_playerNumber + 1} start trigger.");
                             Start();
                             break;
                         case BotEventType.CarRestart:
+                            if (!_started())
+                            {
+                                PushEvent(BotEventType.CarRestart, 0.25f);
+                                break;
+                            }
+                            _debugSpeak?.Invoke($"Debug: bot {_playerNumber + 1} restart trigger.");
                             Start();
                             break;
                         case BotEventType.InGear:
