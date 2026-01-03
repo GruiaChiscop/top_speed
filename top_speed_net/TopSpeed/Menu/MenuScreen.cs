@@ -141,7 +141,35 @@ namespace TopSpeed.Menu
                     _autoFocusPending = false;
                     return MenuUpdateResult.Back;
                 }
-                if (moveUp || moveDown || moveHome || moveEnd || activate || back)
+                if (moveUp)
+                {
+                    _ignoreHeldInput = false;
+                    _autoFocusPending = false;
+                    MoveToIndex(_items.Count - 1);
+                    return MenuUpdateResult.None;
+                }
+                if (moveDown)
+                {
+                    _ignoreHeldInput = false;
+                    _autoFocusPending = false;
+                    MoveToIndex(0);
+                    return MenuUpdateResult.None;
+                }
+                if (moveHome)
+                {
+                    _ignoreHeldInput = false;
+                    _autoFocusPending = false;
+                    MoveToIndex(0);
+                    return MenuUpdateResult.None;
+                }
+                if (moveEnd)
+                {
+                    _ignoreHeldInput = false;
+                    _autoFocusPending = false;
+                    MoveToIndex(_items.Count - 1);
+                    return MenuUpdateResult.None;
+                }
+                if (activate || back)
                 {
                     _ignoreHeldInput = false;
                 }
@@ -149,8 +177,11 @@ namespace TopSpeed.Menu
                 {
                     return MenuUpdateResult.None;
                 }
-                _ignoreHeldInput = false;
-                input.ResetState();
+                else
+                {
+                    _ignoreHeldInput = false;
+                    input.ResetState();
+                }
             }
 
             if (_index == NoSelection)
