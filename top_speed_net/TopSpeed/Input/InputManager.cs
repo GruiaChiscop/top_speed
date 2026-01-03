@@ -79,6 +79,17 @@ namespace TopSpeed.Input
             return IsAnyJoystickButtonHeld();
         }
 
+        public bool IsAnyMenuInputHeld()
+        {
+            if (_suspended)
+                return false;
+
+            if (IsAnyKeyboardKeyHeld(ignoreModifiers: true))
+                return true;
+
+            return IsAnyJoystickButtonHeld();
+        }
+
         public bool IsMenuBackHeld()
         {
             if (_suspended)
@@ -141,21 +152,57 @@ namespace TopSpeed.Input
             {
                 // Ignore unacquire failures.
             }
+
+            if (_joystick?.Device != null)
+            {
+                try
+                {
+                    _joystick.Device.Unacquire();
+                }
+                catch (SharpDXException)
+                {
+                    // Ignore unacquire failures.
+                }
+            }
         }
 
         public void Resume()
         {
             _suspended = false;
             TryAcquire();
+
+            if (_joystick?.Device != null)
+            {
+                try
+                {
+                    _joystick.Device.Acquire();
+                }
+                catch (SharpDXException)
+                {
+                    // Ignore acquire failures.
+                }
+            }
         }
 
-        private bool IsAnyKeyboardKeyHeld()
+        private bool IsAnyKeyboardKeyHeld(bool ignoreModifiers = false)
         {
             try
             {
                 _keyboard.Acquire();
                 var state = _keyboard.GetCurrentState();
-                return state.PressedKeys.Count > 0;
+                if (!ignoreModifiers)
+                    return state.PressedKeys.Count > 0;
+
+                foreach (var key in state.PressedKeys)
+                {
+                    if (key == Key.LeftControl || key == Key.RightControl ||
+                        key == Key.LeftShift || key == Key.RightShift ||
+                        key == Key.LeftAlt || key == Key.RightAlt)
+                        continue;
+                    return true;
+                }
+
+                return false;
             }
             catch (SharpDXException)
             {

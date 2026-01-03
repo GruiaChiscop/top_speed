@@ -101,24 +101,6 @@ namespace TopSpeed.Menu
             if (_items.Count == 0)
                 return MenuUpdateResult.None;
 
-            if (input.ShouldIgnoreMenuBack())
-                return MenuUpdateResult.None;
-
-            if (_ignoreHeldInput)
-            {
-                if (input.IsMenuBackHeld())
-                {
-                    input.LatchMenuBack();
-                    _ignoreHeldInput = false;
-                    _autoFocusPending = false;
-                    return MenuUpdateResult.Back;
-                }
-                if (input.IsAnyInputHeld())
-                    return MenuUpdateResult.None;
-                _ignoreHeldInput = false;
-                input.ResetState();
-            }
-
             var moveUp = input.WasPressed(Key.Up);
             var moveDown = input.WasPressed(Key.Down);
             var moveHome = input.WasPressed(Key.Home);
@@ -145,6 +127,30 @@ namespace TopSpeed.Menu
             else
             {
                 _hasPrevJoystick = false;
+            }
+
+            if (input.ShouldIgnoreMenuBack())
+                return MenuUpdateResult.None;
+
+            if (_ignoreHeldInput)
+            {
+                if (input.IsMenuBackHeld())
+                {
+                    input.LatchMenuBack();
+                    _ignoreHeldInput = false;
+                    _autoFocusPending = false;
+                    return MenuUpdateResult.Back;
+                }
+                if (moveUp || moveDown || moveHome || moveEnd || activate || back)
+                {
+                    _ignoreHeldInput = false;
+                }
+                else if (input.IsAnyMenuInputHeld())
+                {
+                    return MenuUpdateResult.None;
+                }
+                _ignoreHeldInput = false;
+                input.ResetState();
             }
 
             if (_index == NoSelection)

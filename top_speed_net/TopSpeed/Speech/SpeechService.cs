@@ -96,7 +96,7 @@ namespace TopSpeed.Speech
                 if ((flag == SpeakFlag.Interruptable || flag == SpeakFlag.InterruptableButStop) && IsInputHeld())
                     break;
                 PumpMessages();
-                Thread.Sleep(10);
+                Thread.Sleep(1);
             }
         }
 

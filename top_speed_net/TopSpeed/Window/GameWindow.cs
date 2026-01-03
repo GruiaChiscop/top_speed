@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
@@ -43,16 +44,22 @@ namespace TopSpeed.Windowing
             _submittedText = string.Empty;
             _submitPending = false;
             _cancelPending = false;
-            _inputBox.Text = initialText ?? string.Empty;
-            _inputBox.Visible = true;
-            _inputBox.Focus();
+            RunOnUiThread(() =>
+            {
+                _inputBox.Text = initialText ?? string.Empty;
+                _inputBox.Visible = true;
+                _inputBox.Focus();
+            });
         }
 
         public void HideTextInput()
         {
-            _inputBox.Visible = false;
-            _inputBox.Clear();
-            Focus();
+            RunOnUiThread(() =>
+            {
+                _inputBox.Visible = false;
+                _inputBox.Clear();
+                Focus();
+            });
         }
 
         public bool TryConsumeTextInput(out TextInputResult result)
@@ -78,15 +85,15 @@ namespace TopSpeed.Windowing
             _submittedText = string.Empty;
             _submitPending = false;
             _cancelPending = false;
-            _inputBox.PasswordChar = password ? '*' : '\0';
+            RunOnUiThread(() => _inputBox.PasswordChar = password ? '*' : '\0');
             ShowTextInput(initialText);
             Application.DoEvents();
             while (!_submitPending && !_cancelPending)
             {
                 Application.DoEvents();
-                Thread.Sleep(10);
+                Thread.Sleep(1);
             }
-            _inputBox.PasswordChar = '\0';
+            RunOnUiThread(() => _inputBox.PasswordChar = '\0');
             if (_cancelPending)
             {
                 _cancelPending = false;
@@ -113,6 +120,17 @@ namespace TopSpeed.Windowing
                 e.Handled = true;
                 e.SuppressKeyPress = true;
             }
+        }
+
+        private void RunOnUiThread(Action action)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(action);
+                return;
+            }
+
+            action();
         }
     }
 
