@@ -128,6 +128,7 @@ namespace TopSpeed.Core
                         else
                         {
                             _menu.ShowRoot("main");
+                            _menu.FadeInMenuMusic(force: true);
                             _state = AppState.Menu;
                         }
                     }
@@ -174,7 +175,6 @@ namespace TopSpeed.Core
                 _pendingRaceStart = false;
                 StartRace(_pendingMode);
             }
-
             _audio.Update();
         }
 
@@ -264,6 +264,7 @@ namespace TopSpeed.Core
             var returnMenu = _calibrationReturnMenuId ?? "main";
             _calibrationReturnMenuId = null;
             _menu.ShowRoot(returnMenu);
+            _menu.FadeInMenuMusic(force: true);
             _state = AppState.Menu;
         }
 
@@ -509,13 +510,11 @@ namespace TopSpeed.Core
             {
                 _session.SendPlayerState(PlayerState.NotReady);
                 _state = AppState.Menu;
-                _input.IgnoreMenuBackUntilRelease();
                 _menu.ShowRoot("multiplayer_lobby");
             }
             else
             {
                 _state = AppState.Menu;
-                _input.IgnoreMenuBackUntilRelease();
                 _menu.ShowRoot("main");
                 _menu.FadeInMenuMusic();
             }
@@ -610,7 +609,6 @@ namespace TopSpeed.Core
             _singleRace = null;
 
             _state = AppState.Menu;
-            _input.IgnoreMenuBackUntilRelease();
             _menu.ShowRoot("main");
             _menu.FadeInMenuMusic();
         }
@@ -625,9 +623,9 @@ namespace TopSpeed.Core
             _audio.Dispose();
         }
 
-        public void FadeOutMenuMusic()
+        public void FadeOutMenuMusic(int durationMs = 1000)
         {
-            _menu.FadeOutMenuMusic();
+            _menu.FadeOutMenuMusic(durationMs);
         }
 
         private void SaveSettings()

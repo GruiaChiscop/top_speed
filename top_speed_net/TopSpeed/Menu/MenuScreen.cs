@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using SharpDX.DirectInput;
 using TopSpeed.Audio;
 using TopSpeed.Core;
@@ -30,6 +31,7 @@ namespace TopSpeed.Menu
         private int _index;
         private AudioSourceHandle? _music;
         private float _musicVolume;
+        private float _musicCurrentVolume;
         private AudioSourceHandle? _navigateSound;
         private AudioSourceHandle? _wrapSound;
         private AudioSourceHandle? _activateSound;
@@ -40,6 +42,9 @@ namespace TopSpeed.Menu
         private bool _justEntered = true;
         private bool _ignoreHeldInput;
         private bool _autoFocusPending;
+
+        private const int MusicFadeStepMs = 50;
+        private int _musicFadeToken;
 
         public string Id { get; }
         public IReadOnlyList<MenuItem> Items => _items;
@@ -88,8 +93,7 @@ namespace TopSpeed.Menu
                 if (File.Exists(themePath))
                 {
                     _music = _audio.CreateLoopingSource(themePath);
-                    _music.SetVolume(_musicVolume);
-                    _music.Play(loop: true);
+                    ApplyMusicVolume(0f);
                 }
             }
 
@@ -385,23 +389,15 @@ namespace TopSpeed.Menu
             _justEntered = false;
         }
 
-        public void FadeOutMusic()
+        public void FadeOutMusic(int durationMs)
         {
             if (_music == null || !_music.IsPlaying)
                 return;
 
-            var current = _musicVolume;
-            for (var i = 0; i < 10; i++)
-            {
-                current -= _musicVolume / 10f;
-                if (current < 0) current = 0;
-                _music.SetVolume(current);
-                Thread.Sleep(50);
-            }
-            _music.Stop();
+            StartMusicFade(_musicCurrentVolume, 0f, durationMs, stopOnEnd: true);
         }
 
-        public void FadeInMusic()
+        public void FadeInMusic(int durationMs)
         {
             if (!HasMusic)
                 return;
@@ -416,29 +412,69 @@ namespace TopSpeed.Menu
 
             if (_music.IsPlaying)
             {
-                _music.SetVolume(_musicVolume);
+                if (_musicCurrentVolume >= _musicVolume)
+                {
+                    ApplyMusicVolume(_musicVolume);
+                    return;
+                }
+                StartMusicFade(_musicCurrentVolume, _musicVolume, durationMs, stopOnEnd: false);
                 return;
             }
 
-            var targetVolume = _musicVolume;
-            _music.SetVolume(0f);
+            ApplyMusicVolume(0f);
             _music.Play(loop: true);
-
-            const int steps = 10;
-            for (var i = 0; i < steps; i++)
-            {
-                var volume = targetVolume * ((i + 1) / (float)steps);
-                _music.SetVolume(volume);
-                Thread.Sleep(50);
-            }
+            StartMusicFade(0f, _musicVolume, durationMs, stopOnEnd: false);
         }
 
         private void SetMusicVolume(float volume)
         {
             _musicVolume = Math.Max(0f, Math.Min(1f, volume));
             if (_music != null)
-                _music.SetVolume(_musicVolume);
+            {
+                Interlocked.Increment(ref _musicFadeToken);
+                ApplyMusicVolume(_musicVolume);
+            }
             MusicVolumeChanged?.Invoke(_musicVolume);
+        }
+
+        private void StartMusicFade(float startVolume, float targetVolume, int durationMs, bool stopOnEnd)
+        {
+            if (_music == null)
+                return;
+
+            var token = Interlocked.Increment(ref _musicFadeToken);
+            ApplyMusicVolume(startVolume);
+            var steps = Math.Max(1, durationMs / MusicFadeStepMs);
+            var delayMs = Math.Max(1, durationMs / steps);
+
+            Task.Run(async () =>
+            {
+                for (var i = 1; i <= steps; i++)
+                {
+                    if (token != Volatile.Read(ref _musicFadeToken))
+                        return;
+
+                    var t = i / (float)steps;
+                    var volume = startVolume + (targetVolume - startVolume) * t;
+                    ApplyMusicVolume(volume);
+                    await Task.Delay(delayMs).ConfigureAwait(false);
+                }
+
+                if (token != Volatile.Read(ref _musicFadeToken))
+                    return;
+
+                if (stopOnEnd)
+                {
+                    _music?.Stop();
+                    ApplyMusicVolume(0f);
+                }
+            });
+        }
+
+        private void ApplyMusicVolume(float volume)
+        {
+            _musicCurrentVolume = volume;
+            _music?.SetVolume(volume);
         }
 
         private AudioSourceHandle? LoadDefaultSound(string? fileName)
@@ -509,6 +545,8 @@ namespace TopSpeed.Menu
             _wrapSound?.Dispose();
             _activateSound?.Dispose();
             _music?.Dispose();
+            _music = null;
+            Interlocked.Increment(ref _musicFadeToken);
         }
     }
 }

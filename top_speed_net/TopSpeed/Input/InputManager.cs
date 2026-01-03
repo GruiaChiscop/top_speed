@@ -18,7 +18,6 @@ namespace TopSpeed.Input
         private int _lastJoystickScan;
         private bool _suspended;
         private bool _menuBackLatched;
-        private bool _ignoreMenuBackUntilRelease;
 
         public InputState Current => _current;
 
@@ -85,17 +84,6 @@ namespace TopSpeed.Input
             if (_suspended)
                 return false;
 
-            if (_ignoreMenuBackUntilRelease)
-            {
-                if (IsAnyKeyboardKeyHeld(ignoreModifiers: true, ignoreEscape: true))
-                    return true;
-                if (IsAnyJoystickButtonHeld(ignoreBack: true))
-                    return true;
-                if (!IsMenuBackHeldRaw())
-                    _ignoreMenuBackUntilRelease = false;
-                return false;
-            }
-
             if (IsAnyKeyboardKeyHeld(ignoreModifiers: true))
                 return true;
 
@@ -107,24 +95,18 @@ namespace TopSpeed.Input
             if (_suspended)
                 return false;
 
-            if (_ignoreMenuBackUntilRelease)
-            {
-                if (!IsMenuBackHeldRaw())
-                    _ignoreMenuBackUntilRelease = false;
-                return false;
-            }
+            if (IsDown(Key.Escape))
+                return true;
 
-            return IsMenuBackHeldRaw();
+            if (TryGetJoystickState(out var state))
+                return state.X < -MenuBackThreshold || state.Pov4;
+
+            return false;
         }
 
         public void LatchMenuBack()
         {
             _menuBackLatched = true;
-        }
-
-        public void IgnoreMenuBackUntilRelease()
-        {
-            _ignoreMenuBackUntilRelease = true;
         }
 
         public bool ShouldIgnoreMenuBack()
@@ -202,28 +184,17 @@ namespace TopSpeed.Input
             }
         }
 
-        private bool IsAnyKeyboardKeyHeld(bool ignoreModifiers = false, bool ignoreEscape = false)
+        private bool IsAnyKeyboardKeyHeld(bool ignoreModifiers = false)
         {
             try
             {
                 _keyboard.Acquire();
                 var state = _keyboard.GetCurrentState();
                 if (!ignoreModifiers)
-                {
-                    if (!ignoreEscape)
-                        return state.PressedKeys.Count > 0;
-                    foreach (var key in state.PressedKeys)
-                    {
-                        if (key != Key.Escape)
-                            return true;
-                    }
-                    return false;
-                }
+                    return state.PressedKeys.Count > 0;
 
                 foreach (var key in state.PressedKeys)
                 {
-                    if (ignoreEscape && key == Key.Escape)
-                        continue;
                     if (key == Key.LeftControl || key == Key.RightControl ||
                         key == Key.LeftShift || key == Key.RightShift ||
                         key == Key.LeftAlt || key == Key.RightAlt)
@@ -239,14 +210,12 @@ namespace TopSpeed.Input
             }
         }
 
-        private bool IsAnyJoystickButtonHeld(bool ignoreBack = false)
+        private bool IsAnyJoystickButtonHeld()
         {
             if (_gamepad.IsAvailable)
             {
                 _gamepad.Update();
-                return ignoreBack
-                    ? HasAnyButtonDownExceptBack(_gamepad.State)
-                    : _gamepad.State.HasAnyButtonDown();
+                return _gamepad.State.HasAnyButtonDown();
             }
 
             if (_joystick == null || !_joystick.IsAvailable)
@@ -258,27 +227,7 @@ namespace TopSpeed.Input
             if (!_joystick.Update())
                 return false;
 
-            return ignoreBack
-                ? HasAnyButtonDownExceptBack(_joystick.State)
-                : _joystick.State.HasAnyButtonDown();
-        }
-
-        private bool IsMenuBackHeldRaw()
-        {
-            if (IsDown(Key.Escape))
-                return true;
-
-            if (TryGetJoystickState(out var state))
-                return state.X < -MenuBackThreshold || state.Pov4;
-
-            return false;
-        }
-
-        private static bool HasAnyButtonDownExceptBack(JoystickStateSnapshot state)
-        {
-            return state.B1 || state.B2 || state.B3 || state.B4 || state.B5 || state.B6 || state.B7 || state.B8 ||
-                   state.B9 || state.B10 || state.B11 || state.B12 || state.B13 || state.B14 || state.B15 || state.B16 ||
-                   state.Pov1 || state.Pov2 || state.Pov3 || state.Pov5 || state.Pov6 || state.Pov7 || state.Pov8;
+            return _joystick.State.HasAnyButtonDown();
         }
 
         private void UpdateMenuBackLatchImmediate()

@@ -8,6 +8,7 @@ namespace TopSpeed.Menu
 {
     internal sealed class MenuManager : IDisposable
     {
+        private const int DefaultFadeMs = 1000;
         private readonly Dictionary<string, MenuScreen> _screens;
         private readonly Stack<MenuScreen> _stack;
         private readonly AudioManager _audio;
@@ -115,26 +116,26 @@ namespace TopSpeed.Menu
             _stack.Clear();
         }
 
-        public void FadeOutMenuMusic()
+        public void FadeOutMenuMusic(int durationMs = DefaultFadeMs)
         {
             var screen = FindScreenWithPlayingMusic();
             if (screen == null)
                 return;
 
-            screen.FadeOutMusic();
+            screen.FadeOutMusic(durationMs);
             _menuMusicSuspended = true;
         }
 
-        public void FadeInMenuMusic()
+        public void FadeInMenuMusic(int durationMs = DefaultFadeMs, bool force = false)
         {
-            if (!_menuMusicSuspended)
+            if (!_menuMusicSuspended && !force)
                 return;
 
             var screen = FindScreenWithMusic();
             if (screen == null)
                 return;
 
-            screen.FadeInMusic();
+            screen.FadeInMusic(durationMs);
             _menuMusicSuspended = false;
         }
 

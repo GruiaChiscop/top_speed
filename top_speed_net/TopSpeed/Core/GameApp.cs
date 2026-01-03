@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
@@ -32,9 +33,10 @@ namespace TopSpeed.Core
         private void OnLoad(object? sender, EventArgs e)
         {
             _game = new Game(_window);
-            _game.ExitRequested += () =>
+            _game.ExitRequested += async () =>
             {
-                _game.FadeOutMenuMusic();
+                _game.FadeOutMenuMusic(500);
+                await Task.Delay(500).ConfigureAwait(true);
                 _window.Close();
             };
             _game.Initialize();
