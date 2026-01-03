@@ -509,11 +509,13 @@ namespace TopSpeed.Core
             {
                 _session.SendPlayerState(PlayerState.NotReady);
                 _state = AppState.Menu;
+                _input.IgnoreMenuBackUntilRelease();
                 _menu.ShowRoot("multiplayer_lobby");
             }
             else
             {
                 _state = AppState.Menu;
+                _input.IgnoreMenuBackUntilRelease();
                 _menu.ShowRoot("main");
                 _menu.FadeInMenuMusic();
             }
@@ -608,6 +610,7 @@ namespace TopSpeed.Core
             _singleRace = null;
 
             _state = AppState.Menu;
+            _input.IgnoreMenuBackUntilRelease();
             _menu.ShowRoot("main");
             _menu.FadeInMenuMusic();
         }

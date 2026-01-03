@@ -95,8 +95,6 @@ namespace TopSpeed.Menu
                     Push(item.NextMenuId!);
                     return MenuAction.None;
                 }
-                if (item.Action == MenuAction.None && item.OnActivate != null && !stackChanged && !item.SuppressPostActivateAnnouncement)
-                    current.AnnounceSelection();
                 return item.Action;
             }
 
