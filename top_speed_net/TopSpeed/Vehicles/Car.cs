@@ -19,6 +19,8 @@ namespace TopSpeed.Vehicles
         private const float StabilitySpeedRef = 45.0f;
         private const float CrashVibrationSeconds = 1.5f;
         private const float BumpVibrationSeconds = 0.2f;
+        private const float AutoShiftHysteresis = 0.05f;
+        private const float AutoShiftCooldownSeconds = 0.15f;
 
         private static bool s_stickReleased;
 
@@ -43,6 +45,7 @@ namespace TopSpeed.Vehicles
         private bool _backfirePlayedAuto;
         private int _hasWipers;
         private int _switchingGear;
+        private float _autoShiftCooldown;
         private CarType _carType;
         private ICarListener? _listener;
         private string? _customFile;
@@ -558,7 +561,6 @@ namespace TopSpeed.Vehicles
                 {
                     if (!gearUp && !gearDown)
                         s_stickReleased = true;
-                    _factor1 = CalculateAcceleration();
                     if (gearDown && _gear > 1 && s_stickReleased)
                     {
                         s_stickReleased = false;
@@ -645,12 +647,16 @@ namespace TopSpeed.Vehicles
                 else if (-_currentBrake > _currentThrottle)
                     _thrust = _currentBrake;
 
+                var speedMpsCurrent = _speed / 3.6f;
+                var throttle = Math.Max(0f, Math.Min(100f, _currentThrottle)) / 100f;
+                var surfaceTractionMod = _surfaceTractionFactor > 0f
+                    ? _currentSurfaceTractionFactor / _surfaceTractionFactor
+                    : 1.0f;
+                var longitudinalGripFactor = 1.0f;
+
                 // Original speed calculation with proper gear physics
                 if (_thrust > 10)
                 {
-                    var speedMpsCurrent = _speed / 3.6f;
-                    var throttle = Math.Max(0f, Math.Min(100f, _currentThrottle)) / 100f;
-                    var surfaceTractionMod = _surfaceTractionFactor > 0f ? _currentSurfaceTractionFactor / _surfaceTractionFactor : 1.0f;
                     var steeringCommandAccel = (_currentSteering / 100.0f) * _steering;
                     if (steeringCommandAccel > 1.0f)
                         steeringCommandAccel = 1.0f;
@@ -663,7 +669,7 @@ namespace TopSpeed.Vehicles
                     var grip = _tireGripCoefficient * surfaceTractionMod * _lateralGripCoefficient;
                     var maxLatAccel = grip * 9.80665f;
                     var lateralRatio = maxLatAccel > 0f ? Math.Min(1.0f, desiredLatAccelAbs / maxLatAccel) : 0f;
-                    var longitudinalGripFactor = Math.Sqrt(Math.Max(0.0, 1.0 - (lateralRatio * lateralRatio)));
+                    longitudinalGripFactor = (float)Math.Sqrt(Math.Max(0.0, 1.0 - (lateralRatio * lateralRatio)));
                     var driveRpm = CalculateDriveRpm(speedMpsCurrent, throttle);
                     var engineTorque = CalculateEngineTorqueNm(driveRpm) * throttle * _powerFactor;
                     var gearRatio = _engine.GetGearRatio(_gear);
@@ -713,7 +719,7 @@ namespace TopSpeed.Vehicles
                 }
                 else
                 {
-                    _gear = _engine.GetGearForSpeedKmh(_speed);
+                    UpdateAutomaticGear(elapsed, _speed / 3.6f, throttle, surfaceTractionMod, longitudinalGripFactor);
                 }
 
                 // Update engine model for RPM and distance tracking (reporting only)
@@ -1200,13 +1206,13 @@ namespace TopSpeed.Vehicles
 
         private void UpdateEngineFreq()
         {
-            _gear = _engine.GetGearForSpeedKmh(_speed);
-            if (_gear > _gears)
-                _gear = _gears;
-            if (_gear < 1)
-                _gear = 1;
+            var gearForSound = _gear;
+            if (gearForSound > _gears)
+                gearForSound = _gears;
+            if (gearForSound < 1)
+                gearForSound = 1;
 
-            UpdateEngineFreqForGear(_gear);
+            UpdateEngineFreqForGear(gearForSound);
         }
 
         private void UpdateEngineFreqManual()
@@ -1344,7 +1350,7 @@ namespace TopSpeed.Vehicles
 
         private float CalculateDriveRpm(float speedMps, float throttle)
         {
-            var wheelCircumference = _wheelRadiusM * 2.0f * (float)Math.PI;
+            var wheelCircumference = _wheelRadiusM * 2.0f * (float)Math.PI;     
             var gearRatio = _engine.GetGearRatio(_gear);
             var speedBasedRpm = wheelCircumference > 0f
                 ? (speedMps / wheelCircumference) * 60f * gearRatio * _finalDriveRatio
@@ -1356,6 +1362,101 @@ namespace TopSpeed.Vehicles
             if (rpm > _revLimiter)
                 rpm = _revLimiter;
             return rpm;
+        }
+
+        private void UpdateAutomaticGear(float elapsed, float speedMps, float throttle, float surfaceTractionMod, float longitudinalGripFactor)
+        {
+            if (_gears <= 1)
+                return;
+
+            if (_autoShiftCooldown > 0f)
+            {
+                _autoShiftCooldown -= elapsed;
+                return;
+            }
+
+            var currentAccel = ComputeNetAccelForGear(_gear, speedMps, throttle, surfaceTractionMod, longitudinalGripFactor);
+            var bestGear = _gear;
+            var bestAccel = currentAccel;
+
+            if (_gear < _gears)
+            {
+                var upAccel = ComputeNetAccelForGear(_gear + 1, speedMps, throttle, surfaceTractionMod, longitudinalGripFactor);
+                if (upAccel > bestAccel)
+                {
+                    bestAccel = upAccel;
+                    bestGear = _gear + 1;
+                }
+            }
+
+            if (_gear > 1)
+            {
+                var downAccel = ComputeNetAccelForGear(_gear - 1, speedMps, throttle, surfaceTractionMod, longitudinalGripFactor);
+                if (downAccel > bestAccel)
+                {
+                    bestAccel = downAccel;
+                    bestGear = _gear - 1;
+                }
+            }
+
+            var currentRpm = SpeedToRpm(speedMps, _gear);
+            if (_gear < _gears && currentRpm >= _revLimiter * 0.995f)
+            {
+                ShiftAutomaticGear(_gear + 1);
+                return;
+            }
+
+            var shiftRpm = _idleRpm + (_revLimiter - _idleRpm) * 0.35f;
+            if (_gear > 1 && currentRpm < shiftRpm)
+            {
+                ShiftAutomaticGear(_gear - 1);
+                return;
+            }
+
+            if (bestGear != _gear && bestAccel > currentAccel * (1f + AutoShiftHysteresis))
+                ShiftAutomaticGear(bestGear);
+        }
+
+        private void ShiftAutomaticGear(int newGear)
+        {
+            if (newGear == _gear)
+                return;
+            _switchingGear = newGear > _gear ? 1 : -1;
+            _gear = newGear;
+            PushEvent(CarEventType.InGear, 0.2f);
+            _autoShiftCooldown = AutoShiftCooldownSeconds;
+        }
+
+        private float ComputeNetAccelForGear(int gear, float speedMps, float throttle, float surfaceTractionMod, float longitudinalGripFactor)
+        {
+            var rpm = SpeedToRpm(speedMps, gear);
+            if (rpm <= 0f)
+                return float.NegativeInfinity;
+            if (rpm > _revLimiter && gear < _gears)
+                return float.NegativeInfinity;
+
+            var engineTorque = CalculateEngineTorqueNm(rpm) * throttle * _powerFactor;
+            var gearRatio = _engine.GetGearRatio(gear);
+            var wheelTorque = engineTorque * gearRatio * _finalDriveRatio * _drivetrainEfficiency;
+            var wheelForce = wheelTorque / _wheelRadiusM;
+            var tractionLimit = _tireGripCoefficient * surfaceTractionMod * _massKg * 9.80665f;
+            if (wheelForce > tractionLimit)
+                wheelForce = tractionLimit;
+            wheelForce *= longitudinalGripFactor;
+
+            var dragForce = 0.5f * 1.225f * _dragCoefficient * _frontalAreaM2 * speedMps * speedMps;
+            var rollingForce = _rollingResistanceCoefficient * _massKg * 9.80665f;
+            var netForce = wheelForce - dragForce - rollingForce;
+            return netForce / _massKg;
+        }
+
+        private float SpeedToRpm(float speedMps, int gear)
+        {
+            var wheelCircumference = _wheelRadiusM * 2.0f * (float)Math.PI;
+            if (wheelCircumference <= 0f)
+                return 0f;
+            var gearRatio = _engine.GetGearRatio(gear);
+            return (speedMps / wheelCircumference) * 60f * gearRatio * _finalDriveRatio;
         }
 
         private float CalculateEngineTorqueNm(float rpm)
@@ -1536,3 +1637,4 @@ namespace TopSpeed.Vehicles
         }
     }
 }
+
