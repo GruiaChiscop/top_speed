@@ -1304,24 +1304,35 @@ namespace TopSpeed.Vehicles
             else
             {
                 var gearSpeed = (_speed - gearMin) / (float)gearRange;
-                if (gearSpeed < 0.07f)
+                if (gearSpeed <= 0f)
                 {
-                    _frequency = (int)(((0.07f - gearSpeed) / 0.07f) * (_topFreq - _shiftFreq) + _shiftFreq);
-                    if (_soundBackfire != null)
-                    {
-                        if (!_backfirePlayedAuto)
-                        {
-                            if (Algorithm.RandomInt(5) == 1 && !_soundBackfire.IsPlaying)
-                                _soundBackfire.Play(loop: false);
-                        }
-                        _backfirePlayedAuto = true;
-                    }
+                    _frequency = _idleFreq;
+                    if (_soundBackfire != null && _backfirePlayedAuto)
+                        _backfirePlayedAuto = false;
                 }
                 else
                 {
-                    _frequency = (int)(gearSpeed * (_topFreq - _shiftFreq) + _shiftFreq);
-                    if (_soundBackfire != null && _backfirePlayedAuto)
-                        _backfirePlayedAuto = false;
+                    if (gearSpeed > 1.0f)
+                        gearSpeed = 1.0f;
+                    if (gearSpeed < 0.07f)
+                    {
+                        _frequency = (int)(((0.07f - gearSpeed) / 0.07f) * (_topFreq - _shiftFreq) + _shiftFreq);
+                        if (_soundBackfire != null)
+                        {
+                            if (!_backfirePlayedAuto)
+                            {
+                                if (Algorithm.RandomInt(5) == 1 && !_soundBackfire.IsPlaying)
+                                    _soundBackfire.Play(loop: false);
+                            }
+                            _backfirePlayedAuto = true;
+                        }
+                    }
+                    else
+                    {
+                        _frequency = (int)(gearSpeed * (_topFreq - _shiftFreq) + _shiftFreq);
+                        if (_soundBackfire != null && _backfirePlayedAuto)
+                            _backfirePlayedAuto = false;
+                    }
                 }
             }
 
