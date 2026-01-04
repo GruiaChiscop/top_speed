@@ -250,7 +250,7 @@ namespace TopSpeed.Data
                 dragCoefficient: 0.29f, frontalAreaM2: 2.2f, rollingResistanceCoefficient: 0.015f, launchRpm: 2000f,
                 finalDriveRatio: 2.80f, tireCircumferenceM: TireCircumferenceM(215, 55, 17),
                 wheelbaseM: 2.825f, widthM: 1.839f, lengthM: 4.879f,
-                powerFactor: 0.35f, gearRatios: CamryRatios),
+                powerFactor: 0.5f, gearRatios: CamryRatios),
 
             // Vehicle 7: Supercar - fastest acceleration, high power
             new VehicleParameters("Lamborghini Aventador", null, null, null, null, null, null, null, null,
@@ -274,7 +274,7 @@ namespace TopSpeed.Data
                 dragCoefficient: 0.29f, frontalAreaM2: 2.2f, rollingResistanceCoefficient: 0.015f, launchRpm: 2000f,
                 finalDriveRatio: 3.15f, tireCircumferenceM: TireCircumferenceM(225, 50, 17),
                 wheelbaseM: 2.810f, widthM: 1.811f, lengthM: 4.624f,
-                powerFactor: 0.45f, gearRatios: Bmw3SeriesRatios),
+                powerFactor: 0.55f, gearRatios: Bmw3SeriesRatios),
 
             // Vehicle 9: Bus/Van - very slow acceleration, heavy
             new VehicleParameters("Mercedes Sprinter", null, null, null, null, null, null, null, null,
@@ -286,7 +286,7 @@ namespace TopSpeed.Data
                 dragCoefficient: 0.35f, frontalAreaM2: 2.9f, rollingResistanceCoefficient: 0.020f, launchRpm: 1800f,
                 finalDriveRatio: 3.923f, tireCircumferenceM: TireCircumferenceM(245, 75, 16),
                 wheelbaseM: 3.658f, widthM: 2.019f, lengthM: 5.931f,
-                powerFactor: 0.2f, gearRatios: SprinterRatios),
+                powerFactor: 0.3f, gearRatios: SprinterRatios),
 
             // Vehicle 10: Sport motorcycle - quick, light, high-revving
             new VehicleParameters("Kawasaki Ninja ZX-10R", null, null, null, null, null, null, null, null,

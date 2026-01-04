@@ -214,7 +214,7 @@ namespace TopSpeed.Core
             if (TryNext(values, ref index, out value)) settings.KeyCurrentRaceTime = AsKey(value, settings.KeyCurrentRaceTime);
             if (TryNext(values, ref index, out value)) settings.Copilot = AsCopilot(value, settings.Copilot);
             if (TryNext(values, ref index, out value)) settings.CurveAnnouncement = AsCurveAnnouncement(value, settings.CurveAnnouncement);
-            if (TryNext(values, ref index, out value)) settings.NrOfLaps = Math.Max(2, Math.Min(20, value));
+            if (TryNext(values, ref index, out value)) settings.NrOfLaps = Math.Max(1, Math.Min(16, value));
             if (TryNext(values, ref index, out value)) settings.ServerNumber = value;
             if (TryNext(values, ref index, out value)) settings.NrOfComputers = Math.Max(1, Math.Min(7, value));
             if (TryNext(values, ref index, out value)) settings.Difficulty = AsDifficulty(value, settings.Difficulty);

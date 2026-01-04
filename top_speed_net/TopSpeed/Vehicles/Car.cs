@@ -190,39 +190,39 @@ namespace TopSpeed.Vehicles
             }
 
             VehicleName = definition.Name;
-            _surfaceTractionFactor = definition.SurfaceTractionFactor;
-            _deceleration = definition.Deceleration;
-            _topSpeed = definition.TopSpeed;
-            _massKg = Math.Max(1f, definition.MassKg);
-            _drivetrainEfficiency = Math.Max(0.1f, Math.Min(1.0f, definition.DrivetrainEfficiency));
-            _engineBrakingTorqueNm = Math.Max(0f, definition.EngineBrakingTorqueNm);
-            _tireGripCoefficient = Math.Max(0.1f, definition.TireGripCoefficient);
-            _brakeStrength = Math.Max(0.1f, definition.BrakeStrength);
-            _wheelRadiusM = Math.Max(0.01f, definition.TireCircumferenceM / (2.0f * (float)Math.PI));
-            _engineBraking = Math.Max(0.05f, Math.Min(1.0f, definition.EngineBraking));
-            _idleRpm = definition.IdleRpm;
-            _revLimiter = definition.RevLimiter;
-            _finalDriveRatio = definition.FinalDriveRatio;
-            _powerFactor = Math.Max(0.1f, definition.PowerFactor);
-            _peakTorqueNm = Math.Max(0f, definition.PeakTorqueNm);
-            _peakTorqueRpm = Math.Max(_idleRpm + 100f, definition.PeakTorqueRpm);
-            _idleTorqueNm = Math.Max(0f, definition.IdleTorqueNm);
-            _redlineTorqueNm = Math.Max(0f, definition.RedlineTorqueNm);
-            _dragCoefficient = Math.Max(0.01f, definition.DragCoefficient);
-            _frontalAreaM2 = Math.Max(0.1f, definition.FrontalAreaM2);
-            _rollingResistanceCoefficient = Math.Max(0.001f, definition.RollingResistanceCoefficient);
-            _launchRpm = Math.Max(_idleRpm, Math.Min(_revLimiter, definition.LaunchRpm));
-            _lateralGripCoefficient = Math.Max(0.1f, definition.LateralGripCoefficient);
-            _highSpeedStability = Math.Max(0f, Math.Min(1.0f, definition.HighSpeedStability));
-            _wheelbaseM = Math.Max(0.5f, definition.WheelbaseM);
-            _maxSteerDeg = Math.Max(5f, Math.Min(60f, definition.MaxSteerDeg));
-            _widthM = Math.Max(0.5f, definition.WidthM);
-            _lengthM = Math.Max(0.5f, definition.LengthM);
+            _surfaceTractionFactor = Math.Max(0.01f, SanitizeFinite(definition.SurfaceTractionFactor, 0.01f));
+            _deceleration = Math.Max(0.01f, SanitizeFinite(definition.Deceleration, 0.01f));
+            _topSpeed = Math.Max(1f, SanitizeFinite(definition.TopSpeed, 1f));
+            _massKg = Math.Max(1f, SanitizeFinite(definition.MassKg, 1f));
+            _drivetrainEfficiency = Math.Max(0.1f, Math.Min(1.0f, SanitizeFinite(definition.DrivetrainEfficiency, 0.85f)));
+            _engineBrakingTorqueNm = Math.Max(0f, SanitizeFinite(definition.EngineBrakingTorqueNm, 0f));
+            _tireGripCoefficient = Math.Max(0.1f, SanitizeFinite(definition.TireGripCoefficient, 0.1f));
+            _brakeStrength = Math.Max(0.1f, SanitizeFinite(definition.BrakeStrength, 0.1f));
+            _wheelRadiusM = Math.Max(0.01f, SanitizeFinite(definition.TireCircumferenceM, 0f) / (2.0f * (float)Math.PI));
+            _engineBraking = Math.Max(0.05f, Math.Min(1.0f, SanitizeFinite(definition.EngineBraking, 0.3f)));
+            _idleRpm = Math.Max(0f, SanitizeFinite(definition.IdleRpm, 0f));
+            _revLimiter = Math.Max(_idleRpm, SanitizeFinite(definition.RevLimiter, _idleRpm));
+            _finalDriveRatio = Math.Max(0.1f, SanitizeFinite(definition.FinalDriveRatio, 0.1f));
+            _powerFactor = Math.Max(0.1f, SanitizeFinite(definition.PowerFactor, 0.1f));
+            _peakTorqueNm = Math.Max(0f, SanitizeFinite(definition.PeakTorqueNm, 0f));
+            _peakTorqueRpm = Math.Max(_idleRpm + 100f, SanitizeFinite(definition.PeakTorqueRpm, _idleRpm + 100f));
+            _idleTorqueNm = Math.Max(0f, SanitizeFinite(definition.IdleTorqueNm, 0f));
+            _redlineTorqueNm = Math.Max(0f, SanitizeFinite(definition.RedlineTorqueNm, 0f));
+            _dragCoefficient = Math.Max(0.01f, SanitizeFinite(definition.DragCoefficient, 0.01f));
+            _frontalAreaM2 = Math.Max(0.1f, SanitizeFinite(definition.FrontalAreaM2, 0.1f));
+            _rollingResistanceCoefficient = Math.Max(0.001f, SanitizeFinite(definition.RollingResistanceCoefficient, 0.001f));
+            _launchRpm = Math.Max(_idleRpm, Math.Min(_revLimiter, SanitizeFinite(definition.LaunchRpm, _idleRpm)));
+            _lateralGripCoefficient = Math.Max(0.1f, SanitizeFinite(definition.LateralGripCoefficient, 0.1f));
+            _highSpeedStability = Math.Max(0f, Math.Min(1.0f, SanitizeFinite(definition.HighSpeedStability, 0f)));
+            _wheelbaseM = Math.Max(0.5f, SanitizeFinite(definition.WheelbaseM, 0.5f));
+            _maxSteerDeg = Math.Max(5f, Math.Min(60f, SanitizeFinite(definition.MaxSteerDeg, 35f)));
+            _widthM = Math.Max(0.5f, SanitizeFinite(definition.WidthM, 0.5f));
+            _lengthM = Math.Max(0.5f, SanitizeFinite(definition.LengthM, 0.5f));
             _idleFreq = definition.IdleFreq;
             _topFreq = definition.TopFreq;
             _shiftFreq = definition.ShiftFreq;
-            _gears = definition.Gears;
-            _steering = definition.Steering;
+            _gears = Math.Max(1, definition.Gears);
+            _steering = SanitizeFinite(definition.Steering, 0.1f);
             _steeringFactor = definition.SteeringFactor;
             _frequency = _idleFreq;
 
@@ -528,6 +528,13 @@ namespace TopSpeed.Vehicles
 
             if (_state == CarState.Running && _started())
             {
+                if (!IsFinite(_speed))
+                    _speed = 0f;
+                if (!IsFinite(_positionX))
+                    _positionX = 0f;
+                if (!IsFinite(_positionY))
+                    _positionY = 0f;
+
                 _currentSteering = _input.GetSteering();
                 _currentThrottle = _input.GetThrottle();
                 _currentBrake = _input.GetBrake();
@@ -710,6 +717,13 @@ namespace TopSpeed.Vehicles
                     _speed = _topSpeed;
                 if (_speed < 0)
                     _speed = 0;
+                if (!IsFinite(_speed))
+                {
+                    _speed = 0f;
+                    _speedDiff = 0f;
+                }
+                if (!IsFinite(_lastDriveRpm))
+                    _lastDriveRpm = _idleRpm;
 
                 if (_manualTransmission)
                 {
@@ -1348,9 +1362,19 @@ namespace TopSpeed.Vehicles
             }
         }
 
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        private static float SanitizeFinite(float value, float fallback)
+        {
+            return IsFinite(value) ? value : fallback;
+        }
+
         private float CalculateDriveRpm(float speedMps, float throttle)
         {
-            var wheelCircumference = _wheelRadiusM * 2.0f * (float)Math.PI;     
+            var wheelCircumference = _wheelRadiusM * 2.0f * (float)Math.PI;
             var gearRatio = _engine.GetGearRatio(_gear);
             var speedBasedRpm = wheelCircumference > 0f
                 ? (speedMps / wheelCircumference) * 60f * gearRatio * _finalDriveRatio

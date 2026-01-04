@@ -392,7 +392,7 @@ namespace TopSpeed.Menu
         private MenuScreen BuildOptionsLapsMenu()
         {
             var items = new List<MenuItem>();
-            for (var laps = 2; laps <= 20; laps++)
+            for (var laps = 1; laps <= 16; laps++)
             {
                 var value = laps;
                 items.Add(new MenuItem(laps.ToString(), MenuAction.Back, onActivate: () => _actions.UpdateSetting(() => _settings.NrOfLaps = value)));
