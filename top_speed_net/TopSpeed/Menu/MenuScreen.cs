@@ -22,6 +22,7 @@ namespace TopSpeed.Menu
         private readonly List<MenuItem> _items;
         private readonly AudioManager _audio;
         private readonly SpeechService _speech;
+        private readonly Func<bool> _usageHintsEnabled;
         private readonly string _menuSoundRoot;
         private readonly string _legacySoundRoot;
         private readonly string _musicRoot;
@@ -42,6 +43,8 @@ namespace TopSpeed.Menu
         private bool _justEntered = true;
         private bool _ignoreHeldInput;
         private bool _autoFocusPending;
+        private int _hintToken;
+        private bool _disposed;
 
         private const int MusicFadeStepMs = 50;
         private int _musicFadeToken;
@@ -61,12 +64,14 @@ namespace TopSpeed.Menu
         public Action<float>? MusicVolumeChanged { get; set; }
         internal bool HasMusic => !string.IsNullOrWhiteSpace(MusicFile);
         internal bool IsMusicPlaying => _music != null && _music.IsPlaying;
+        internal void CancelPendingHint() => CancelHint();
 
-        public MenuScreen(string id, IEnumerable<MenuItem> items, AudioManager audio, SpeechService speech, string? title = null, Func<string>? titleProvider = null)
+        public MenuScreen(string id, IEnumerable<MenuItem> items, AudioManager audio, SpeechService speech, string? title = null, Func<string>? titleProvider = null, Func<bool>? usageHintsEnabled = null)
         {
             Id = id;
             _audio = audio;
             _speech = speech;
+            _usageHintsEnabled = usageHintsEnabled ?? (() => false);
             _items = new List<MenuItem>(items);
             _menuSoundRoot = Path.Combine(AssetPaths.SoundsRoot, "En", "Menu");
             _legacySoundRoot = Path.Combine(AssetPaths.SoundsRoot, "Legacy");
@@ -109,6 +114,10 @@ namespace TopSpeed.Menu
             var moveDown = input.WasPressed(Key.Down);
             var moveHome = input.WasPressed(Key.Home);
             var moveEnd = input.WasPressed(Key.End);
+            var moveLeft = input.WasPressed(Key.Left);
+            var moveRight = input.WasPressed(Key.Right);
+            var pageUp = input.WasPressed(Key.PageUp);
+            var pageDown = input.WasPressed(Key.PageDown);
             var activate = input.WasPressed(Key.Return) || input.WasPressed(Key.NumberPadEnter);
             var back = input.WasPressed(Key.Escape);
 
@@ -188,6 +197,27 @@ namespace TopSpeed.Menu
                 }
             }
 
+            if (_index != NoSelection)
+            {
+                var adjustment = GetAdjustmentAction(moveLeft, moveRight, pageUp, pageDown, moveHome, moveEnd);
+                if (adjustment.HasValue)
+                {
+                    var item = _items[_index];
+                    if (item.Adjust(adjustment.Value, out var announcement))
+                    {
+                        PlaySfx(_navigateSound);
+                        var safeAnnouncement = announcement;
+                        if (!string.IsNullOrWhiteSpace(safeAnnouncement))
+                        {
+                            _speech.Purge();
+                            _speech.Speak(safeAnnouncement!);
+                            CancelHint();
+                        }
+                        return MenuUpdateResult.None;
+                    }
+                }
+            }
+
             if (_index == NoSelection)
             {
                 if (moveDown)
@@ -231,11 +261,11 @@ namespace TopSpeed.Menu
                 }
             }
 
-            if (input.WasPressed(Key.PageUp))
+            if (pageUp)
             {
                 SetMusicVolume(_musicVolume + 0.05f);
             }
-            else if (input.WasPressed(Key.PageDown))
+            else if (pageDown)
             {
                 SetMusicVolume(_musicVolume - 0.05f);
             }
@@ -268,6 +298,7 @@ namespace TopSpeed.Menu
             _index = NoSelection;
             _justEntered = true;
             _autoFocusPending = true;
+            CancelHint();
         }
 
         public void ReplaceItems(IEnumerable<MenuItem> items)
@@ -277,6 +308,7 @@ namespace TopSpeed.Menu
             _index = NoSelection;
             _justEntered = true;
             _autoFocusPending = true;
+            CancelHint();
         }
 
         private void MoveSelectionAndAnnounce(int delta)
@@ -364,7 +396,9 @@ namespace TopSpeed.Menu
             var item = _items[_index];
             if (purge)
                 _speech.Purge();
-            _speech.Speak(item.GetDisplayText());
+            var displayText = item.GetDisplayText();
+            _speech.Speak(displayText);
+            ScheduleHint(item, _index, displayText);
         }
 
         public void AnnounceTitle()
@@ -372,6 +406,7 @@ namespace TopSpeed.Menu
             _justEntered = true;
             _ignoreHeldInput = true;
             _speech.Purge();
+            CancelHint();
             if (!string.IsNullOrWhiteSpace(Title))
                 _speech.Speak(Title, SpeechService.SpeakFlag.Interruptable);
 
@@ -538,9 +573,72 @@ namespace TopSpeed.Menu
             return currentLeft && !previousLeft;
         }
 
+        private static MenuAdjustAction? GetAdjustmentAction(bool moveLeft, bool moveRight, bool pageUp, bool pageDown, bool moveHome, bool moveEnd)
+        {
+            if (moveLeft)
+                return MenuAdjustAction.Decrease;
+            if (moveRight)
+                return MenuAdjustAction.Increase;
+            if (pageUp)
+                return MenuAdjustAction.PageIncrease;
+            if (pageDown)
+                return MenuAdjustAction.PageDecrease;
+            if (moveHome)
+                return MenuAdjustAction.ToMaximum;
+            if (moveEnd)
+                return MenuAdjustAction.ToMinimum;
+            return null;
+        }
+
+        private void ScheduleHint(MenuItem item, int index, string displayText)
+        {
+            CancelHint();
+            if (!_usageHintsEnabled())
+                return;
+            if (string.IsNullOrWhiteSpace(item.Hint))
+                return;
+
+            var token = Volatile.Read(ref _hintToken);
+            var delayMs = CalculateHintDelay(displayText);
+            Task.Run(async () =>
+            {
+                await Task.Delay(delayMs).ConfigureAwait(false);
+                if (token != Volatile.Read(ref _hintToken))
+                    return;
+                if (_disposed || _index != index)
+                    return;
+                if (!_usageHintsEnabled() || string.IsNullOrWhiteSpace(item.Hint))
+                    return;
+                _speech.Speak(item.Hint!, SpeechService.SpeakFlag.Interruptable);
+            });
+        }
+
+        private int CalculateHintDelay(string displayText)
+        {
+            var words = CountWords(displayText);
+            var rateMs = _speech.ScreenReaderRateMs;
+            var baseDelay = rateMs > 0f ? words * rateMs : 0f;
+            var totalDelay = baseDelay + 1000f;
+            return (int)Math.Max(0, Math.Ceiling(totalDelay));
+        }
+
+        private static int CountWords(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return 0;
+            return text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+        }
+
+        private void CancelHint()
+        {
+            Interlocked.Increment(ref _hintToken);
+        }
+
 
         public void Dispose()
         {
+            _disposed = true;
+            CancelHint();
             _navigateSound?.Dispose();
             _wrapSound?.Dispose();
             _activateSound?.Dispose();

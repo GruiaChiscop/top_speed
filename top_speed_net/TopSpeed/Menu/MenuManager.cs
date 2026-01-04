@@ -13,12 +13,14 @@ namespace TopSpeed.Menu
         private readonly Stack<MenuScreen> _stack;
         private readonly AudioManager _audio;
         private readonly SpeechService _speech;
+        private readonly Func<bool> _usageHintsEnabled;
         private bool _menuMusicSuspended;
 
-        public MenuManager(AudioManager audio, SpeechService speech)
+        public MenuManager(AudioManager audio, SpeechService speech, Func<bool>? usageHintsEnabled = null)
         {
             _audio = audio;
             _speech = speech;
+            _usageHintsEnabled = usageHintsEnabled ?? (() => false);
             _screens = new Dictionary<string, MenuScreen>(StringComparer.Ordinal);
             _stack = new Stack<MenuScreen>();
         }
@@ -37,6 +39,8 @@ namespace TopSpeed.Menu
 
         public void ShowRoot(string id)
         {
+            foreach (var existingScreen in _stack)
+                existingScreen.CancelPendingHint();
             _stack.Clear();
             var screen = GetScreen(id);
             screen.ResetSelection();
@@ -47,6 +51,8 @@ namespace TopSpeed.Menu
 
         public void Push(string id)
         {
+            if (_stack.Count > 0)
+                _stack.Peek().CancelPendingHint();
             var screen = GetScreen(id);
             screen.ResetSelection();
             screen.Initialize();
@@ -62,6 +68,7 @@ namespace TopSpeed.Menu
                 return;
             }
 
+            _stack.Peek().CancelPendingHint();
             _stack.Pop();
             var screen = GetScreen(id);
             screen.ResetSelection();
@@ -75,6 +82,7 @@ namespace TopSpeed.Menu
             if (_stack.Count <= 1)
                 return;
 
+            _stack.Peek().CancelPendingHint();
             _stack.Pop();
             _stack.Peek().AnnounceTitle();
         }
@@ -95,6 +103,7 @@ namespace TopSpeed.Menu
             {
                 if (_stack.Count > 1)
                 {
+                    _stack.Peek().CancelPendingHint();
                     _stack.Pop();
                     _stack.Peek().AnnounceTitle();
                     return MenuAction.None;
@@ -109,11 +118,14 @@ namespace TopSpeed.Menu
                 var stackCount = _stack.Count;
                 _speech.Purge();
                 var announcement = item.ActivateAndGetAnnouncement();
+                if (announcement != null)
+                    current.CancelPendingHint();
                 var stackChanged = _stack.Count != stackCount || _stack.Peek() != current;
                 if (item.Action == MenuAction.Back)
                 {
                     if (_stack.Count > 1)
                     {
+                        _stack.Peek().CancelPendingHint();
                         _stack.Pop();
                         _stack.Peek().AnnounceTitle();
                         return MenuAction.None;
@@ -127,7 +139,7 @@ namespace TopSpeed.Menu
                 }
                 if (!stackChanged && !item.SuppressPostActivateAnnouncement && !string.IsNullOrWhiteSpace(announcement))
                 {
-                    _speech.Speak(announcement);
+                    _speech.Speak(announcement!);
                 }
                 return item.Action;
             }
@@ -174,7 +186,7 @@ namespace TopSpeed.Menu
 
         public MenuScreen CreateMenu(string id, IEnumerable<MenuItem> items, string? title = null, Func<string>? titleProvider = null)
         {
-            return new MenuScreen(id, items, _audio, _speech, title, titleProvider);
+            return new MenuScreen(id, items, _audio, _speech, title, titleProvider, _usageHintsEnabled);
         }
 
         private MenuScreen? FindScreenWithPlayingMusic()

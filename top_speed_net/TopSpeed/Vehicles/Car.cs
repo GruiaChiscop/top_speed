@@ -268,6 +268,11 @@ namespace TopSpeed.Vehicles
             _soundBump = CreateRequiredSound(Path.Combine(_legacyRoot, "bump.wav"));
             _soundBadSwitch = CreateRequiredSound(Path.Combine(_legacyRoot, "badswitch.wav"));
 
+            _soundCrash.SetDopplerFactor(0f);
+            _soundMiniCrash.SetDopplerFactor(0f);
+            _soundBump.SetDopplerFactor(0f);
+            _soundWipers?.SetDopplerFactor(0f);
+
             _vibration = vibrationDevice != null && vibrationDevice.IsAvailable && vibrationDevice.ForceFeedbackCapable && _settings.ForceFeedback && _settings.UseJoystick
                 ? vibrationDevice
                 : null;
@@ -287,6 +292,8 @@ namespace TopSpeed.Vehicles
 
             _soundEngine.SetDopplerFactor(0f);
             _soundThrottle?.SetDopplerFactor(0f);
+            _soundHorn.SetDopplerFactor(0f);
+            _soundBrake.SetDopplerFactor(0f);
             _soundAsphalt.SetDopplerFactor(0f);
             _soundGravel.SetDopplerFactor(0f);
             _soundWater.SetDopplerFactor(0f);

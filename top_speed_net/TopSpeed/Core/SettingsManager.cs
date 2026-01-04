@@ -155,6 +155,7 @@ namespace TopSpeed.Core
             AppendValue(lines, (int)settings.KeyTrackName);
             AppendValue(lines, (int)settings.KeyPause);
             AppendValue(lines, (int)settings.Units);
+            AppendValue(lines, settings.UsageHints ? 1 : 0);
 
             try
             {
@@ -236,6 +237,7 @@ namespace TopSpeed.Core
             if (TryNext(values, ref index, out value)) settings.KeyTrackName = AsKey(value, settings.KeyTrackName);
             if (TryNext(values, ref index, out value)) settings.KeyPause = AsKey(value, settings.KeyPause);
             if (TryNext(values, ref index, out value)) settings.Units = AsUnitSystem(value, settings.Units);
+            if (TryNext(values, ref index, out value)) settings.UsageHints = value != 0;
         }
 
         private static int ClampPort(int value, int fallback)

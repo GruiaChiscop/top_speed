@@ -2,7 +2,7 @@ using System;
 
 namespace TopSpeed.Menu
 {
-    internal sealed class SwitchMenuItem : MenuItem
+    internal sealed class Switch : MenuItem
     {
         private readonly Func<bool> _getValue;
         private readonly Action<bool> _setValue;
@@ -10,7 +10,7 @@ namespace TopSpeed.Menu
         private readonly string _valueOn;
         private readonly string _valueOff;
 
-        public SwitchMenuItem(
+        public Switch(
             string text,
             string valueOn,
             string valueOff,
@@ -20,8 +20,9 @@ namespace TopSpeed.Menu
             MenuAction action = MenuAction.None,
             string? nextMenuId = null,
             Action? onActivate = null,
-            bool suppressPostActivateAnnouncement = false)
-            : base(text, action, nextMenuId, onActivate, suppressPostActivateAnnouncement)
+            bool suppressPostActivateAnnouncement = false,
+            string? hint = null)
+            : base(text, action, nextMenuId, onActivate, suppressPostActivateAnnouncement, hint)
         {
             if (string.IsNullOrWhiteSpace(valueOn))
                 throw new ArgumentException("valueOn must be provided.", nameof(valueOn));

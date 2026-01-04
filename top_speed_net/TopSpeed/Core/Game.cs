@@ -81,7 +81,7 @@ namespace TopSpeed.Core
             _speech.ScreenReaderRateMs = _settings.ScreenReaderRateMs;
             _raceInput = new RaceInput(_settings);
             _setup = new RaceSetup();
-            _menu = new MenuManager(_audio, _speech);
+            _menu = new MenuManager(_audio, _speech, () => _settings.UsageHints);
             _selection = new RaceSelection(_setup, _settings);
             _menuRegistry = new MenuRegistry(_menu, _settings, _setup, _raceInput, _selection, this);
             _inputMapping = new InputMappingHandler(_input, _raceInput, _settings, _speech, SaveSettings);

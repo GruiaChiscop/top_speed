@@ -110,6 +110,7 @@ namespace TopSpeed.Input
         public string LastServerAddress { get; set; } = string.Empty;
         public int ServerPort { get; set; }
         public float ScreenReaderRateMs { get; set; }
+        public bool UsageHints { get; set; }
 
         public bool UseJoystick
         {
@@ -179,6 +180,7 @@ namespace TopSpeed.Input
             LastServerAddress = string.Empty;
             ServerPort = 0;
             ScreenReaderRateMs = 0f;
+            UsageHints = true;
         }
     }
 }

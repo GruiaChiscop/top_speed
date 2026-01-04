@@ -219,8 +219,14 @@ namespace TopSpeed.Vehicles
             _soundHorn = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Horn), "horn", looped: true);
             _soundCrash = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Crash), "crash");
             _soundBrake = CreateRequiredSound(definition.GetSoundPath(VehicleAction.Brake), "brake", looped: true);
+            _soundEngine.SetDopplerFactor(1f);
+            _soundHorn.SetDopplerFactor(0f);
+            _soundBrake.SetDopplerFactor(0f);
             _soundMiniCrash = CreateRequiredSound(Path.Combine(_legacyRoot, "crashshort.wav"), "mini crash");
             _soundBump = CreateRequiredSound(Path.Combine(_legacyRoot, "bump.wav"), "bump");
+            _soundCrash.SetDopplerFactor(0f);
+            _soundMiniCrash.SetDopplerFactor(0f);
+            _soundBump.SetDopplerFactor(0f);
             _soundBackfire = TryCreateSound(definition.GetSoundPath(VehicleAction.Backfire));
         }
 

@@ -6,6 +6,7 @@ namespace TopSpeed.Menu
     {
         private readonly string _text;
         private readonly Func<string>? _textProvider;
+        public string? Hint { get; }
 
         public string Text => _text;
         public MenuAction Action { get; }
@@ -18,7 +19,8 @@ namespace TopSpeed.Menu
             MenuAction action,
             string? nextMenuId = null,
             Action? onActivate = null,
-            bool suppressPostActivateAnnouncement = false)
+            bool suppressPostActivateAnnouncement = false,
+            string? hint = null)
         {
             _text = text;
             _textProvider = null;
@@ -26,6 +28,7 @@ namespace TopSpeed.Menu
             NextMenuId = nextMenuId;
             OnActivate = onActivate;
             SuppressPostActivateAnnouncement = suppressPostActivateAnnouncement;
+            Hint = hint;
         }
 
         public MenuItem(
@@ -33,7 +36,8 @@ namespace TopSpeed.Menu
             MenuAction action,
             string? nextMenuId = null,
             Action? onActivate = null,
-            bool suppressPostActivateAnnouncement = false)
+            bool suppressPostActivateAnnouncement = false,
+            string? hint = null)
         {
             _text = string.Empty;
             _textProvider = textProvider ?? throw new ArgumentNullException(nameof(textProvider));
@@ -41,6 +45,7 @@ namespace TopSpeed.Menu
             NextMenuId = nextMenuId;
             OnActivate = onActivate;
             SuppressPostActivateAnnouncement = suppressPostActivateAnnouncement;
+            Hint = hint;
         }
 
         public virtual string GetDisplayText()
@@ -52,6 +57,12 @@ namespace TopSpeed.Menu
         {
             OnActivate?.Invoke();
             return null;
+        }
+
+        public virtual bool Adjust(MenuAdjustAction action, out string? announcement)
+        {
+            announcement = null;
+            return false;
         }
 
         protected string GetBaseText()

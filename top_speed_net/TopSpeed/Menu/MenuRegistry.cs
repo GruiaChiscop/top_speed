@@ -96,11 +96,7 @@ namespace TopSpeed.Menu
             _menu.Register(BuildOptionsControlsKeyboardMenu());
             _menu.Register(BuildOptionsControlsJoystickMenu());
             _menu.Register(BuildOptionsRaceSettingsMenu());
-            _menu.Register(BuildOptionsAutomaticInfoMenu());
-            _menu.Register(BuildOptionsCopilotMenu());
-            _menu.Register(BuildOptionsLapsMenu());
-            _menu.Register(BuildOptionsComputersMenu());
-            _menu.Register(BuildOptionsDifficultyMenu());
+            // Copilot and difficulty are now direct radio-button items.
             _menu.Register(BuildOptionsRestoreMenu());
             _menu.Register(BuildOptionsServerSettingsMenu());
         }
@@ -278,24 +274,33 @@ namespace TopSpeed.Menu
         {
             var items = new List<MenuItem>
             {
-                new CheckBoxMenuItem(
+                new CheckBox(
                     "Include custom tracks in randomization",
                     () => _settings.RandomCustomTracks,
-                    value => _actions.UpdateSetting(() => _settings.RandomCustomTracks = value)),
-                new CheckBoxMenuItem(
+                    value => _actions.UpdateSetting(() => _settings.RandomCustomTracks = value),
+                    hint: "When checked, random track selection can include custom tracks. Press ENTER to toggle."),
+                new CheckBox(
                     "Include custom vehicles in randomization",
                     () => _settings.RandomCustomVehicles,
-                    value => _actions.UpdateSetting(() => _settings.RandomCustomVehicles = value)),
-                new CheckBoxMenuItem(
+                    value => _actions.UpdateSetting(() => _settings.RandomCustomVehicles = value),
+                    hint: "When checked, random vehicle selection can include custom vehicles. Press ENTER to toggle."),
+                new CheckBox(
                     "Enable HRTF Three-D audio",
                     () => _settings.ThreeDSound,
-                    value => _actions.UpdateSetting(() => _settings.ThreeDSound = value)),
-                new SwitchMenuItem(
+                    value => _actions.UpdateSetting(() => _settings.ThreeDSound = value),
+                    hint: "When checked, Three-D audio uses HRTF spatialization for more realistic positioning. Press ENTER to toggle."),
+                new Switch(
                     "Units",
                     "metric",
                     "imperial",
                     () => _settings.Units == UnitSystem.Metric,
-                    value => _actions.UpdateSetting(() => _settings.Units = value ? UnitSystem.Metric : UnitSystem.Imperial)),
+                    value => _actions.UpdateSetting(() => _settings.Units = value ? UnitSystem.Metric : UnitSystem.Imperial),
+                    hint: "Switch between metric and imperial units. Press ENTER to change."),
+                new CheckBox(
+                    "Enable usage hints",
+                    () => _settings.UsageHints,
+                    value => _actions.UpdateSetting(() => _settings.UsageHints = value),
+                    hint: "When checked, menu items can speak usage hints after a short delay. Press ENTER to toggle."),
                 new MenuItem("Recalibrate screen reader rate", MenuAction.None, onActivate: _actions.RecalibrateScreenReaderRate),
                 BackItem()
             };
@@ -317,7 +322,11 @@ namespace TopSpeed.Menu
             var items = new List<MenuItem>
             {
                 new MenuItem(() => $"Select device: {DeviceLabel(_settings.DeviceMode)}", MenuAction.None, nextMenuId: "options_controls_device"),
-                new MenuItem(() => $"Force feedback: {FormatOnOff(_settings.ForceFeedback)}", MenuAction.None, onActivate: () => _actions.ToggleSetting(() => _settings.ForceFeedback = !_settings.ForceFeedback)),
+                new CheckBox(
+                    "Force feedback",
+                    () => _settings.ForceFeedback,
+                    value => _actions.UpdateSetting(() => _settings.ForceFeedback = value),
+                    hint: "Enables force feedback or vibration if your controller supports it. Press ENTER to toggle."),
                 new MenuItem("Map keyboard keys", MenuAction.None, nextMenuId: "options_controls_keyboard"),
                 new MenuItem("Map joystick keys", MenuAction.None, nextMenuId: "options_controls_joystick"),
                 BackItem()
@@ -368,39 +377,46 @@ namespace TopSpeed.Menu
         {
             var items = new List<MenuItem>
             {
-                new MenuItem(() => $"Copilot: {CopilotLabel(_settings.Copilot)}", MenuAction.None, nextMenuId: "options_race_copilot"),
-                new MenuItem(() => $"Curve announcements: {CurveLabel(_settings.CurveAnnouncement)}", MenuAction.None, onActivate: _actions.ToggleCurveAnnouncements),
-                new MenuItem(() => $"Automatic race information: {AutomaticInfoLabel(_settings.AutomaticInfo)}", MenuAction.None, nextMenuId: "options_race_info"),
-                new MenuItem(() => $"Number of laps: {_settings.NrOfLaps}", MenuAction.None, nextMenuId: "options_race_laps"),
-                new MenuItem(() => $"Number of computer players: {_settings.NrOfComputers}", MenuAction.None, nextMenuId: "options_race_computers"),
-                new MenuItem(() => $"Single race difficulty: {DifficultyLabel(_settings.Difficulty)}", MenuAction.None, nextMenuId: "options_race_difficulty"),
+                new RadioButton(
+                    "Copilot",
+                    new[] { "off", "curves only", "all" },
+                    () => (int)_settings.Copilot,
+                    value => _actions.UpdateSetting(() => _settings.Copilot = (CopilotMode)value),
+                    hint: "Choose what information the copilot reports during the race. Use LEFT or RIGHT to change."),
+                new Switch(
+                    "Curve announcements",
+                    "speed dependent",
+                    "fixed distance",
+                    () => _settings.CurveAnnouncement == CurveAnnouncementMode.SpeedDependent,
+                    value => _actions.UpdateSetting(() => _settings.CurveAnnouncement = value ? CurveAnnouncementMode.SpeedDependent : CurveAnnouncementMode.FixedDistance),
+                    hint: "Switch between fixed distance and speed dependent curve announcements. Press ENTER to change."),
+                new RadioButton(
+                    "Automatic race information",
+                    new[] { "off", "laps only", "on" },
+                    () => (int)_settings.AutomaticInfo,
+                    value => _actions.UpdateSetting(() => _settings.AutomaticInfo = (AutomaticInfoMode)value),
+                    hint: "Choose how much automatic race information is spoken, such as lap numbers and player positions. Use LEFT or RIGHT to change."),
+                new Slider(
+                    "Number of laps",
+                    "1-16",
+                    () => _settings.NrOfLaps,
+                    value => _actions.UpdateSetting(() => _settings.NrOfLaps = value),
+                    hint: "Sets how many laps the session will be for single race, time trial, and multiplayer. Use LEFT or RIGHT to change by 1, PAGE UP or PAGE DOWN to change by 10, HOME for maximum, END for minimum."),
+                new Slider(
+                    "Number of computer players",
+                    "1-7",
+                    () => _settings.NrOfComputers,
+                    value => _actions.UpdateSetting(() => _settings.NrOfComputers = value),
+                    hint: "Sets how many computer-controlled cars will race against you. Use LEFT or RIGHT to change by 1, PAGE UP or PAGE DOWN to change by 10, HOME for maximum, END for minimum."),
+                new RadioButton(
+                    "Single race difficulty",
+                    new[] { "easy", "normal", "hard" },
+                    () => (int)_settings.Difficulty,
+                    value => _actions.UpdateSetting(() => _settings.Difficulty = (RaceDifficulty)value),
+                    hint: "Choose the difficulty level for single races. Use LEFT or RIGHT to change."),
                 BackItem()
             };
             return _menu.CreateMenu("options_race", items);
-        }
-
-        private MenuScreen BuildOptionsAutomaticInfoMenu()
-        {
-            var items = new List<MenuItem>
-            {
-                new MenuItem("Off", MenuAction.Back, onActivate: () => _actions.UpdateSetting(() => _settings.AutomaticInfo = AutomaticInfoMode.Off)),
-                new MenuItem("Laps only", MenuAction.Back, onActivate: () => _actions.UpdateSetting(() => _settings.AutomaticInfo = AutomaticInfoMode.LapsOnly)),
-                new MenuItem("On", MenuAction.Back, onActivate: () => _actions.UpdateSetting(() => _settings.AutomaticInfo = AutomaticInfoMode.On)),
-                BackItem()
-            };
-            return _menu.CreateMenu("options_race_info", items, "Automatic information controls the automatic announcements reported to you during the race, such as lab numbers and player positions.");
-        }
-
-        private MenuScreen BuildOptionsCopilotMenu()
-        {
-            var items = new List<MenuItem>
-            {
-                new MenuItem("Off", MenuAction.Back, onActivate: () => _actions.UpdateSetting(() => _settings.Copilot = CopilotMode.Off)),
-                new MenuItem("Curves only", MenuAction.Back, onActivate: () => _actions.UpdateSetting(() => _settings.Copilot = CopilotMode.CurvesOnly)),
-                new MenuItem("All", MenuAction.Back, onActivate: () => _actions.UpdateSetting(() => _settings.Copilot = CopilotMode.All)),
-                BackItem()
-            };
-            return _menu.CreateMenu("options_race_copilot", items, "What information should the copilot report to you during the race.");
         }
 
         private MenuScreen BuildOptionsLapsMenu()
@@ -425,18 +441,6 @@ namespace TopSpeed.Menu
             }
             items.Add(BackItem());
             return _menu.CreateMenu("options_race_computers", items, "Number of computer players");
-        }
-
-        private MenuScreen BuildOptionsDifficultyMenu()
-        {
-            var items = new List<MenuItem>
-            {
-                new MenuItem("Easy", MenuAction.Back, onActivate: () => _actions.UpdateSetting(() => _settings.Difficulty = RaceDifficulty.Easy)),
-                new MenuItem("Normal", MenuAction.Back, onActivate: () => _actions.UpdateSetting(() => _settings.Difficulty = RaceDifficulty.Normal)),
-                new MenuItem("Hard", MenuAction.Back, onActivate: () => _actions.UpdateSetting(() => _settings.Difficulty = RaceDifficulty.Hard)),
-                BackItem()
-            };
-            return _menu.CreateMenu("options_race_difficulty", items);
         }
 
         private MenuScreen BuildOptionsRestoreMenu()

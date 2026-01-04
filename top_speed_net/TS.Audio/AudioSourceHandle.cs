@@ -34,6 +34,7 @@ namespace TS.Audio
         private readonly bool _spatialize;
         private readonly bool _trueStereoHrtf;
         private float _basePitch = 1.0f;
+        private float _dopplerFactor = 1.0f;
         private bool _ownsSound;
         private IDisposable? _userData;
         private int _channels = 2;
@@ -240,9 +241,10 @@ namespace TS.Audio
             if (!_spatialize)
                 return;
 
+            _dopplerFactor = Math.Max(0f, dopplerFactor);
             if (!_useHrtf)
             {
-                _sound.SetDopplerFactor(dopplerFactor);
+                _sound.SetDopplerFactor(_dopplerFactor);
             }
         }
 
@@ -314,7 +316,14 @@ namespace TS.Audio
             float vS = Vector3.Dot(srcVel, dir);
 
             float c = config.SpeedOfSound;
-            float doppler = (c + config.DopplerFactor * vL) / (c + config.DopplerFactor * vS);
+            var dopplerFactor = config.DopplerFactor * _dopplerFactor;
+            if (dopplerFactor <= 0f)
+            {
+                _sound.SetPitch(_basePitch);
+                return;
+            }
+
+            float doppler = (c + dopplerFactor * vL) / (c + dopplerFactor * vS);
             if (doppler < 0.5f) doppler = 0.5f;
             if (doppler > 2.0f) doppler = 2.0f;
 

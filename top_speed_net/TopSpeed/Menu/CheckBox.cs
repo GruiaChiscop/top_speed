@@ -2,13 +2,13 @@ using System;
 
 namespace TopSpeed.Menu
 {
-    internal sealed class CheckBoxMenuItem : MenuItem
+    internal sealed class CheckBox : MenuItem
     {
         private readonly Func<bool> _getValue;
         private readonly Action<bool> _setValue;
         private readonly Action<bool>? _onChanged;
 
-        public CheckBoxMenuItem(
+        public CheckBox(
             string text,
             Func<bool> getValue,
             Action<bool> setValue,
@@ -16,8 +16,9 @@ namespace TopSpeed.Menu
             MenuAction action = MenuAction.None,
             string? nextMenuId = null,
             Action? onActivate = null,
-            bool suppressPostActivateAnnouncement = false)
-            : base(text, action, nextMenuId, onActivate, suppressPostActivateAnnouncement)
+            bool suppressPostActivateAnnouncement = false,
+            string? hint = null)
+            : base(text, action, nextMenuId, onActivate, suppressPostActivateAnnouncement, hint)
         {
             _getValue = getValue ?? throw new ArgumentNullException(nameof(getValue));
             _setValue = setValue ?? throw new ArgumentNullException(nameof(setValue));
