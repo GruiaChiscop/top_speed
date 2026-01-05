@@ -180,7 +180,7 @@ namespace TS.Audio
 
             if (!_useHrtf)
             {
-                _sound.SetPosition(new ma_vec3f { x = position.X, y = position.Y, z = position.Z });
+                _sound.SetPosition(ToMaVec3(position));
             }
         }
 
@@ -195,7 +195,7 @@ namespace TS.Audio
 
             if (!_useHrtf)
             {
-                _sound.SetVelocity(new ma_vec3f { x = velocity.X, y = velocity.Y, z = velocity.Z });
+                _sound.SetVelocity(ToMaVec3(velocity));
             }
         }
 
@@ -256,6 +256,12 @@ namespace TS.Audio
         public void SeekToStart()
         {
             _sound.SeekToPCMFrame(0);
+        }
+
+        private static ma_vec3f ToMaVec3(Vector3 value)
+        {
+            // MiniAudio defaults to right-handed with forward = -Z.
+            return new ma_vec3f { x = value.X, y = value.Y, z = -value.Z };
         }
 
         public int InputChannels => _channels;

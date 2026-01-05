@@ -195,9 +195,9 @@ namespace TS.Audio
             _listenerPosition = position;
             _listenerVelocity = velocity;
 
-            var pos = new ma_vec3f { x = position.X, y = position.Y, z = position.Z };
-            var dir = new ma_vec3f { x = forward.X, y = forward.Y, z = forward.Z };
-            var vel = new ma_vec3f { x = velocity.X, y = velocity.Y, z = velocity.Z };
+            var pos = ToMaVec3(position);
+            var dir = ToMaVec3(forward);
+            var vel = ToMaVec3(velocity);
             var upVec = new ma_vec3f { x = up.X, y = up.Y, z = up.Z };
 
             _listener.SetPosition(pos);
@@ -209,6 +209,12 @@ namespace TS.Audio
             {
                 _steamAudio.UpdateListener(position, forward, up);
             }
+        }
+
+        private static ma_vec3f ToMaVec3(Vector3 value)
+        {
+            // MiniAudio defaults to right-handed with forward = -Z.
+            return new ma_vec3f { x = value.X, y = value.Y, z = -value.Z };
         }
 
         public void Update(double deltaTime)
