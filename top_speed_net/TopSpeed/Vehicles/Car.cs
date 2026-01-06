@@ -1781,14 +1781,18 @@ namespace TopSpeed.Vehicles
                 var listenerPos = AudioWorld.ToMeters(new Vector3(listenerX, 0f, listenerZ));
                 var engineLateralOffset = clampedX - centerX;
                 var engineOffset = AudioWorld.ToMeters(engineForwardOffset);
-                var brakeOffset = AudioWorld.ToMeters(Math.Max(0.01f, engineForwardOffset * 0.6f));
+                var brakeForwardOffset = Math.Max(0.01f, engineForwardOffset * 0.6f);
+                var brakeOffset = AudioWorld.ToMeters(brakeForwardOffset);
                 var vehicleOffset = AudioWorld.ToMeters(vehicleForwardOffset);
 
                 enginePos = new Vector3(
                     AudioWorld.ToMeters(listenerX + engineLateralOffset),
                     0f,
                     AudioWorld.ToMeters(listenerZ + engineForwardOffset));
-                brakePos = listenerPos + forward * brakeOffset;
+                brakePos = new Vector3(
+                    AudioWorld.ToMeters(listenerX + engineLateralOffset),
+                    0f,
+                    AudioWorld.ToMeters(listenerZ + brakeForwardOffset));
                 vehiclePos = listenerPos + forward * vehicleOffset;
             }
             else
