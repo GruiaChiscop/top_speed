@@ -113,7 +113,7 @@ namespace TopSpeed.Race
             _soundTheme4 = LoadLanguageSound("music\\theme4", streamFromDisk: false);
             _soundPause = LoadLanguageSound("race\\pause");
             _soundUnpause = LoadLanguageSound("race\\unpause");
-            _soundTheme4.SetVolumePercent(50);
+            _soundTheme4.SetVolumePercent((int)Math.Round(_settings.MusicVolume * 100f));
 
             Speak(_soundYouAre);
             Speak(_soundPlayer);
@@ -325,6 +325,7 @@ namespace TopSpeed.Race
 
         public void Pause()
         {
+            _soundTheme4?.SetVolumePercent((int)Math.Round(_settings.MusicVolume * 100f));
             _soundTheme4?.Play(loop: true);
             FadeIn();
             _car.Pause();

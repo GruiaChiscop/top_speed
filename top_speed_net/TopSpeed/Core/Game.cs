@@ -582,11 +582,13 @@ namespace TopSpeed.Core
                 case AppState.TimeTrial:
                     _timeTrial?.StartStopwatchDiff();
                     _timeTrial?.Pause();
+                    _timeTrial?.ClearPauseRequest();
                     _state = AppState.Paused;
                     break;
                 case AppState.SingleRace:
                     _singleRace?.StartStopwatchDiff();
                     _singleRace?.Pause();
+                    _singleRace?.ClearPauseRequest();
                     _state = AppState.Paused;
                     break;
             }

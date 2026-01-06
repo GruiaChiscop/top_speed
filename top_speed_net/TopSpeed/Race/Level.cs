@@ -223,6 +223,11 @@ namespace TopSpeed.Race
         public bool WantsExit => ExitRequested;
         public bool WantsPause => PauseRequested;
 
+        public void ClearPauseRequest()
+        {
+            PauseRequested = false;
+        }
+
         public void StartStopwatchDiff()
         {
             _oldStopwatchMs = _stopwatch.ElapsedMilliseconds;
@@ -720,10 +725,12 @@ namespace TopSpeed.Race
         {
             if (_soundTheme4 == null)
                 return;
-            var volume = 50;
+            var target = (int)Math.Round(_settings.MusicVolume * 100f);
+            var volume = 0;
+            _soundTheme4.SetVolumePercent(volume);
             for (var i = 0; i < 10; i++)
             {
-                volume += 5;
+                volume = Math.Min(target, volume + Math.Max(1, target / 10));
                 _soundTheme4.SetVolumePercent(volume);
                 Thread.Sleep(25);
             }
@@ -733,10 +740,10 @@ namespace TopSpeed.Race
         {
             if (_soundTheme4 == null)
                 return;
-            var volume = 100;
+            var volume = (int)Math.Round(_settings.MusicVolume * 100f);
             for (var i = 0; i < 10; i++)
             {
-                volume -= 5;
+                volume = Math.Max(0, volume - Math.Max(1, volume / 10));
                 _soundTheme4.SetVolumePercent(volume);
                 Thread.Sleep(25);
             }
