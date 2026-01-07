@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using SharpDX;
 using SharpDX.DirectInput;
 
@@ -18,6 +19,8 @@ namespace TopSpeed.Input
         private int _lastJoystickScan;
         private bool _suspended;
         private bool _menuBackLatched;
+        private readonly object _hidLock = new object();
+        private int _hidScanPending;
 
         public InputState Current => _current;
 
@@ -30,7 +33,7 @@ namespace TopSpeed.Input
             _keyboard.SetCooperativeLevel(windowHandle, CooperativeLevel.Foreground | CooperativeLevel.NonExclusive);
             _gamepad = new GamepadDevice();
             if (!_gamepad.IsAvailable)
-                TryRescanJoystick(force: true);
+                BeginHidScan();
             _current = new InputState();
             _previous = new InputState();
             TryAcquire();
@@ -56,9 +59,17 @@ namespace TopSpeed.Input
             _gamepad.Update();
             if (!_gamepad.IsAvailable)
             {
-                if (_joystick == null || !_joystick.IsAvailable)
-                    TryRescanJoystick();
-                _joystick?.Update();
+                JoystickDevice? joystick;
+                lock (_hidLock)
+                {
+                    joystick = _joystick;
+                }
+                if (joystick == null || !joystick.IsAvailable)
+                {
+                    BeginHidScan();
+                    return;
+                }
+                joystick.Update();
             }
         }
 
@@ -137,9 +148,17 @@ namespace TopSpeed.Input
             _previous.Clear();
         }
 
-        public IVibrationDevice? VibrationDevice => _gamepad.IsAvailable        
+        public IVibrationDevice? VibrationDevice => _gamepad.IsAvailable
             ? _gamepad
-            : (_joystick != null && _joystick.IsAvailable ? _joystick : null);  
+            : GetJoystickDevice();
+
+        private JoystickDevice? GetJoystickDevice()
+        {
+            lock (_hidLock)
+            {
+                return _joystick != null && _joystick.IsAvailable ? _joystick : null;
+            }
+        }
 
         public void Suspend()
         {
@@ -153,11 +172,16 @@ namespace TopSpeed.Input
                 // Ignore unacquire failures.
             }
 
-            if (_joystick?.Device != null)
+            JoystickDevice? joystick;
+            lock (_hidLock)
+            {
+                joystick = _joystick;
+            }
+            if (joystick?.Device != null)
             {
                 try
                 {
-                    _joystick.Device.Unacquire();
+                    joystick.Device.Unacquire();
                 }
                 catch (SharpDXException)
                 {
@@ -171,11 +195,16 @@ namespace TopSpeed.Input
             _suspended = false;
             TryAcquire();
 
-            if (_joystick?.Device != null)
+            JoystickDevice? joystick;
+            lock (_hidLock)
+            {
+                joystick = _joystick;
+            }
+            if (joystick?.Device != null)
             {
                 try
                 {
-                    _joystick.Device.Acquire();
+                    joystick.Device.Acquire();
                 }
                 catch (SharpDXException)
                 {
@@ -218,16 +247,17 @@ namespace TopSpeed.Input
                 return _gamepad.State.HasAnyButtonDown();
             }
 
-            if (_joystick == null || !_joystick.IsAvailable)
-                TryRescanJoystick();
+            var joystick = GetJoystickDevice();
+            if (joystick == null || !joystick.IsAvailable)
+            {
+                BeginHidScan();
+                return false;
+            }
 
-            if (_joystick == null || !_joystick.IsAvailable)
+            if (!joystick.Update())
                 return false;
 
-            if (!_joystick.Update())
-                return false;
-
-            return _joystick.State.HasAnyButtonDown();
+            return joystick.State.HasAnyButtonDown();
         }
 
         private void UpdateMenuBackLatchImmediate()
@@ -261,13 +291,14 @@ namespace TopSpeed.Input
                 return state.X < -MenuBackThreshold || state.Pov4;
             }
 
-            if (_joystick == null || !_joystick.IsAvailable)
-                TryRescanJoystick();
-
-            if (_joystick == null || !_joystick.IsAvailable)
+            var joystick = GetJoystickDevice();
+            if (joystick == null || !joystick.IsAvailable)
+            {
+                BeginHidScan();
                 return false;
+            }
 
-            return _joystick.Update() && (_joystick.State.X < -MenuBackThreshold || _joystick.State.Pov4);
+            return joystick.Update() && (joystick.State.X < -MenuBackThreshold || joystick.State.Pov4);
         }
 
         private bool TryAcquire()
@@ -290,13 +321,36 @@ namespace TopSpeed.Input
                 return;
             _lastJoystickScan = now;
 
-            _joystick?.Dispose();
-            _joystick = new JoystickDevice(_directInput, _windowHandle);
-            if (_joystick.IsAvailable)
+            var newJoystick = new JoystickDevice(_directInput, _windowHandle);
+            JoystickDevice? oldJoystick;
+            lock (_hidLock)
+            {
+                oldJoystick = _joystick;
+                _joystick = newJoystick.IsAvailable ? newJoystick : null;
+            }
+            oldJoystick?.Dispose();
+            if (!newJoystick.IsAvailable)
+                newJoystick.Dispose();
+        }
+
+        private void BeginHidScan()
+        {
+            if (_gamepad.IsAvailable)
+                return;
+            if (Interlocked.Exchange(ref _hidScanPending, 1) == 1)
                 return;
 
-            _joystick.Dispose();
-            _joystick = null;
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try
+                {
+                    TryRescanJoystick(force: true);
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _hidScanPending, 0);
+                }
+            });
         }
 
         public void Dispose()
