@@ -70,10 +70,11 @@ namespace TopSpeed.Audio
         {
             var config = new AudioSystemConfig
             {
-                UseHrtf = useHrtf
+                UseHrtf = useHrtf,
+                Channels = 0
             };
             _system = new AudioSystem(config);
-            _output = _system.CreateOutput(new AudioOutputConfig { Name = "main" });
+            _output = _system.CreateOutput(new AudioOutputConfig { Name = "main", Channels = 0 });
         }
 
         public AudioSourceHandle CreateSource(string path, bool streamFromDisk = true, bool useHrtf = false)

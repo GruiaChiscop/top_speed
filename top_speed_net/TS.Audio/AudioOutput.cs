@@ -45,13 +45,19 @@ namespace TS.Audio
             _trueStereoHrtf = _systemConfig.HrtfMode == HrtfMode.Stereo;
             _downmixMode = _systemConfig.HrtfDownmixMode;
 
-            if (_systemConfig.UseHrtf && _config.Channels < 2)
+            _context = new MaContext();
+            _context.Initialize();
+
+            var autoChannels = _config.Channels == 0 || _systemConfig.Channels == 0;
+            if (_systemConfig.UseHrtf)
             {
                 _config.Channels = 2;
             }
-
-            _context = new MaContext();
-            _context.Initialize();
+            else if (autoChannels)
+            {
+                var resolved = ResolveAutoChannels();
+                _config.Channels = resolved > 0 ? resolved : 2u;
+            }
 
             _resourceManager = new MaResourceManager();
             var resourceConfig = _resourceManager.GetConfig();
@@ -253,6 +259,68 @@ namespace TS.Audio
             _device.Dispose();
             _resourceManager.Dispose();
             _context.Dispose();
+        }
+
+        private uint ResolveAutoChannels()
+        {
+            if (!TryGetPlaybackDevice(out var device))
+                return 0;
+            return PickBestChannelCount(device.deviceInfo);
+        }
+
+        private bool TryGetPlaybackDevice(out MaDeviceInfo device)
+        {
+            device = default;
+            if (!_context.GetDevices(out var playbackDevices, out _))
+                return false;
+            if (playbackDevices == null || playbackDevices.Length == 0)
+                return false;
+
+            if (_config.DeviceIndex.HasValue)
+            {
+                var idx = _config.DeviceIndex.Value;
+                if (idx >= 0 && idx < playbackDevices.Length)
+                {
+                    device = playbackDevices[idx];
+                    return true;
+                }
+            }
+
+            for (int i = 0; i < playbackDevices.Length; i++)
+            {
+                if (playbackDevices[i].deviceInfo.isDefault > 0)
+                {
+                    device = playbackDevices[i];
+                    return true;
+                }
+            }
+
+            device = playbackDevices[0];
+            return true;
+        }
+
+        private static uint PickBestChannelCount(ma_device_info info)
+        {
+            var count = (int)info.nativeDataFormatCount;
+            if (count <= 0)
+                return 0;
+
+            uint best = 0;
+            unsafe
+            {
+                var formats = info.nativeDataFormats;
+                var max = Math.Min(count, 64);
+                for (int i = 0; i < max; i++)
+                {
+                    var channels = formats[i].channels;
+                    if (channels == 0)
+                        continue;
+                    if (channels > best)
+                        best = channels;
+                }
+            }
+
+            return best;
         }
 
         private static void OnDeviceData(ma_device_ptr pDevice, IntPtr pOutput, IntPtr pInput, uint frameCount)
