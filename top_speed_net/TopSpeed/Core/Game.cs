@@ -61,7 +61,7 @@ namespace TopSpeed.Core
         private bool _pendingMultiplayerStart;
         private bool _audioLoopActive;
         public bool IsModalInputActive { get; private set; }
-        internal int LoopIntervalMs => IsMenuState(_state) ? 30 : 100;
+        internal int LoopIntervalMs => IsMenuState(_state) ? 30 : 8;
 
         private const string CalibrationIntroMenuId = "calibration_intro";
         private const string CalibrationSampleMenuId = "calibration_sample";
@@ -658,7 +658,7 @@ namespace TopSpeed.Core
             var shouldRun = IsRaceState(_state);
             if (shouldRun && !_audioLoopActive)
             {
-                _audio.StartUpdateThread(10);
+                _audio.StartUpdateThread(8);
                 _audioLoopActive = true;
             }
             else if (!shouldRun && _audioLoopActive)

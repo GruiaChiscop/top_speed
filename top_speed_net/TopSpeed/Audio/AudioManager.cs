@@ -53,7 +53,7 @@ namespace TopSpeed.Audio
             _system.Update();
         }
 
-        public void StartUpdateThread(int intervalMs = 10)
+        public void StartUpdateThread(int intervalMs = 8)
         {
             if (_updateRunning)
                 return;

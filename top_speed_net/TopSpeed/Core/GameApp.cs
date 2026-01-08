@@ -9,7 +9,7 @@ namespace TopSpeed.Core
 {
     internal sealed class GameApp : IDisposable
     {
-        private const int GameLoopIntervalMs = 100;
+        private const int GameLoopIntervalMs = 8;
         private readonly GameWindow _window;
         private Game? _game;
         private readonly Stopwatch _stopwatch;
