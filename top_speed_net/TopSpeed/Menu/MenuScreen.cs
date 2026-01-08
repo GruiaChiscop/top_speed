@@ -612,7 +612,7 @@ namespace TopSpeed.Menu
         {
             if (string.IsNullOrWhiteSpace(fileName))
                 return null;
-            var key = fileName;
+            var key = fileName!;
             if (_menuSoundPathCache.TryGetValue(key, out var cached))
                 return cached == MissingPathSentinel ? null : cached;
 

@@ -401,16 +401,21 @@ namespace TopSpeed.Race
                 if (bot.PositionY > _car.PositionY)
                 {
                     position++;
-                    var dist = bot.PositionY - _car.PositionY;
+                }
+
+                var delta = GetRelativeTrackDelta(bot.PositionY);
+                if (delta > 0f)
+                {
+                    var dist = delta;
                     if (dist < inFrontDist)
                     {
                         inFront = i;
                         inFrontDist = dist;
                     }
                 }
-                else if (bot.PositionY < _car.PositionY)
+                else if (delta < 0f)
                 {
-                    var dist = _car.PositionY - bot.PositionY;
+                    var dist = -delta;
                     if (dist < onTailDist)
                     {
                         onTail = i;

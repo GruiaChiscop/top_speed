@@ -579,24 +579,20 @@ namespace TopSpeed.Race
             _lastListenerPosition = worldPosition;
             _listenerInitialized = true;
 
-            var forward = new Vector3(worldVelocity.X, 0f, worldVelocity.Z);
-            if (_audio.IsHrtfActive)
-            {
-                forward = new Vector3(0f, 0f, 1f);
-            }
-            else if (forward.LengthSquared() < 0.0001f)
-            {
-                forward = new Vector3(0f, 0f, 1f);
-            }
-            else
-            {
-                forward = Vector3.Normalize(forward);
-            }
+            var forward = new Vector3(0f, 0f, 1f);
 
             var up = new Vector3(0f, 1f, 0f);
             var position = AudioWorld.ToMeters(worldPosition);
             var velocity = AudioWorld.ToMeters(worldVelocity);
             _audio.UpdateListener(position, forward, up, velocity);
+        }
+
+        protected float GetRelativeTrackDelta(float otherPositionY)
+        {
+            var length = _track.Length;
+            if (length <= 0f)
+                return otherPositionY - _car.PositionY;
+            return AudioWorld.WrapDelta(otherPositionY - _car.PositionY, length);
         }
 
         protected static string FormatTimeText(int raceTimeMs, bool detailed)

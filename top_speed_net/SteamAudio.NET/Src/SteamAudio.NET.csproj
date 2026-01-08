@@ -16,8 +16,9 @@
 	<PropertyGroup>
 		<!-- Packaging -->
 		<IncludeContentInPack>true</IncludeContentInPack>
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<GenerateDocumentationFile>True</GenerateDocumentationFile>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <GenerateDocumentationFile>True</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);1591</NoWarn>
 
 		<!-- Metadata -->
 		<PackageId>SteamAudio.NET</PackageId>
