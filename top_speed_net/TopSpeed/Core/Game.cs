@@ -59,7 +59,9 @@ namespace TopSpeed.Core
         private string _pendingMultiplayerTrackName = string.Empty;
         private int _pendingMultiplayerLaps;
         private bool _pendingMultiplayerStart;
+        private bool _audioLoopActive;
         public bool IsModalInputActive { get; private set; }
+        internal int LoopIntervalMs => IsMenuState(_state) ? 30 : 100;
 
         private const string CalibrationIntroMenuId = "calibration_intro";
         private const string CalibrationSampleMenuId = "calibration_sample";
@@ -184,7 +186,7 @@ namespace TopSpeed.Core
                 _pendingRaceStart = false;
                 StartRace(_pendingMode);
             }
-            _audio.Update();
+            SyncAudioLoopState();
         }
 
         private void HandleMenuAction(MenuAction action)
@@ -645,6 +647,36 @@ namespace TopSpeed.Core
             _state = AppState.Menu;
             _menu.ShowRoot("main");
             _menu.FadeInMenuMusic();
+        }
+
+        private void SyncAudioLoopState()
+        {
+            var shouldRun = IsRaceState(_state);
+            if (shouldRun && !_audioLoopActive)
+            {
+                _audio.StartUpdateThread(10);
+                _audioLoopActive = true;
+            }
+            else if (!shouldRun && _audioLoopActive)
+            {
+                _audio.StopUpdateThread();
+                _audioLoopActive = false;
+            }
+        }
+
+        private static bool IsRaceState(AppState state)
+        {
+            return state == AppState.TimeTrial
+                || state == AppState.SingleRace
+                || state == AppState.MultiplayerRace
+                || state == AppState.Paused;
+        }
+
+        private static bool IsMenuState(AppState state)
+        {
+            return state == AppState.Logo
+                || state == AppState.Menu
+                || state == AppState.Calibration;
         }
 
         public void Dispose()

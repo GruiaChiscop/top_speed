@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using TopSpeed.Windowing;
@@ -10,13 +9,13 @@ namespace TopSpeed.Core
 {
     internal sealed class GameApp : IDisposable
     {
-        private const int FrameDelayMs = 5;
-        private const uint TimerResolutionMs = 1;
+        private const int GameLoopIntervalMs = 100;
         private readonly GameWindow _window;
         private Game? _game;
         private readonly Stopwatch _stopwatch;
         private long _lastTicks;
-        private bool _timerResolutionSet;
+        private Thread? _gameThread;
+        private volatile bool _running;
 
         public GameApp()
         {
@@ -28,11 +27,7 @@ namespace TopSpeed.Core
 
         public void Run()
         {
-            TryEnableHighResolutionTimer();
-            Application.Idle += OnIdle;
             Application.Run(_window);
-            Application.Idle -= OnIdle;
-            DisableHighResolutionTimer();
         }
 
         private void OnLoad(object? sender, EventArgs e)
@@ -47,81 +42,63 @@ namespace TopSpeed.Core
             _game.Initialize();
             _stopwatch.Start();
             _lastTicks = _stopwatch.ElapsedTicks;
+            StartGameThread();
         }
 
-        private void OnIdle(object? sender, EventArgs e)
+        private void StartGameThread()
         {
-            while (AppStillIdle)
+            if (_gameThread != null)
+                return;
+            _running = true;
+            _gameThread = new Thread(GameLoop)
             {
-                if (_game == null)
-                    return;
-                if (_game.IsModalInputActive)
-                    return;
+                IsBackground = true,
+                Name = "GameLoop"
+            };
+            _gameThread.Start();
+        }
 
-                var now = _stopwatch.ElapsedTicks;
-                var deltaSeconds = (float)(now - _lastTicks) / Stopwatch.Frequency;
-                _lastTicks = now;
-                _game.Update(deltaSeconds);
-                Thread.Sleep(FrameDelayMs);
+        private void StopGameThread()
+        {
+            _running = false;
+            if (_gameThread == null)
+                return;
+            if (_gameThread.IsAlive)
+                _gameThread.Join(200);
+            _gameThread = null;
+        }
+
+        private void GameLoop()
+        {
+            while (_running)
+            {
+                var game = _game;
+                if (game != null && !game.IsModalInputActive)
+                {
+                    var now = _stopwatch.ElapsedTicks;
+                    var deltaSeconds = (float)(now - _lastTicks) / Stopwatch.Frequency;
+                    _lastTicks = now;
+                    game.Update(deltaSeconds);
+                }
+                var intervalMs = game != null ? game.LoopIntervalMs : GameLoopIntervalMs;
+                if (intervalMs <= 0)
+                    intervalMs = GameLoopIntervalMs;
+                Thread.Sleep(intervalMs);
             }
         }
 
         private void OnFormClosed(object? sender, FormClosedEventArgs e)
         {
+            StopGameThread();
             _game?.Dispose();
             _game = null;
-            DisableHighResolutionTimer();
         }
 
         public void Dispose()
         {
             _window.Dispose();
+            StopGameThread();
             _game?.Dispose();
-            DisableHighResolutionTimer();
-        }
-
-        private static bool AppStillIdle
-        {
-            get
-            {
-                return !PeekMessage(out _, IntPtr.Zero, 0, 0, 0);
-            }
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct NativeMessage
-        {
-            public IntPtr Handle;
-            public uint Msg;
-            public IntPtr WParam;
-            public IntPtr LParam;
-            public uint Time;
-            public System.Drawing.Point Point;
-        }
-
-        [DllImport("user32.dll")]
-        private static extern bool PeekMessage(out NativeMessage msg, IntPtr hWnd, uint messageFilterMin, uint messageFilterMax, uint flags);
-
-        [DllImport("winmm.dll")]
-        private static extern uint timeBeginPeriod(uint uPeriod);
-
-        [DllImport("winmm.dll")]
-        private static extern uint timeEndPeriod(uint uPeriod);
-
-        private void TryEnableHighResolutionTimer()
-        {
-            if (_timerResolutionSet)
-                return;
-            if (timeBeginPeriod(TimerResolutionMs) == 0)
-                _timerResolutionSet = true;
-        }
-
-        private void DisableHighResolutionTimer()
-        {
-            if (!_timerResolutionSet)
-                return;
-            timeEndPeriod(TimerResolutionMs);
-            _timerResolutionSet = false;
         }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Numerics;
+using System.Threading;
 using TS.Audio;
 
 namespace TopSpeed.Audio
@@ -9,6 +10,8 @@ namespace TopSpeed.Audio
     {
         private readonly AudioSystem _system;
         private readonly AudioOutput _output;
+        private Thread? _updateThread;
+        private volatile bool _updateRunning;
         public bool IsHrtfActive => _system.IsHrtfActive;
         public AudioManager(bool useHrtf = false)
         {
@@ -50,6 +53,38 @@ namespace TopSpeed.Audio
             _system.Update();
         }
 
+        public void StartUpdateThread(int intervalMs = 10)
+        {
+            if (_updateRunning)
+                return;
+            _updateRunning = true;
+            _updateThread = new Thread(() => UpdateLoop(intervalMs))
+            {
+                IsBackground = true,
+                Name = "AudioUpdate"
+            };
+            _updateThread.Start();
+        }
+
+        public void StopUpdateThread()
+        {
+            _updateRunning = false;
+            if (_updateThread == null)
+                return;
+            if (_updateThread.IsAlive)
+                _updateThread.Join(200);
+            _updateThread = null;
+        }
+
+        private void UpdateLoop(int intervalMs)
+        {
+            while (_updateRunning)
+            {
+                _system.Update();
+                Thread.Sleep(intervalMs);
+            }
+        }
+
         public void UpdateListener(Vector3 position, Vector3 forward, Vector3 up, Vector3 velocity)
         {
             _system.UpdateListenerAll(position, forward, up, velocity);
@@ -57,6 +92,7 @@ namespace TopSpeed.Audio
 
         public void Dispose()
         {
+            StopUpdateThread();
             _output.Dispose();
             _system.Dispose();
         }

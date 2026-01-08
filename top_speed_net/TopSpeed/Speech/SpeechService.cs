@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Speech.Synthesis;
 using System.Threading;
-using System.Windows.Forms;
 
 namespace TopSpeed.Speech
 {
@@ -70,12 +69,9 @@ namespace TopSpeed.Speech
                 _sapi!.SpeakAsync(text);
                 while (!IsSpeaking())
                 {
-                    PumpMessages();
                     Thread.Sleep(0);
                 }
             }
-
-            PumpMessages();
 
             if (flag == SpeakFlag.None)
                 return;
@@ -86,7 +82,6 @@ namespace TopSpeed.Speech
                 {
                     if (!IsSpeaking())
                         break;
-                    PumpMessages();
                     Thread.Sleep(0);
                 }
             }
@@ -95,8 +90,7 @@ namespace TopSpeed.Speech
             {
                 if ((flag == SpeakFlag.Interruptable || flag == SpeakFlag.InterruptableButStop) && IsInputHeld())
                     break;
-                PumpMessages();
-                Thread.Sleep(1);
+                Thread.Sleep(10);
             }
         }
 
@@ -122,7 +116,6 @@ namespace TopSpeed.Speech
                 }
                 while (IsSpeaking())
                 {
-                    PumpMessages();
                     Thread.Sleep(0);
                 }
             }
@@ -174,12 +167,6 @@ namespace TopSpeed.Speech
             {
                 return false;
             }
-        }
-
-        private static void PumpMessages()
-        {
-            if (Application.MessageLoop)
-                Application.DoEvents();
         }
 
         private sealed class NvdaClient : IDisposable
