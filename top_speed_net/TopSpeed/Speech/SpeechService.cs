@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Speech.Synthesis;
 using System.Threading;
 
@@ -18,6 +19,7 @@ namespace TopSpeed.Speech
         }
 
         private readonly Stopwatch _watch = new Stopwatch();
+        private readonly JawsClient _jaws;
         private readonly NvdaClient _nvda;
         private SpeechSynthesizer? _sapi;
         private long _timeRequiredMs;
@@ -27,10 +29,11 @@ namespace TopSpeed.Speech
         public SpeechService(Func<bool>? isInputHeld = null)
         {
             _isInputHeld = isInputHeld;
+            _jaws = new JawsClient();
             _nvda = new NvdaClient();
         }
 
-        public bool IsAvailable => _nvda.IsAvailable || _sapi != null;
+        public bool IsAvailable => _jaws.IsAvailable || _nvda.IsAvailable || _sapi != null;
 
         public float ScreenReaderRateMs { get; set; }
 
@@ -56,7 +59,14 @@ namespace TopSpeed.Speech
             _lastSpoken = text;
 
             var spoke = false;
-            if (_nvda.IsAvailable)
+            if (_jaws.IsAvailable)
+            {
+                spoke = _jaws.Speak(text, flag == SpeakFlag.NoInterruptButStop || flag == SpeakFlag.InterruptableButStop);
+                if (spoke)
+                    StartSpeakTimer(text);
+            }
+
+            if (!spoke && _nvda.IsAvailable)
             {
                 spoke = _nvda.Speak(text);
                 if (spoke)
@@ -69,7 +79,7 @@ namespace TopSpeed.Speech
                 _sapi!.SpeakAsync(text);
                 while (!IsSpeaking())
                 {
-                    Thread.Sleep(10);
+                    Thread.Sleep(0);
                 }
             }
 
@@ -82,7 +92,7 @@ namespace TopSpeed.Speech
                 {
                     if (!IsSpeaking())
                         break;
-                    Thread.Sleep(10);
+                    Thread.Sleep(0);
                 }
             }
 
@@ -116,9 +126,10 @@ namespace TopSpeed.Speech
                 }
                 while (IsSpeaking())
                 {
-                    Thread.Sleep(10);
+                    Thread.Sleep(0);
                 }
             }
+            _jaws.Stop();
             _nvda.Cancel();
         }
 
@@ -260,6 +271,67 @@ namespace TopSpeed.Speech
 
             [DllImport("kernel32", SetLastError = true)]
             private static extern bool FreeLibrary(IntPtr hModule);
+        }
+
+        private sealed class JawsClient
+        {
+            private const string ProgId = "FreedomSci.JawsApi";
+            private Type? _jawsType;
+            private object? _jawsObject;
+            private bool _initialized;
+            private bool _available;
+
+            public bool IsAvailable => EnsureInitialized();
+
+            public bool Speak(string text, bool stop)
+            {
+                return Invoke("SayString", text, stop);
+            }
+
+            public void Stop()
+            {
+                Invoke("StopSpeech");
+            }
+
+            private bool EnsureInitialized()
+            {
+                if (_initialized)
+                    return _available;
+                _initialized = true;
+                try
+                {
+                    _jawsType = Type.GetTypeFromProgID(ProgId);
+                    if (_jawsType == null)
+                        return false;
+                    _jawsObject = Activator.CreateInstance(_jawsType);
+                    _available = _jawsObject != null;
+                }
+                catch
+                {
+                    _available = false;
+                }
+                return _available;
+            }
+
+            private bool Invoke(string method, params object[] args)
+            {
+                if (!EnsureInitialized() || _jawsType == null || _jawsObject == null)
+                    return false;
+                try
+                {
+                    var result = _jawsType.InvokeMember(
+                        method,
+                        BindingFlags.InvokeMethod,
+                        null,
+                        _jawsObject,
+                        args);
+                    return result is bool ok ? ok : result != null;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
         }
     }
 }

@@ -18,6 +18,7 @@ namespace TopSpeed.Menu
         private const string DefaultWrapSound = "menu_wrap.wav";
         private const string DefaultActivateSound = "menu_enter.wav";
         private const string DefaultEdgeSound = "menu_edge.wav";
+        private const string MissingPathSentinel = "\0";
         private const int JoystickThreshold = 50;
         private const int NoSelection = -1;
         private readonly List<MenuItem> _items;
@@ -48,6 +49,11 @@ namespace TopSpeed.Menu
         private int _hintToken;
         private bool _disposed;
         private string? _menuSoundPresetRoot;
+        private bool _titlePending;
+        private readonly Dictionary<string, string> _menuSoundPathCache =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private string? _cachedMusicFile;
+        private string? _cachedMusicPath;
 
         private const int MusicFadeStepMs = 50;
         private int _musicFadeToken;
@@ -100,10 +106,10 @@ namespace TopSpeed.Menu
 
             if (!string.IsNullOrWhiteSpace(MusicFile))
             {
-                var themePath = Path.Combine(_musicRoot, MusicFile!);
-                if (File.Exists(themePath))
+                var themePath = ResolveMusicPath();
+                if (!string.IsNullOrWhiteSpace(themePath))
                 {
-                    _music = _audio.CreateLoopingSource(themePath);
+                    _music = _audio.AcquireCachedSource(themePath!, streamFromDisk: false);
                     ApplyMusicVolume(0f);
                 }
             }
@@ -117,6 +123,7 @@ namespace TopSpeed.Menu
             if (string.Equals(_menuSoundPresetRoot, root, StringComparison.OrdinalIgnoreCase))
                 return;
             _menuSoundPresetRoot = root;
+            _menuSoundPathCache.Clear();
             if (_initialized)
                 ReloadMenuSounds();
         }
@@ -125,6 +132,14 @@ namespace TopSpeed.Menu
         {
             if (_items.Count == 0)
                 return MenuUpdateResult.None;
+
+            if (_titlePending)
+            {
+                if (input.IsAnyMenuInputHeld())
+                    return MenuUpdateResult.None;
+                _titlePending = false;
+                AnnounceTitle();
+            }
 
             var moveUp = input.WasPressed(Key.Up);
             var moveDown = input.WasPressed(Key.Down);
@@ -439,6 +454,11 @@ namespace TopSpeed.Menu
             _autoFocusPending = true;
         }
 
+        public void QueueTitleAnnouncement()
+        {
+            _titlePending = true;
+        }
+
         private void FocusFirstItem()
         {
             if (_items.Count == 0)
@@ -464,10 +484,10 @@ namespace TopSpeed.Menu
 
             if (_music == null)
             {
-                var themePath = Path.Combine(_musicRoot, MusicFile!);
-                if (!File.Exists(themePath))
+                var themePath = ResolveMusicPath();
+                if (string.IsNullOrWhiteSpace(themePath))
                     return;
-                _music = _audio.CreateLoopingSource(themePath);
+                _music = _audio.AcquireCachedSource(themePath!, streamFromDisk: false);
             }
 
             if (_music.IsPlaying)
@@ -541,23 +561,10 @@ namespace TopSpeed.Menu
         {
             if (string.IsNullOrWhiteSpace(fileName))
                 return null;
-            if (!string.IsNullOrWhiteSpace(_menuSoundPresetRoot))
-            {
-                var presetPath = Path.Combine(_menuSoundPresetRoot, fileName);
-                if (File.Exists(presetPath))
-                    return _audio.CreateSource(presetPath, streamFromDisk: true);
-            }
-            var enRoot = Path.Combine(AssetPaths.SoundsRoot, "En");
-            var enPath = Path.Combine(enRoot, fileName);
-            if (File.Exists(enPath))
-                return _audio.CreateSource(enPath, streamFromDisk: true);
-            var legacyPath = Path.Combine(_legacySoundRoot, fileName);
-            if (File.Exists(legacyPath))
-                return _audio.CreateSource(legacyPath, streamFromDisk: true);
-            var menuPath = Path.Combine(_defaultMenuSoundRoot, fileName);
-            if (File.Exists(menuPath))
-                return _audio.CreateSource(menuPath, streamFromDisk: true);
-            return null;
+            var resolvedPath = ResolveMenuSoundPath(fileName);
+            if (string.IsNullOrWhiteSpace(resolvedPath))
+                return null;
+            return _audio.AcquireCachedSource(resolvedPath!, streamFromDisk: true);
         }
 
         private static void PlaySfx(AudioSourceHandle? sound)
@@ -591,14 +598,73 @@ namespace TopSpeed.Menu
 
         private void ReloadMenuSounds()
         {
-            _navigateSound?.Dispose();
-            _wrapSound?.Dispose();
-            _activateSound?.Dispose();
-            _edgeSound?.Dispose();
+            ReleaseMenuSound(ref _navigateSound);
+            ReleaseMenuSound(ref _wrapSound);
+            ReleaseMenuSound(ref _activateSound);
+            ReleaseMenuSound(ref _edgeSound);
             _navigateSound = LoadDefaultSound(NavigateSoundFile);
             _wrapSound = LoadDefaultSound(WrapSoundFile);
             _activateSound = LoadDefaultSound(ActivateSoundFile);
             _edgeSound = LoadDefaultSound(EdgeSoundFile);
+        }
+
+        private string? ResolveMenuSoundPath(string? fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+                return null;
+            var key = fileName;
+            if (_menuSoundPathCache.TryGetValue(key, out var cached))
+                return cached == MissingPathSentinel ? null : cached;
+
+            string? resolved = null;
+            if (!string.IsNullOrWhiteSpace(_menuSoundPresetRoot))
+            {
+                var presetPath = Path.Combine(_menuSoundPresetRoot, fileName);
+                if (_audio.TryResolvePath(presetPath, out var fullPath))
+                    resolved = fullPath;
+            }
+
+            if (resolved == null)
+            {
+                var enPath = Path.Combine(AssetPaths.SoundsRoot, "En", fileName);
+                if (_audio.TryResolvePath(enPath, out var fullPath))
+                    resolved = fullPath;
+            }
+
+            if (resolved == null)
+            {
+                var legacyPath = Path.Combine(_legacySoundRoot, fileName);
+                if (_audio.TryResolvePath(legacyPath, out var fullPath))
+                    resolved = fullPath;
+            }
+
+            if (resolved == null)
+            {
+                var menuPath = Path.Combine(_defaultMenuSoundRoot, fileName);
+                if (_audio.TryResolvePath(menuPath, out var fullPath))
+                    resolved = fullPath;
+            }
+
+            _menuSoundPathCache[key] = resolved ?? MissingPathSentinel;
+            return resolved;
+        }
+
+        private string? ResolveMusicPath()
+        {
+            var musicFile = MusicFile;
+            if (string.IsNullOrWhiteSpace(musicFile))
+                return null;
+
+            if (string.Equals(_cachedMusicFile, musicFile, StringComparison.OrdinalIgnoreCase))
+                return _cachedMusicPath == MissingPathSentinel ? null : _cachedMusicPath;
+
+            _cachedMusicFile = musicFile;
+            _cachedMusicPath = MissingPathSentinel;
+            var themePath = Path.Combine(_musicRoot, musicFile);
+            if (_audio.TryResolvePath(themePath, out var fullPath))
+                _cachedMusicPath = fullPath;
+
+            return _cachedMusicPath == MissingPathSentinel ? null : _cachedMusicPath;
         }
 
         private static string? ResolveMenuSoundPresetRoot(string? preset)
@@ -705,17 +771,25 @@ namespace TopSpeed.Menu
             Interlocked.Increment(ref _hintToken);
         }
 
+        private void ReleaseMenuSound(ref AudioSourceHandle? sound)
+        {
+            if (sound == null)
+                return;
+            _audio.ReleaseCachedSource(sound);
+            sound = null;
+        }
 
         public void Dispose()
         {
             _disposed = true;
             CancelHint();
-            _navigateSound?.Dispose();
-            _wrapSound?.Dispose();
-            _activateSound?.Dispose();
-            _edgeSound?.Dispose();
-            _music?.Dispose();
+            ReleaseMenuSound(ref _navigateSound);
+            ReleaseMenuSound(ref _wrapSound);
+            ReleaseMenuSound(ref _activateSound);
+            ReleaseMenuSound(ref _edgeSound);
+            ReleaseMenuSound(ref _music);
             _music = null;
+            _menuSoundPathCache.Clear();
             Interlocked.Increment(ref _musicFadeToken);
         }
     }

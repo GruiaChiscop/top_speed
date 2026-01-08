@@ -49,7 +49,7 @@ namespace TopSpeed.Menu
             screen.ResetSelection();
             screen.Initialize();
             _stack.Push(screen);
-            screen.AnnounceTitle();
+            screen.QueueTitleAnnouncement();
         }
 
         public void Push(string id)
@@ -60,7 +60,7 @@ namespace TopSpeed.Menu
             screen.ResetSelection();
             screen.Initialize();
             _stack.Push(screen);
-            screen.AnnounceTitle();
+            screen.QueueTitleAnnouncement();
         }
 
         public void ReplaceTop(string id)
@@ -77,7 +77,7 @@ namespace TopSpeed.Menu
             screen.ResetSelection();
             screen.Initialize();
             _stack.Push(screen);
-            screen.AnnounceTitle();
+            screen.QueueTitleAnnouncement();
         }
 
         public void PopToPrevious()
@@ -87,7 +87,7 @@ namespace TopSpeed.Menu
 
             _stack.Peek().CancelPendingHint();
             _stack.Pop();
-            _stack.Peek().AnnounceTitle();
+            _stack.Peek().QueueTitleAnnouncement();
         }
 
         public bool HasActiveMenu => _stack.Count > 0;
@@ -108,7 +108,7 @@ namespace TopSpeed.Menu
                 {
                     _stack.Peek().CancelPendingHint();
                     _stack.Pop();
-                    _stack.Peek().AnnounceTitle();
+                    _stack.Peek().QueueTitleAnnouncement();
                     return MenuAction.None;
                 }
 
@@ -130,7 +130,7 @@ namespace TopSpeed.Menu
                     {
                         _stack.Peek().CancelPendingHint();
                         _stack.Pop();
-                        _stack.Peek().AnnounceTitle();
+                        _stack.Peek().QueueTitleAnnouncement();
                         return MenuAction.None;
                     }
                     return MenuAction.Exit;
