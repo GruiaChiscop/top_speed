@@ -1,0 +1,60 @@
+# Top Speed track layout
+[meta]
+name=Mondello Park
+short_name=Mondello
+description=Real-world inspired layout for Ireland.
+author=Top Speed Team
+version=1.0
+tags=real-world, ireland
+
+[environment]
+weather=sunny
+ambience=noambience
+default_surface=asphalt
+default_noise=nonoise
+default_width=12
+sample_spacing=1
+enforce_closure=true
+
+[geometry]
+straight 316.332
+clothoid length=20 start=0 end=70 dir=right severity=hard bank=4
+arc length=85.521 radius=70 dir=right severity=hard bank=4
+clothoid length=20 start=70 end=0 dir=right severity=hard bank=4
+straight 243.333 elevation=2
+clothoid length=24 start=0 end=120 dir=left severity=normal bank=3
+arc length=167.552 radius=120 dir=left severity=normal bank=3
+clothoid length=24 start=120 end=0 dir=left severity=normal bank=3
+straight 267.666 elevation=-2
+clothoid length=40 start=0 end=200 dir=right severity=easy bank=2
+arc length=209.44 radius=200 dir=right severity=easy bank=2
+clothoid length=40 start=200 end=0 dir=right severity=easy bank=2
+straight 218.999
+clothoid length=20 start=0 end=90 dir=left severity=hard bank=4
+arc length=157.08 radius=90 dir=left severity=hard bank=4
+clothoid length=20 start=90 end=0 dir=left severity=hard bank=4
+straight 291.999 elevation=2
+clothoid length=32 start=0 end=160 dir=right severity=normal bank=3
+arc length=195.477 radius=160 dir=right severity=normal bank=3
+clothoid length=32 start=160 end=0 dir=right severity=normal bank=3
+straight 243.333 elevation=-2
+clothoid length=20 start=0 end=80 dir=left severity=hard bank=4
+arc length=125.664 radius=80 dir=left severity=hard bank=4
+clothoid length=20 start=80 end=0 dir=left severity=hard bank=4
+straight 267.666
+clothoid length=28 start=0 end=140 dir=right severity=normal bank=3
+arc length=146.608 radius=140 dir=right severity=normal bank=3
+clothoid length=28 start=140 end=0 dir=right severity=normal bank=3
+straight 316.332 elevation=2
+
+[width]
+0 1207 11 1 1
+1207 2414 10 1 1
+2414 3621 10.5 1 1
+
+[markers]
+start 0
+sector_1 1207
+sector_2 2414
+pit_entry 80
+pit_exit 180

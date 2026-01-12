@@ -273,10 +273,30 @@ namespace TopSpeed.Tracks.Geometry
         private static string FormatOptional(TrackGeometrySpan span)
         {
             var parts = new List<string>();
-            if (Math.Abs(span.ElevationDeltaMeters) > 0.0001f)
+            var slopeFromDelta = span.LengthMeters > 0f ? span.ElevationDeltaMeters / span.LengthMeters : 0f;
+            var slopeExplicit = Math.Abs(span.StartSlope - span.EndSlope) > 0.0001f ||
+                                Math.Abs(span.StartSlope - slopeFromDelta) > 0.0001f ||
+                                Math.Abs(span.EndSlope - slopeFromDelta) > 0.0001f;
+
+            if (slopeExplicit)
+            {
+                parts.Add($"slope_start={FormatPercent(span.StartSlope)}");
+                parts.Add($"slope_end={FormatPercent(span.EndSlope)}");
+            }
+            else if (Math.Abs(span.ElevationDeltaMeters) > 0.0001f)
+            {
                 parts.Add($"elevation={FormatFloat(span.ElevationDeltaMeters)}");
-            if (Math.Abs(span.BankDegrees) > 0.0001f)
-                parts.Add($"bank={FormatFloat(span.BankDegrees)}");
+            }
+
+            if (Math.Abs(span.BankStartDegrees - span.BankEndDegrees) > 0.0001f)
+            {
+                parts.Add($"bank_start={FormatFloat(span.BankStartDegrees)}");
+                parts.Add($"bank_end={FormatFloat(span.BankEndDegrees)}");
+            }
+            else if (Math.Abs(span.BankStartDegrees) > 0.0001f)
+            {
+                parts.Add($"bank={FormatFloat(span.BankStartDegrees)}");
+            }
             return parts.Count == 0 ? string.Empty : " " + string.Join(" ", parts);
         }
 
@@ -366,23 +386,75 @@ namespace TopSpeed.Tracks.Geometry
             var direction = ParseDirection(named, positional);
             var severity = ParseSeverity(named, positional);
             var elevation = GetFloat(named, "elevation", "elev", positional, -1, out var elevFound) ? elevFound : 0f;
-            var bank = GetFloat(named, "bank", "bankdeg", positional, -1, out var bankFound) ? bankFound : 0f;
+            var bankParsed = GetFloat(named, "bank", "bankdeg", positional, -1, out var bankValue);
+            var bank = bankParsed ? bankValue : 0f;
+
+            var bankStartParsed = GetFloat(named, "bank_start", "bankstart", positional, -1, out var bankStartValue);
+            var bankStart = bankStartParsed ? bankStartValue : (bankParsed ? bank : 0f);
+            var bankEndParsed = GetFloat(named, "bank_end", "bankend", positional, -1, out var bankEndValue);
+            var bankEnd = bankEndParsed ? bankEndValue : (bankStartParsed ? bankStart : (bankParsed ? bank : 0f));
+
+            var slopeFound = TryParseSlope(named, "slope", "grade", out var slopeCommon);
+            var slopeStartFound = TryParseSlope(named, "slope_start", "grade_start", out var slopeStart);
+            var slopeEndFound = TryParseSlope(named, "slope_end", "grade_end", out var slopeEnd);
+
+            var useSlopes = slopeFound || slopeStartFound || slopeEndFound;
+            float startSlope;
+            float endSlope;
+            float elevationDelta;
+            if (useSlopes)
+            {
+                startSlope = slopeStartFound ? slopeStart : (slopeFound ? slopeCommon : 0f);
+                endSlope = slopeEndFound ? slopeEnd : (slopeFound ? slopeCommon : startSlope);
+                elevationDelta = length * (startSlope + endSlope) * 0.5f;
+            }
+            else
+            {
+                elevationDelta = elevation;
+                startSlope = length > 0f ? elevationDelta / length : 0f;
+                endSlope = startSlope;
+            }
 
             try
             {
                 switch (spanKind.Value)
                 {
                     case TrackGeometrySpanKind.Straight:
-                        spans.Add(TrackGeometrySpan.Straight(length, elevationDeltaMeters: elevation, bankDegrees: bank));
+                        spans.Add(TrackGeometrySpan.StraightWithProfile(
+                            length,
+                            elevationDelta,
+                            startSlope,
+                            endSlope,
+                            bankStart,
+                            bankEnd));
                         break;
                     case TrackGeometrySpanKind.Arc:
                         var radius = GetFloat(named, "radius", "r", positional, 1, errors, lineNumber, line);
-                        spans.Add(TrackGeometrySpan.Arc(length, radius, direction, severity, elevation, bank));
+                        spans.Add(TrackGeometrySpan.ArcWithProfile(
+                            length,
+                            radius,
+                            direction,
+                            severity,
+                            elevationDelta,
+                            startSlope,
+                            endSlope,
+                            bankStart,
+                            bankEnd));
                         break;
                     case TrackGeometrySpanKind.Clothoid:
                         var startRadius = GetFloat(named, "start", "startRadius", positional, 1, errors, lineNumber, line);
                         var endRadius = GetFloat(named, "end", "endRadius", positional, 2, errors, lineNumber, line);
-                        spans.Add(TrackGeometrySpan.Clothoid(length, startRadius, endRadius, direction, severity, elevation, bank));
+                        spans.Add(TrackGeometrySpan.ClothoidWithProfile(
+                            length,
+                            startRadius,
+                            endRadius,
+                            direction,
+                            severity,
+                            elevationDelta,
+                            startSlope,
+                            endSlope,
+                            bankStart,
+                            bankEnd));
                         break;
                 }
             }
@@ -696,6 +768,37 @@ namespace TopSpeed.Tracks.Geometry
                 return 0f;
             }
             return result;
+        }
+
+        private static bool TryParseSlope(Dictionary<string, string> named, string key, string altKey, out float slope)
+        {
+            if (named.TryGetValue(key, out var value) || named.TryGetValue(altKey, out value))
+            {
+                if (TryParsePercent(value, out var percent))
+                {
+                    slope = percent / 100f;
+                    return true;
+                }
+            }
+
+            slope = 0f;
+            return false;
+        }
+
+        private static bool TryParsePercent(string value, out float percent)
+        {
+            percent = 0f;
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+            var trimmed = value.Trim();
+            if (trimmed.EndsWith("%", StringComparison.Ordinal))
+                trimmed = trimmed.Substring(0, trimmed.Length - 1).Trim();
+            return float.TryParse(trimmed, NumberStyles.Float, Culture, out percent);
+        }
+
+        private static string FormatPercent(float slope)
+        {
+            return (slope * 100f).ToString("0.###", Culture);
         }
 
         private static T? ParseEnum<T>(string value, int lineNumber, List<TrackLayoutError> errors, string line) where T : struct

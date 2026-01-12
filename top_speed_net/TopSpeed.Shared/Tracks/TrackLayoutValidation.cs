@@ -116,7 +116,8 @@ namespace TopSpeed.Tracks.Geometry
                         "geometry"));
                 }
 
-                var slopePercent = span.LengthMeters > 0f ? Math.Abs(span.ElevationDeltaMeters / span.LengthMeters) * 100f : 0f;
+                var maxSlope = Math.Max(Math.Abs(span.StartSlope), Math.Abs(span.EndSlope));
+                var slopePercent = maxSlope * 100f;
                 if (slopePercent > opts.MaxSlopePercent)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
@@ -132,7 +133,7 @@ namespace TopSpeed.Tracks.Geometry
                         "geometry"));
                 }
 
-                var bank = Math.Abs(span.BankDegrees);
+                var bank = Math.Max(Math.Abs(span.BankStartDegrees), Math.Abs(span.BankEndDegrees));
                 if (bank > opts.MaxBankDegrees)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,

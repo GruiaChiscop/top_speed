@@ -46,5 +46,10 @@
       <Link>Sounds\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <TargetPath>Sounds\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
     </Content>
+    <Content Include="..\Tracks\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Tracks\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <TargetPath>Tracks\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+    </Content>
   </ItemGroup>
 </Project>

@@ -154,7 +154,7 @@ namespace TopSpeed.Race
             _acceptCurrentRaceInfo = true;
 
             _track = trackData == null
-                ? Track.Load(track, audio)
+                ? Track.Load(track, audio, settings.UseTrackLayouts)
                 : Track.LoadFromData(track, trackData, audio, userDefined);
             _car = new Car(audio, _track, input, settings, vehicle, vehicleFile, () => _elapsedTotal, () => _started, _vibrationDevice);
 
@@ -630,59 +630,11 @@ namespace TopSpeed.Race
 
         protected static string FormatTrackName(string trackName)
         {
-            switch (trackName)
-            {
-                case "america":
-                    return "America";
-                case "austria":
-                    return "Austria";
-                case "belgium":
-                    return "Belgium";
-                case "brazil":
-                    return "Brazil";
-                case "china":
-                    return "China";
-                case "england":
-                    return "England";
-                case "finland":
-                    return "Finland";
-                case "france":
-                    return "France";
-                case "germany":
-                    return "Germany";
-                case "ireland":
-                    return "Ireland";
-                case "italy":
-                    return "Italy";
-                case "netherlands":
-                    return "Netherlands";
-                case "portugal":
-                    return "Portugal";
-                case "russia":
-                    return "Russia";
-                case "spain":
-                    return "Spain";
-                case "sweden":
-                    return "Sweden";
-                case "switserland":
-                    return "Switzerland";
-                case "advHills":
-                    return "Rally hills";
-                case "advCoast":
-                    return "French coast";
-                case "advCountry":
-                    return "English country";
-                case "advAirport":
-                    return "Ride airport";
-                case "advDesert":
-                    return "Rally desert";
-                case "advRush":
-                    return "Rush hour";
-                case "advEscape":
-                    return "Polar escape";
-                case "custom":
-                    return "Custom track";
-            }
+            if (TrackList.TryGetDisplayName(trackName, out var display))
+                return display;
+
+            if (string.Equals(trackName, "custom", StringComparison.OrdinalIgnoreCase))
+                return "Custom track";
 
             var baseName = trackName;
             if (trackName.IndexOfAny(new[] { '\\', '/' }) >= 0)

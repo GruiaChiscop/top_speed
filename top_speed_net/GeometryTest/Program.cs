@@ -17,7 +17,8 @@ namespace TopSpeed.GeometryTest
                 var layoutOk = RunLayoutCheck("sample_layout.tslayout", expectedLength: 1100f, expectBothCurvatures: true);
                 var realisticOk = RunLayoutCheck("realistic_layout.tslayout", expectedLength: 3480f, expectBothCurvatures: true);
                 var loaderOk = RunLoaderCheck("realistic_layout.tslayout", expectedLength: 3480f);
-                return ok && layoutOk && realisticOk && loaderOk ? 0 : 1;
+                var allLayoutsOk = RunAllLayouts();
+                return ok && layoutOk && realisticOk && loaderOk && allLayoutsOk ? 0 : 1;
             }
             catch (Exception ex)
             {
@@ -145,6 +146,51 @@ namespace TopSpeed.GeometryTest
 
             Console.WriteLine("[Loader] Load success.");
             return RunChecks(result.Geometry, $"Loader layout ({fileName})", expectedLength: expectedLength, expectBothCurvatures: true);
+        }
+
+        private static bool RunAllLayouts()
+        {
+            var baseDir = AppContext.BaseDirectory;
+            var tracksPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDir, "..", "..", "..", "..", "Tracks"));
+            if (!System.IO.Directory.Exists(tracksPath))
+            {
+                var fallback = System.IO.Path.GetFullPath(System.IO.Path.Combine("top_speed_net", "Tracks"));
+                if (!System.IO.Directory.Exists(fallback))
+                {
+                    Console.WriteLine("[Layouts] Tracks folder not found.");
+                    return false;
+                }
+                tracksPath = fallback;
+            }
+
+            var files = System.IO.Directory.GetFiles(tracksPath, "*.tslayout");
+            if (files.Length == 0)
+            {
+                Console.WriteLine("[Layouts] No layouts found.");
+                return false;
+            }
+
+            var allOk = true;
+            foreach (var file in files)
+            {
+                var name = System.IO.Path.GetFileName(file);
+                var result = TrackLayoutFormat.ParseFile(file);
+                if (!result.IsSuccess || result.Layout == null)
+                {
+                    Console.WriteLine($"[Layouts] Parse failed: {name}");
+                    foreach (var error in result.Errors)
+                        Console.WriteLine(error.ToString());
+                    allOk = false;
+                    continue;
+                }
+
+                var validation = TrackLayoutValidator.Validate(result.Layout);
+                PrintValidation(validation, name);
+                if (!validation.IsValid)
+                    allOk = false;
+            }
+
+            return allOk;
         }
 
         private static bool CheckCurvatureSamples(TrackGeometry geometry, bool expectBoth, out string summary)

@@ -169,6 +169,7 @@ namespace TopSpeed.Core
             AppendValue(lines, settings.MenuWrapNavigation ? 1 : 0);
             AppendValue(lines, settings.MenuNavigatePanning ? 1 : 0);
             AppendValue(lines, settings.AutoDetectAudioDeviceFormat ? 1 : 0);
+            AppendValue(lines, settings.UseTrackLayouts ? 1 : 0);
 
             try
             {
@@ -254,6 +255,7 @@ namespace TopSpeed.Core
             if (TryNext(values, ref index, out value)) settings.MenuWrapNavigation = value != 0;
             if (TryNext(values, ref index, out value)) settings.MenuNavigatePanning = value != 0;
             if (TryNext(values, ref index, out value)) settings.AutoDetectAudioDeviceFormat = value != 0;
+            if (TryNext(values, ref index, out value)) settings.UseTrackLayouts = value != 0;
         }
 
         private static int ClampPort(int value, int fallback)

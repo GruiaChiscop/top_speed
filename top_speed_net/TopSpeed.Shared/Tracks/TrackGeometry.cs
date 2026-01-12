@@ -48,6 +48,7 @@ namespace TopSpeed.Tracks.Geometry
         private readonly Vector3[] _positions;
         private readonly float[] _headings;
         private readonly float[] _banks;
+        private readonly float[] _slopes;
 
         public float LengthMeters { get; }
         public float SampleSpacingMeters { get; }
@@ -59,6 +60,7 @@ namespace TopSpeed.Tracks.Geometry
             Vector3[] positions,
             float[] headings,
             float[] banks,
+            float[] slopes,
             float lengthMeters,
             float sampleSpacingMeters)
         {
@@ -67,6 +69,7 @@ namespace TopSpeed.Tracks.Geometry
             _positions = positions;
             _headings = headings;
             _banks = banks;
+            _slopes = slopes;
             LengthMeters = lengthMeters;
             SampleSpacingMeters = sampleSpacingMeters;
         }
@@ -94,6 +97,7 @@ namespace TopSpeed.Tracks.Geometry
             var positions = new List<Vector3>();
             var headings = new List<float>();
             var banks = new List<float>();
+            var slopes = new List<float>();
 
             var position = Vector3.Zero;
             var heading = 0f;
@@ -101,6 +105,7 @@ namespace TopSpeed.Tracks.Geometry
             positions.Add(position);
             headings.Add(heading);
             banks.Add(0f);
+            slopes.Add(0f);
 
             for (var spanIndex = 0; spanIndex < spans.Length; spanIndex++)
             {
@@ -109,15 +114,16 @@ namespace TopSpeed.Tracks.Geometry
                 if (spanLength <= 0f)
                     continue;
 
-                var slope = span.ElevationDeltaMeters / spanLength;
-                var bankRadians = DegreesToRadians(span.BankDegrees);
-
                 var local = 0f;
+                
                 while (local < spanLength)
                 {
                     var step = Math.Min(spacing, spanLength - local);
                     var localMid = local + step * 0.5f;
                     var curvature = span.CurvatureAt(localMid);
+                    var bankDegrees = Lerp(span.BankStartDegrees, span.BankEndDegrees, localMid / spanLength);
+                    var bankRadians = DegreesToRadians(bankDegrees);
+                    var slope = span.SlopeAt(localMid);
                     var headingMid = heading + curvature * step * 0.5f;
 
                     var dx = (float)(Math.Sin(headingMid) * step);
@@ -131,12 +137,13 @@ namespace TopSpeed.Tracks.Geometry
                     positions.Add(position);
                     headings.Add(heading);
                     banks.Add(bankRadians);
+                    slopes.Add(slope);
                 }
             }
 
             if (spec.EnforceClosure && positions.Count > 1)
             {
-                ApplyClosureCorrection(positions, headings, banks);
+                ApplyClosureCorrection(positions, headings, banks, slopes, spacing);
             }
 
             return new TrackGeometry(
@@ -145,6 +152,7 @@ namespace TopSpeed.Tracks.Geometry
                 positions.ToArray(),
                 headings.ToArray(),
                 banks.ToArray(),
+                slopes.ToArray(),
                 totalLength,
                 spacing);
         }
@@ -159,14 +167,15 @@ namespace TopSpeed.Tracks.Geometry
             var index = (int)(s / SampleSpacingMeters);
             if (index >= lastIndex)
             {
-                return BuildPose(_positions[lastIndex], _headings[lastIndex], _banks[lastIndex]);
+                return BuildPose(_positions[lastIndex], _headings[lastIndex], _banks[lastIndex], _slopes[lastIndex]);
             }
 
             var t = (s - index * SampleSpacingMeters) / SampleSpacingMeters;
             var position = Vector3.Lerp(_positions[index], _positions[index + 1], t);
             var heading = LerpAngle(_headings[index], _headings[index + 1], t);
             var bank = _banks[index] + (_banks[index + 1] - _banks[index]) * t;
-            return BuildPose(position, heading, bank);
+            var slope = _slopes[index] + (_slopes[index + 1] - _slopes[index]) * t;
+            return BuildPose(position, heading, bank, slope);
         }
 
         public TrackEdges GetEdges(float sMeters, float widthMeters)
@@ -224,16 +233,20 @@ namespace TopSpeed.Tracks.Geometry
             return index;
         }
 
-        private static TrackPose BuildPose(Vector3 position, float heading, float bank)
+        private static TrackPose BuildPose(Vector3 position, float heading, float bank, float slope)
         {
             var tangent = new Vector3(
                 (float)Math.Sin(heading),
-                0f,
+                slope,
                 (float)Math.Cos(heading));
             tangent = Vector3.Normalize(tangent);
 
             var up = Vector3.UnitY;
-            var right = Vector3.Normalize(Vector3.Cross(up, tangent));
+            var right = Vector3.Cross(up, tangent);
+            if (right.LengthSquared() < 0.000001f)
+                right = Vector3.UnitX;
+            right = Vector3.Normalize(right);
+            up = Vector3.Normalize(Vector3.Cross(tangent, right));
 
             if (Math.Abs(bank) > 0.0001f)
             {
@@ -247,12 +260,16 @@ namespace TopSpeed.Tracks.Geometry
         private static void ApplyClosureCorrection(
             List<Vector3> positions,
             List<float> headings,
-            List<float> banks)
+            List<float> banks,
+            List<float> slopes,
+            float sampleSpacingMeters)
         {
             var lastIndex = positions.Count - 1;
             var deltaPosition = positions[lastIndex] - positions[0];
             var deltaHeading = NormalizeAngle(headings[lastIndex] - headings[0]);
             var deltaBank = banks[lastIndex] - banks[0];
+            var totalLength = Math.Max(sampleSpacingMeters * lastIndex, 0.0001f);
+            var slopeCorrection = deltaPosition.Y / totalLength;
 
             if (lastIndex <= 0)
                 return;
@@ -263,6 +280,7 @@ namespace TopSpeed.Tracks.Geometry
                 positions[i] -= deltaPosition * t;
                 headings[i] -= deltaHeading * t;
                 banks[i] -= deltaBank * t;
+                slopes[i] -= slopeCorrection;
             }
         }
 
@@ -284,6 +302,11 @@ namespace TopSpeed.Tracks.Geometry
         private static float DegreesToRadians(float degrees)
         {
             return (float)(degrees * (Math.PI / 180.0));
+        }
+
+        private static float Lerp(float a, float b, float t)
+        {
+            return a + (b - a) * t;
         }
 
         private static Vector3 RotateAroundAxis(Vector3 vector, Vector3 axis, float angle)

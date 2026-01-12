@@ -1,0 +1,80 @@
+# Top Speed track layout
+[meta]
+name=Circuit de Spa-Francorchamps
+short_name=Spa
+description=Real-world inspired layout for Belgium.
+author=Top Speed Team
+version=1.0
+tags=real-world, belgium
+
+[environment]
+weather=sunny
+ambience=noambience
+default_surface=asphalt
+default_noise=nonoise
+default_width=12
+sample_spacing=1
+enforce_closure=true
+
+[geometry]
+straight 296.208
+clothoid length=20 start=0 end=70 dir=right severity=hard bank=4
+arc length=109.956 radius=70 dir=right severity=hard bank=4
+clothoid length=20 start=70 end=0 dir=right severity=hard bank=4
+straight 177.725 elevation=2
+clothoid length=28 start=0 end=140 dir=left severity=normal bank=3
+arc length=171.042 radius=140 dir=left severity=normal bank=3
+clothoid length=28 start=140 end=0 dir=left severity=normal bank=3
+straight 236.966 elevation=-2
+clothoid length=80 start=0 end=400 dir=right severity=easy bank=2
+arc length=418.879 radius=400 dir=right severity=easy bank=2
+clothoid length=80 start=400 end=0 dir=right severity=easy bank=2
+straight 157.978
+clothoid length=36 start=0 end=180 dir=left severity=hard bank=4
+arc length=282.743 radius=180 dir=left severity=hard bank=4
+clothoid length=36 start=180 end=0 dir=left severity=hard bank=4
+straight 217.219 elevation=2
+clothoid length=20 start=0 end=90 dir=right severity=hard bank=4
+arc length=172.788 radius=90 dir=right severity=hard bank=4
+clothoid length=20 start=90 end=0 dir=right severity=hard bank=4
+straight 256.714 elevation=-2
+clothoid length=60 start=0 end=300 dir=left severity=normal bank=3
+arc length=418.879 radius=300 dir=left severity=normal bank=3
+clothoid length=60 start=300 end=0 dir=left severity=normal bank=3
+straight 177.725
+clothoid length=20 start=0 end=60 dir=right severity=hairpin bank=5
+arc length=125.664 radius=60 dir=right severity=hairpin bank=5
+clothoid length=20 start=60 end=0 dir=right severity=hairpin bank=5
+straight 236.966 elevation=2
+clothoid length=30 start=0 end=150 dir=left severity=normal bank=3
+arc length=196.35 radius=150 dir=left severity=normal bank=3
+clothoid length=30 start=150 end=0 dir=left severity=normal bank=3
+straight 197.472 elevation=-2
+clothoid length=70 start=0 end=350 dir=right severity=easy bank=2
+arc length=366.519 radius=350 dir=right severity=easy bank=2
+clothoid length=70 start=350 end=0 dir=right severity=easy bank=2
+straight 177.725
+clothoid length=20 start=0 end=100 dir=left severity=hard bank=4
+arc length=174.533 radius=100 dir=left severity=hard bank=4
+clothoid length=20 start=100 end=0 dir=left severity=hard bank=4
+straight 217.219 elevation=2
+clothoid length=32 start=0 end=160 dir=right severity=normal bank=3
+arc length=195.477 radius=160 dir=right severity=normal bank=3
+clothoid length=32 start=160 end=0 dir=right severity=normal bank=3
+straight 256.714 elevation=-2
+clothoid length=100 start=0 end=500 dir=left severity=easy bank=2
+arc length=436.332 radius=500 dir=left severity=easy bank=2
+clothoid length=100 start=500 end=0 dir=left severity=easy bank=2
+straight 296.208
+
+[width]
+0 2334.667 13 1 1
+2334.667 4669.333 12 1 1
+4669.333 7004 11 1 1
+
+[markers]
+start 0
+sector_1 2334.667
+sector_2 4669.333
+pit_entry 80
+pit_exit 180

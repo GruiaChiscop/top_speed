@@ -4,6 +4,7 @@ using System.IO;
 using TopSpeed.Audio;
 using TopSpeed.Core;
 using TopSpeed.Data;
+using TopSpeed.Tracks.Geometry;
 using TS.Audio;
 
 namespace TopSpeed.Tracks
@@ -34,6 +35,11 @@ namespace TopSpeed.Tracks
         private readonly int _segmentCount;
         private readonly TrackWeather _weather;
         private readonly TrackAmbience _ambience;
+        private readonly TrackLayout? _layout;
+        private readonly TrackGeometry? _geometry;
+        private readonly TrackGeometrySpan[]? _layoutSpans;
+        private readonly float[]? _layoutSpanStart;
+        private TrackNoise _currentNoise;
 
         private float _laneWidth;
         private float _curveScale;
@@ -67,6 +73,8 @@ namespace TopSpeed.Tracks
         private AudioSourceHandle? _soundHelicopter;
         private AudioSourceHandle? _soundOwl;
 
+        private bool IsLayout => _layout != null && _geometry != null && _layoutSpans != null && _layoutSpanStart != null;
+
         private Track(string trackName, TrackData data, AudioManager audio, bool userDefined)
         {
             _trackName = trackName.Length < 64 ? trackName : string.Empty;      
@@ -79,12 +87,49 @@ namespace TopSpeed.Tracks
             _ambience = data.Ambience;
             _definition = data.Definitions;
             _segmentCount = _definition.Length;
+            _currentNoise = TrackNoise.NoNoise;
 
             InitializeSounds();
         }
 
-        public static Track Load(string nameOrPath, AudioManager audio)
+        private Track(string trackName, TrackLayout layout, TrackGeometry geometry, AudioManager audio, bool userDefined)
         {
+            _trackName = trackName.Length < 64 ? trackName : string.Empty;
+            _userDefined = userDefined;
+            _audio = audio;
+            _layout = layout ?? throw new ArgumentNullException(nameof(layout));
+            _geometry = geometry ?? throw new ArgumentNullException(nameof(geometry));
+            _laneWidth = Math.Max(1f, _layout.DefaultWidthMeters * 0.5f);
+            UpdateCurveScale();
+            _callLength = CallLengthMeters;
+            _weather = _layout.Weather;
+            _ambience = _layout.Ambience;
+            _definition = Array.Empty<TrackDefinition>();
+            _segmentCount = _layout.Geometry.Spans.Count;
+            _layoutSpans = new TrackGeometrySpan[_segmentCount];
+            _layoutSpanStart = new float[_segmentCount];
+            _currentNoise = _layout.DefaultNoise;
+
+            var distance = 0f;
+            for (var i = 0; i < _segmentCount; i++)
+            {
+                _layoutSpans[i] = _layout.Geometry.Spans[i];
+                _layoutSpanStart[i] = distance;
+                distance += _layoutSpans[i].LengthMeters;
+            }
+
+            InitializeSounds();
+        }
+
+        public static Track Load(string nameOrPath, AudioManager audio, bool useLayouts = false)
+        {
+            if (useLayouts)
+            {
+                var layoutTrack = TryLoadLayout(nameOrPath, audio);
+                if (layoutTrack != null)
+                    return layoutTrack;
+            }
+
             if (TrackCatalog.BuiltIn.TryGetValue(nameOrPath, out var builtIn))
             {
                 return new Track(nameOrPath, builtIn, audio, userDefined: false);
@@ -102,6 +147,40 @@ namespace TopSpeed.Tracks
             return new Track(trackName, data, audio, userDefined);
         }
 
+        private static Track? TryLoadLayout(string nameOrPath, AudioManager audio)
+        {
+            var root = Path.Combine(AssetPaths.Root, "Tracks");
+            var sources = new ITrackLayoutSource[]
+            {
+                new FileTrackLayoutSource(new[] { root })
+            };
+            var loader = new TrackLayoutLoader(sources);
+            var request = new TrackLayoutLoadRequest(nameOrPath, validate: true, buildGeometry: true, allowWarnings: true);
+            var result = loader.Load(request);
+            if (!result.IsSuccess || result.Layout == null || result.Geometry == null)
+                return null;
+
+            var isBuiltIn = TrackCatalog.BuiltIn.ContainsKey(nameOrPath);
+            var trackName = isBuiltIn
+                ? nameOrPath
+                : ResolveLayoutTrackName(nameOrPath, result.Layout);
+            return new Track(trackName, result.Layout, result.Geometry, audio, userDefined: !isBuiltIn);
+        }
+
+        private static string ResolveLayoutTrackName(string identifier, TrackLayout layout)
+        {
+            var name = layout.Metadata?.Name;
+            if (!string.IsNullOrWhiteSpace(name))
+                return name!;
+            if (identifier.IndexOfAny(new[] { '\\', '/' }) >= 0)
+            {
+                var fileName = Path.GetFileNameWithoutExtension(identifier);
+                if (!string.IsNullOrWhiteSpace(fileName))
+                    return fileName;
+            }
+            return string.IsNullOrWhiteSpace(identifier) ? "Track" : identifier;
+        }
+
         public string TrackName => _trackName;
         public float Length => _lapDistance;
         public int SegmentCount => _segmentCount;
@@ -110,7 +189,9 @@ namespace TopSpeed.Tracks
         public TrackAmbience Ambience => _ambience;
         public bool UserDefined => _userDefined;
         public float LaneWidth => _laneWidth;
-        public TrackSurface InitialSurface => _definition.Length > 0 ? _definition[0].Surface : TrackSurface.Asphalt;
+        public TrackSurface InitialSurface => _layout != null
+            ? _layout.DefaultSurface
+            : (_definition.Length > 0 ? _definition[0].Surface : TrackSurface.Asphalt);
 
         public void SetLaneWidth(float laneWidth)
         {
@@ -130,35 +211,47 @@ namespace TopSpeed.Tracks
         {
             _lapDistance = 0;
             _lapCenter = 0;
-            for (var i = 0; i < _segmentCount; i++)
+            if (IsLayout)
             {
-                _lapDistance += _definition[i].Length;
-                switch (_definition[i].Type)
+                _lapDistance = _geometry!.LengthMeters;
+                _lapCenter = 0f;
+                _currentRoad = 0;
+                _relPos = 0f;
+                _prevRelPos = 0f;
+                _lastCalled = 0;
+            }
+            else
+            {
+                for (var i = 0; i < _segmentCount; i++)
                 {
-                    case TrackType.EasyLeft:
-                        _lapCenter -= (_definition[i].Length * _curveScale) / 2;
-                        break;
-                    case TrackType.Left:
-                        _lapCenter -= (_definition[i].Length * _curveScale) * 2 / 3;
-                        break;
-                    case TrackType.HardLeft:
-                        _lapCenter -= _definition[i].Length * _curveScale;
-                        break;
-                    case TrackType.HairpinLeft:
-                        _lapCenter -= (_definition[i].Length * _curveScale) * 3 / 2;
-                        break;
-                    case TrackType.EasyRight:
-                        _lapCenter += (_definition[i].Length * _curveScale) / 2;
-                        break;
-                    case TrackType.Right:
-                        _lapCenter += (_definition[i].Length * _curveScale) * 2 / 3;
-                        break;
-                    case TrackType.HardRight:
-                        _lapCenter += _definition[i].Length * _curveScale;
-                        break;
-                    case TrackType.HairpinRight:
-                        _lapCenter += (_definition[i].Length * _curveScale) * 3 / 2;
-                        break;
+                    _lapDistance += _definition[i].Length;
+                    switch (_definition[i].Type)
+                    {
+                        case TrackType.EasyLeft:
+                            _lapCenter -= (_definition[i].Length * _curveScale) / 2;
+                            break;
+                        case TrackType.Left:
+                            _lapCenter -= (_definition[i].Length * _curveScale) * 2 / 3;
+                            break;
+                        case TrackType.HardLeft:
+                            _lapCenter -= _definition[i].Length * _curveScale;
+                            break;
+                        case TrackType.HairpinLeft:
+                            _lapCenter -= (_definition[i].Length * _curveScale) * 3 / 2;
+                            break;
+                        case TrackType.EasyRight:
+                            _lapCenter += (_definition[i].Length * _curveScale) / 2;
+                            break;
+                        case TrackType.Right:
+                            _lapCenter += (_definition[i].Length * _curveScale) * 2 / 3;
+                            break;
+                        case TrackType.HardRight:
+                            _lapCenter += _definition[i].Length * _curveScale;
+                            break;
+                        case TrackType.HairpinRight:
+                            _lapCenter += (_definition[i].Length * _curveScale) * 3 / 2;
+                            break;
+                    }
                 }
             }
 
@@ -194,6 +287,68 @@ namespace TopSpeed.Tracks
         {
             if (_noisePlaying && position > _noiseEndPos)
                 _noisePlaying = false;
+
+            if (IsLayout)
+            {
+                if (_lapDistance == 0)
+                    Initialize();
+                if (_lapDistance <= 0f)
+                    return;
+
+                var pos = WrapDistance(position);
+                var noise = _layout!.NoiseAt(pos);
+                if (noise != _currentNoise)
+                {
+                    _noisePlaying = false;
+                    _currentNoise = noise;
+                }
+
+                switch (noise)
+                {
+                    case TrackNoise.Crowd:
+                        UpdateLoopingNoiseLayout(_soundCrowd, position, noise);
+                        break;
+                    case TrackNoise.Ocean:
+                        UpdateLoopingNoiseLayout(_soundOcean, position, noise, pan: -10);
+                        break;
+                    case TrackNoise.Runway:
+                        PlayIfNotPlaying(_soundAirplane);
+                        break;
+                    case TrackNoise.Clock:
+                        UpdateLoopingNoiseLayout(_soundClock, position, noise, pan: 25);
+                        break;
+                    case TrackNoise.Jet:
+                        PlayIfNotPlaying(_soundJet);
+                        break;
+                    case TrackNoise.Thunder:
+                        PlayIfNotPlaying(_soundThunder);
+                        break;
+                    case TrackNoise.Pile:
+                        UpdateLoopingNoiseLayout(_soundPile, position, noise);
+                        break;
+                    case TrackNoise.Construction:
+                        UpdateLoopingNoiseLayout(_soundConstruction, position, noise);
+                        break;
+                    case TrackNoise.River:
+                        UpdateLoopingNoiseLayout(_soundRiver, position, noise);
+                        break;
+                    case TrackNoise.Helicopter:
+                        PlayIfNotPlaying(_soundHelicopter);
+                        break;
+                    case TrackNoise.Owl:
+                        PlayIfNotPlaying(_soundOwl);
+                        break;
+                    default:
+                        _soundCrowd?.Stop();
+                        _soundOcean?.Stop();
+                        _soundClock?.Stop();
+                        _soundPile?.Stop();
+                        _soundConstruction?.Stop();
+                        _soundRiver?.Stop();
+                        break;
+                }
+                return;
+            }
 
             if (_segmentCount == 0)
                 return;
@@ -249,6 +404,11 @@ namespace TopSpeed.Tracks
             if (_lapDistance == 0)
                 Initialize();
 
+            if (IsLayout)
+            {
+                return BuildLayoutRoad(position, updateState: true);
+            }
+
             var lap = (int)(position / _lapDistance);
             var pos = position % _lapDistance;
             var dist = 0.0f;
@@ -284,6 +444,11 @@ namespace TopSpeed.Tracks
             if (_lapDistance == 0)
                 Initialize();
 
+            if (IsLayout)
+            {
+                return BuildLayoutRoad(position, updateState: false);
+            }
+
             var lap = (int)(position / _lapDistance);
             var pos = position % _lapDistance;
             var dist = 0.0f;
@@ -313,11 +478,70 @@ namespace TopSpeed.Tracks
             return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
         }
 
+        private Road BuildLayoutRoad(float position, bool updateState)
+        {
+            if (!IsLayout || _layoutSpans == null || _layoutSpanStart == null)
+                return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
+
+            if (_lapDistance <= 0f)
+                return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
+
+            var pos = WrapDistance(position);
+            var index = LayoutSpanIndexAt(pos);
+            var span = _layoutSpans[index];
+
+            if (updateState)
+            {
+                _prevRelPos = _relPos;
+                _relPos = pos - _layoutSpanStart[index];
+                _currentRoad = index;
+            }
+
+            var width = Math.Max(0.5f, _layout!.WidthAt(pos));
+            var half = width * 0.5f;
+            return new Road
+            {
+                Left = -half,
+                Right = half,
+                Surface = _layout.SurfaceAt(pos),
+                Type = ResolveCurveType(span),
+                Length = span.LengthMeters
+            };
+        }
+
+        private Road BuildLayoutRoadForIndex(int index)
+        {
+            if (!IsLayout || _layoutSpans == null || _layoutSpanStart == null)
+                return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
+
+            if (index < 0 || index >= _layoutSpans.Length)
+                return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
+
+            var span = _layoutSpans[index];
+            var sampleOffset = Math.Min(0.25f, span.LengthMeters * 0.5f);
+            var pos = WrapDistance(_layoutSpanStart[index] + sampleOffset);
+            var width = Math.Max(0.5f, _layout!.WidthAt(pos));
+            var half = width * 0.5f;
+            return new Road
+            {
+                Left = -half,
+                Right = half,
+                Surface = _layout.SurfaceAt(pos),
+                Type = ResolveCurveType(span),
+                Length = span.LengthMeters
+            };
+        }
+
         public bool NextRoad(float position, float speed, int curveAnnouncementMode, out Road road)
         {
             road = new Road();
             if (_segmentCount == 0)
                 return false;
+
+            if (IsLayout)
+            {
+                return NextLayoutRoad(position, speed, curveAnnouncementMode, out road);
+            }
 
             if (curveAnnouncementMode == 0)
             {
@@ -352,6 +576,45 @@ namespace TopSpeed.Tracks
             return false;
         }
 
+        private bool NextLayoutRoad(float position, float speed, int curveAnnouncementMode, out Road road)
+        {
+            road = new Road();
+            if (!IsLayout || _layoutSpans == null || _layoutSpanStart == null)
+                return false;
+
+            if (_lapDistance == 0)
+                Initialize();
+
+            if (_segmentCount == 0)
+                return false;
+
+            if (curveAnnouncementMode == 0)
+            {
+                var currentLength = _layoutSpans[_currentRoad].LengthMeters;
+                if ((_relPos + _callLength > currentLength) && (_prevRelPos + _callLength <= currentLength))
+                {
+                    road = BuildLayoutRoadForIndex((_currentRoad + 1) % _segmentCount);
+                    return road.Length > 0f;
+                }
+                return false;
+            }
+
+            var lookAhead = _callLength + speed / 2;
+            var roadAhead = LayoutSpanIndexAt(position + lookAhead);
+            if (roadAhead < 0)
+                return false;
+
+            var delta = (roadAhead - _lastCalled + _segmentCount) % _segmentCount;
+            if (delta > 0 && delta <= _segmentCount / 2)
+            {
+                road = BuildLayoutRoadForIndex(roadAhead);
+                _lastCalled = roadAhead;
+                return road.Length > 0f;
+            }
+
+            return false;
+        }
+
         private int RoadIndexAt(float position)
         {
             if (_lapDistance == 0)
@@ -368,6 +631,64 @@ namespace TopSpeed.Tracks
             return -1;
         }
 
+        private int LayoutSpanIndexAt(float position)
+        {
+            if (_layoutSpanStart == null || _layoutSpanStart.Length == 0)
+                return -1;
+
+            var pos = WrapDistance(position);
+            var index = Array.BinarySearch(_layoutSpanStart, pos);
+            if (index >= 0)
+                return index;
+            index = ~index - 1;
+            if (index < 0)
+                index = 0;
+            if (index >= _layoutSpanStart.Length)
+                index = _layoutSpanStart.Length - 1;
+            return index;
+        }
+
+        private TrackType ResolveCurveType(TrackGeometrySpan span)
+        {
+            if (span.Kind != TrackGeometrySpanKind.Arc || span.Direction == TrackCurveDirection.Straight)
+                return TrackType.Straight;
+            if (!span.CurveSeverity.HasValue)
+                return TrackType.Straight;
+
+            return span.Direction switch
+            {
+                TrackCurveDirection.Left => span.CurveSeverity.Value switch
+                {
+                    TrackCurveSeverity.Easy => TrackType.EasyLeft,
+                    TrackCurveSeverity.Normal => TrackType.Left,
+                    TrackCurveSeverity.Hard => TrackType.HardLeft,
+                    TrackCurveSeverity.Hairpin => TrackType.HairpinLeft,
+                    _ => TrackType.Left
+                },
+                TrackCurveDirection.Right => span.CurveSeverity.Value switch
+                {
+                    TrackCurveSeverity.Easy => TrackType.EasyRight,
+                    TrackCurveSeverity.Normal => TrackType.Right,
+                    TrackCurveSeverity.Hard => TrackType.HardRight,
+                    TrackCurveSeverity.Hairpin => TrackType.HairpinRight,
+                    _ => TrackType.Right
+                },
+                _ => TrackType.Straight
+            };
+        }
+
+        private float WrapDistance(float position)
+        {
+            if (_lapDistance <= 0f)
+                return 0f;
+            var wrapped = position % _lapDistance;
+            if (wrapped < 0f)
+                wrapped += _lapDistance;
+            if (wrapped == _lapDistance)
+                return 0f;
+            return wrapped;
+        }
+
         private void CalculateNoiseLength()
         {
             _noiseLength = 0;
@@ -377,6 +698,59 @@ namespace TopSpeed.Tracks
                 _noiseLength += _definition[i].Length;
                 i++;
             }
+            _noisePlaying = true;
+        }
+
+        private void CalculateNoiseLengthLayout(float position, TrackNoise noise)
+        {
+            _noiseLength = 0f;
+            if (_layout == null || _lapDistance <= 0f)
+            {
+                _noisePlaying = false;
+                return;
+            }
+
+            var pos = WrapDistance(position);
+            var start = 0f;
+            var end = _lapDistance;
+            var found = false;
+            for (var i = 0; i < _layout.NoiseZones.Count; i++)
+            {
+                var zone = _layout.NoiseZones[i];
+                if (zone.Value == noise && zone.Contains(pos))
+                {
+                    start = zone.StartMeters;
+                    end = zone.EndMeters;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                if (noise == _layout.DefaultNoise)
+                {
+                    start = 0f;
+                    end = _lapDistance;
+                    found = true;
+                }
+                else
+                {
+                    _noisePlaying = false;
+                    return;
+                }
+            }
+
+            _noiseLength = Math.Max(0f, end - start);
+            if (_noiseLength <= 0f)
+            {
+                _noisePlaying = false;
+                return;
+            }
+
+            var offset = pos - start;
+            _noiseStartPos = position - offset;
+            _noiseEndPos = _noiseStartPos + _noiseLength;
             _noisePlaying = true;
         }
 
@@ -390,6 +764,33 @@ namespace TopSpeed.Tracks
                 CalculateNoiseLength();
                 _noiseStartPos = position;
                 _noiseEndPos = position + _noiseLength;
+            }
+
+            _factor = (position - _noiseStartPos) * 1.0f / _noiseLength;
+            if (_factor < 0.5f)
+                _factor *= 2.0f;
+            else
+                _factor = 2.0f * (1.0f - _factor);
+
+            SetVolumePercent(sound, (int)(80.0f + _factor * 20.0f));
+            if (!sound.IsPlaying)
+            {
+                if (pan.HasValue)
+                    sound.SetPan(pan.Value / 100f);
+                sound.Play(loop: true);
+            }
+        }
+
+        private void UpdateLoopingNoiseLayout(AudioSourceHandle? sound, float position, TrackNoise noise, int? pan = null)
+        {
+            if (sound == null)
+                return;
+
+            if (!_noisePlaying)
+            {
+                CalculateNoiseLengthLayout(position, noise);
+                if (_noiseLength <= 0f)
+                    return;
             }
 
             _factor = (position - _noiseStartPos) * 1.0f / _noiseLength;

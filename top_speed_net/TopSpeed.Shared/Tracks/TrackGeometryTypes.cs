@@ -35,7 +35,11 @@ namespace TopSpeed.Tracks.Geometry
         public float StartRadiusMeters { get; }
         public float EndRadiusMeters { get; }
         public float ElevationDeltaMeters { get; }
-        public float BankDegrees { get; }
+        public float StartSlope { get; }
+        public float EndSlope { get; }
+        public float BankStartDegrees { get; }
+        public float BankEndDegrees { get; }
+        public float BankDegrees => (BankStartDegrees + BankEndDegrees) * 0.5f;
         public TrackCurveSeverity? CurveSeverity { get; }
 
         private TrackGeometrySpan(
@@ -46,7 +50,10 @@ namespace TopSpeed.Tracks.Geometry
             float startRadiusMeters,
             float endRadiusMeters,
             float elevationDeltaMeters,
-            float bankDegrees,
+            float startSlope,
+            float endSlope,
+            float bankStartDegrees,
+            float bankEndDegrees,
             TrackCurveSeverity? curveSeverity)
         {
             if (!IsFinite(lengthMeters) || lengthMeters <= 0f)
@@ -55,8 +62,15 @@ namespace TopSpeed.Tracks.Geometry
             if (!IsFinite(elevationDeltaMeters))
                 throw new ArgumentOutOfRangeException(nameof(elevationDeltaMeters));
 
-            if (!IsFinite(bankDegrees))
-                throw new ArgumentOutOfRangeException(nameof(bankDegrees));
+            if (!IsFinite(startSlope))
+                throw new ArgumentOutOfRangeException(nameof(startSlope));
+            if (!IsFinite(endSlope))
+                throw new ArgumentOutOfRangeException(nameof(endSlope));
+
+            if (!IsFinite(bankStartDegrees))
+                throw new ArgumentOutOfRangeException(nameof(bankStartDegrees));
+            if (!IsFinite(bankEndDegrees))
+                throw new ArgumentOutOfRangeException(nameof(bankEndDegrees));
 
             switch (kind)
             {
@@ -104,7 +118,10 @@ namespace TopSpeed.Tracks.Geometry
             StartRadiusMeters = startRadiusMeters;
             EndRadiusMeters = endRadiusMeters;
             ElevationDeltaMeters = elevationDeltaMeters;
-            BankDegrees = bankDegrees;
+            StartSlope = startSlope;
+            EndSlope = endSlope;
+            BankStartDegrees = bankStartDegrees;
+            BankEndDegrees = bankEndDegrees;
             CurveSeverity = curveSeverity;
         }
 
@@ -113,6 +130,7 @@ namespace TopSpeed.Tracks.Geometry
             float elevationDeltaMeters = 0f,
             float bankDegrees = 0f)
         {
+            var slope = lengthMeters > 0f ? elevationDeltaMeters / lengthMeters : 0f;
             return new TrackGeometrySpan(
                 TrackGeometrySpanKind.Straight,
                 lengthMeters,
@@ -121,6 +139,9 @@ namespace TopSpeed.Tracks.Geometry
                 0f,
                 0f,
                 elevationDeltaMeters,
+                slope,
+                slope,
+                bankDegrees,
                 bankDegrees,
                 null);
         }
@@ -133,6 +154,7 @@ namespace TopSpeed.Tracks.Geometry
             float elevationDeltaMeters = 0f,
             float bankDegrees = 0f)
         {
+            var slope = lengthMeters > 0f ? elevationDeltaMeters / lengthMeters : 0f;
             return new TrackGeometrySpan(
                 TrackGeometrySpanKind.Arc,
                 lengthMeters,
@@ -141,6 +163,9 @@ namespace TopSpeed.Tracks.Geometry
                 0f,
                 0f,
                 elevationDeltaMeters,
+                slope,
+                slope,
+                bankDegrees,
                 bankDegrees,
                 curveSeverity);
         }
@@ -154,6 +179,7 @@ namespace TopSpeed.Tracks.Geometry
             float elevationDeltaMeters = 0f,
             float bankDegrees = 0f)
         {
+            var slope = lengthMeters > 0f ? elevationDeltaMeters / lengthMeters : 0f;
             return new TrackGeometrySpan(
                 TrackGeometrySpanKind.Clothoid,
                 lengthMeters,
@@ -162,7 +188,86 @@ namespace TopSpeed.Tracks.Geometry
                 startRadiusMeters,
                 endRadiusMeters,
                 elevationDeltaMeters,
+                slope,
+                slope,
                 bankDegrees,
+                bankDegrees,
+                curveSeverity);
+        }
+
+        public static TrackGeometrySpan StraightWithProfile(
+            float lengthMeters,
+            float elevationDeltaMeters,
+            float startSlope,
+            float endSlope,
+            float bankStartDegrees,
+            float bankEndDegrees)
+        {
+            return new TrackGeometrySpan(
+                TrackGeometrySpanKind.Straight,
+                lengthMeters,
+                TrackCurveDirection.Straight,
+                0f,
+                0f,
+                0f,
+                elevationDeltaMeters,
+                startSlope,
+                endSlope,
+                bankStartDegrees,
+                bankEndDegrees,
+                null);
+        }
+
+        public static TrackGeometrySpan ArcWithProfile(
+            float lengthMeters,
+            float radiusMeters,
+            TrackCurveDirection direction,
+            TrackCurveSeverity? curveSeverity,
+            float elevationDeltaMeters,
+            float startSlope,
+            float endSlope,
+            float bankStartDegrees,
+            float bankEndDegrees)
+        {
+            return new TrackGeometrySpan(
+                TrackGeometrySpanKind.Arc,
+                lengthMeters,
+                direction,
+                radiusMeters,
+                0f,
+                0f,
+                elevationDeltaMeters,
+                startSlope,
+                endSlope,
+                bankStartDegrees,
+                bankEndDegrees,
+                curveSeverity);
+        }
+
+        public static TrackGeometrySpan ClothoidWithProfile(
+            float lengthMeters,
+            float startRadiusMeters,
+            float endRadiusMeters,
+            TrackCurveDirection direction,
+            TrackCurveSeverity? curveSeverity,
+            float elevationDeltaMeters,
+            float startSlope,
+            float endSlope,
+            float bankStartDegrees,
+            float bankEndDegrees)
+        {
+            return new TrackGeometrySpan(
+                TrackGeometrySpanKind.Clothoid,
+                lengthMeters,
+                direction,
+                0f,
+                startRadiusMeters,
+                endRadiusMeters,
+                elevationDeltaMeters,
+                startSlope,
+                endSlope,
+                bankStartDegrees,
+                bankEndDegrees,
                 curveSeverity);
         }
 
@@ -190,6 +295,15 @@ namespace TopSpeed.Tracks.Geometry
 
         public float StartCurvature => CurvatureAt(0f);
         public float EndCurvature => CurvatureAt(LengthMeters);
+
+        public float SlopeAt(float offsetMeters)
+        {
+            if (LengthMeters <= 0f)
+                return 0f;
+            var clamped = Clamp(offsetMeters, 0f, LengthMeters);
+            var t = clamped / LengthMeters;
+            return StartSlope + (EndSlope - StartSlope) * t;
+        }
 
         private float SignedCurvature(float radiusMeters)
         {

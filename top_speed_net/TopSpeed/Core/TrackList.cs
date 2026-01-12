@@ -21,23 +21,23 @@ namespace TopSpeed.Core
     {
         public static readonly TrackInfo[] RaceTracks =
         {
-            new TrackInfo("america", "America"),
-            new TrackInfo("austria", "Austria"),
-            new TrackInfo("belgium", "Belgium"),
-            new TrackInfo("brazil", "Brazil"),
-            new TrackInfo("china", "China"),
-            new TrackInfo("england", "England"),
-            new TrackInfo("finland", "Finland"),
-            new TrackInfo("france", "France"),
-            new TrackInfo("germany", "Germany"),
-            new TrackInfo("ireland", "Ireland"),
-            new TrackInfo("italy", "Italy"),
-            new TrackInfo("netherlands", "Netherlands"),
-            new TrackInfo("portugal", "Portugal"),
-            new TrackInfo("russia", "Russia"),
-            new TrackInfo("spain", "Spain"),
-            new TrackInfo("sweden", "Sweden"),
-            new TrackInfo("switserland", "Switserland")
+            new TrackInfo("america", "Circuit of the Americas (USA)"),
+            new TrackInfo("austria", "Red Bull Ring (Austria)"),
+            new TrackInfo("belgium", "Spa-Francorchamps (Belgium)"),
+            new TrackInfo("brazil", "Interlagos (Brazil)"),
+            new TrackInfo("china", "Shanghai International Circuit (China)"),
+            new TrackInfo("england", "Silverstone Circuit (England)"),
+            new TrackInfo("finland", "KymiRing (Finland)"),
+            new TrackInfo("france", "Circuit Paul Ricard (France)"),
+            new TrackInfo("germany", "Nurburgring GP (Germany)"),
+            new TrackInfo("ireland", "Mondello Park (Ireland)"),
+            new TrackInfo("italy", "Monza (Italy)"),
+            new TrackInfo("netherlands", "Circuit Zandvoort (Netherlands)"),
+            new TrackInfo("portugal", "Algarve International Circuit (Portugal)"),
+            new TrackInfo("russia", "Sochi Autodrom (Russia)"),
+            new TrackInfo("spain", "Circuit de Barcelona-Catalunya (Spain)"),
+            new TrackInfo("sweden", "Scandinavian Raceway (Sweden)"),
+            new TrackInfo("switserland", "Zurich Street Circuit (Switzerland)")
         };
 
         public static readonly TrackInfo[] AdventureTracks =
@@ -59,6 +59,33 @@ namespace TopSpeed.Core
                 TrackCategory.StreetAdventure => AdventureTracks,
                 _ => Array.Empty<TrackInfo>()
             };
+        }
+
+        public static bool TryGetDisplayName(string key, out string display)
+        {
+            display = string.Empty;
+            if (string.IsNullOrWhiteSpace(key))
+                return false;
+
+            foreach (var track in RaceTracks)
+            {
+                if (string.Equals(track.Key, key, StringComparison.OrdinalIgnoreCase))
+                {
+                    display = track.Display;
+                    return true;
+                }
+            }
+
+            foreach (var track in AdventureTracks)
+            {
+                if (string.Equals(track.Key, key, StringComparison.OrdinalIgnoreCase))
+                {
+                    display = track.Display;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public static string GetRandomTrackKey(TrackCategory category, IEnumerable<string> customTracks)
