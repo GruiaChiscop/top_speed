@@ -296,6 +296,8 @@ namespace TopSpeed.Race
 
             HandleSpeedReportRequest();
             HandleDistanceReportRequest();
+            HandleWheelAngleReportRequest();
+            HandleHeadingReportRequest();
             HandlePauseRequest(ref _pauseKeyReleased);
 
             _sendAccumulator += elapsed;

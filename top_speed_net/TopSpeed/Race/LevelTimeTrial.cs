@@ -155,6 +155,8 @@ namespace TopSpeed.Race
             HandleTrackNameRequest();
             HandleSpeedReportRequest();
             HandleDistanceReportRequest();
+            HandleWheelAngleReportRequest();
+            HandleHeadingReportRequest();
             HandlePauseRequest(ref _pauseKeyReleased);
 
             if (UpdateExitWhenQueueIdle())

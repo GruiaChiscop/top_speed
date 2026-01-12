@@ -24,6 +24,8 @@ namespace TopSpeed.Input
         private JoystickAxisOrButton _startEngine;
         private JoystickAxisOrButton _reportDistance;
         private JoystickAxisOrButton _reportSpeed;
+        private JoystickAxisOrButton _reportWheelAngle;
+        private JoystickAxisOrButton _reportHeading;
         private JoystickAxisOrButton _trackName;
         private JoystickAxisOrButton _pause;
         private InputDeviceMode _deviceMode;
@@ -43,6 +45,8 @@ namespace TopSpeed.Input
         private Key _kbStartEngine;
         private Key _kbReportDistance;
         private Key _kbReportSpeed;
+        private Key _kbReportWheelAngle;
+        private Key _kbReportHeading;
         private Key _kbPlayer1;
         private Key _kbPlayer2;
         private Key _kbPlayer3;
@@ -101,6 +105,8 @@ namespace TopSpeed.Input
             _startEngine = JoystickAxisOrButton.AxisNone;
             _reportDistance = JoystickAxisOrButton.AxisNone;
             _reportSpeed = JoystickAxisOrButton.AxisNone;
+            _reportWheelAngle = JoystickAxisOrButton.AxisNone;
+            _reportHeading = JoystickAxisOrButton.AxisNone;
             _trackName = JoystickAxisOrButton.AxisNone;
             _pause = JoystickAxisOrButton.AxisNone;
             ReadFromSettings();
@@ -345,6 +351,30 @@ namespace TopSpeed.Input
             _settings.KeyReportSpeed = key;
         }
 
+        public void SetReportWheelAngle(JoystickAxisOrButton a)
+        {
+            _reportWheelAngle = a;
+            _settings.JoystickReportWheelAngle = a;
+        }
+
+        public void SetReportWheelAngle(Key key)
+        {
+            _kbReportWheelAngle = key;
+            _settings.KeyReportWheelAngle = key;
+        }
+
+        public void SetReportHeading(JoystickAxisOrButton a)
+        {
+            _reportHeading = a;
+            _settings.JoystickReportHeading = a;
+        }
+
+        public void SetReportHeading(Key key)
+        {
+            _kbReportHeading = key;
+            _settings.KeyReportHeading = key;
+        }
+
         public void SetTrackName(JoystickAxisOrButton a)
         {
             _trackName = a;
@@ -496,6 +526,8 @@ namespace TopSpeed.Input
         // Speed and distance reporting hotkeys
         public bool GetSpeedReport() => WasPressed(_kbReportSpeed) || AxisPressed(_reportSpeed);
         public bool GetDistanceReport() => WasPressed(_kbReportDistance) || AxisPressed(_reportDistance);
+        public bool GetWheelAngleReport() => WasPressed(_kbReportWheelAngle) || AxisPressed(_reportWheelAngle);
+        public bool GetHeadingReport() => WasPressed(_kbReportHeading) || AxisPressed(_reportHeading);
 
         internal Key GetKeyMapping(InputAction action)
         {
@@ -517,6 +549,8 @@ namespace TopSpeed.Input
                 InputAction.StartEngine => _kbStartEngine,
                 InputAction.ReportDistance => _kbReportDistance,
                 InputAction.ReportSpeed => _kbReportSpeed,
+                InputAction.ReportWheelAngle => _kbReportWheelAngle,
+                InputAction.ReportHeading => _kbReportHeading,
                 InputAction.TrackName => _kbTrackName,
                 InputAction.Pause => _kbPause,
                 _ => Key.Unknown
@@ -543,6 +577,8 @@ namespace TopSpeed.Input
                 InputAction.StartEngine => _startEngine,
                 InputAction.ReportDistance => _reportDistance,
                 InputAction.ReportSpeed => _reportSpeed,
+                InputAction.ReportWheelAngle => _reportWheelAngle,
+                InputAction.ReportHeading => _reportHeading,
                 InputAction.TrackName => _trackName,
                 InputAction.Pause => _pause,
                 _ => JoystickAxisOrButton.AxisNone
@@ -600,6 +636,12 @@ namespace TopSpeed.Input
                     break;
                 case InputAction.ReportSpeed:
                     SetReportSpeed(key);
+                    break;
+                case InputAction.ReportWheelAngle:
+                    SetReportWheelAngle(key);
+                    break;
+                case InputAction.ReportHeading:
+                    SetReportHeading(key);
                     break;
                 case InputAction.TrackName:
                     SetTrackName(key);
@@ -661,6 +703,12 @@ namespace TopSpeed.Input
                     break;
                 case InputAction.ReportSpeed:
                     SetReportSpeed(axis);
+                    break;
+                case InputAction.ReportWheelAngle:
+                    SetReportWheelAngle(axis);
+                    break;
+                case InputAction.ReportHeading:
+                    SetReportHeading(axis);
                     break;
                 case InputAction.TrackName:
                     SetTrackName(axis);
@@ -833,6 +881,8 @@ namespace TopSpeed.Input
             _startEngine = _settings.JoystickStartEngine;
             _reportDistance = _settings.JoystickReportDistance;
             _reportSpeed = _settings.JoystickReportSpeed;
+            _reportWheelAngle = _settings.JoystickReportWheelAngle;
+            _reportHeading = _settings.JoystickReportHeading;
             _trackName = _settings.JoystickTrackName;
             _pause = _settings.JoystickPause;
             _center = _settings.JoystickCenter;
@@ -853,6 +903,8 @@ namespace TopSpeed.Input
             _kbStartEngine = _settings.KeyStartEngine;
             _kbReportDistance = _settings.KeyReportDistance;
             _kbReportSpeed = _settings.KeyReportSpeed;
+            _kbReportWheelAngle = _settings.KeyReportWheelAngle;
+            _kbReportHeading = _settings.KeyReportHeading;
             _kbTrackName = _settings.KeyTrackName;
             _kbPause = _settings.KeyPause;
             _deviceMode = _settings.DeviceMode;

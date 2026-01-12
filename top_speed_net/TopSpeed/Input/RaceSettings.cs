@@ -65,8 +65,10 @@ namespace TopSpeed.Input
         public JoystickAxisOrButton JoystickCurrentLapPerc { get; set; }
         public JoystickAxisOrButton JoystickCurrentRaceTime { get; set; }
         public JoystickAxisOrButton JoystickStartEngine { get; set; }
-        public JoystickAxisOrButton JoystickReportDistance { get; set; }
+        public JoystickAxisOrButton JoystickReportDistance { get; set; }        
         public JoystickAxisOrButton JoystickReportSpeed { get; set; }
+        public JoystickAxisOrButton JoystickReportWheelAngle { get; set; }
+        public JoystickAxisOrButton JoystickReportHeading { get; set; }
         public JoystickAxisOrButton JoystickTrackName { get; set; }
         public JoystickAxisOrButton JoystickPause { get; set; }
         public JoystickStateSnapshot JoystickCenter { get; set; }
@@ -87,6 +89,8 @@ namespace TopSpeed.Input
         public Key KeyStartEngine { get; set; }
         public Key KeyReportDistance { get; set; }
         public Key KeyReportSpeed { get; set; }
+        public Key KeyReportWheelAngle { get; set; }
+        public Key KeyReportHeading { get; set; }
         public Key KeyTrackName { get; set; }
         public Key KeyPause { get; set; }
 
@@ -142,6 +146,8 @@ namespace TopSpeed.Input
             JoystickStartEngine = JoystickAxisOrButton.Button10;
             JoystickReportDistance = JoystickAxisOrButton.Button11;
             JoystickReportSpeed = JoystickAxisOrButton.Button12;
+            JoystickReportWheelAngle = JoystickAxisOrButton.Button15;
+            JoystickReportHeading = JoystickAxisOrButton.Button16;
             JoystickTrackName = JoystickAxisOrButton.Button13;
             JoystickPause = JoystickAxisOrButton.Button14;
             JoystickCenter = default;
@@ -162,6 +168,8 @@ namespace TopSpeed.Input
             KeyStartEngine = Key.Return;
             KeyReportDistance = Key.C;
             KeyReportSpeed = Key.S;
+            KeyReportWheelAngle = Key.G;
+            KeyReportHeading = Key.H;
             KeyTrackName = Key.F9;
             KeyPause = Key.P;
 

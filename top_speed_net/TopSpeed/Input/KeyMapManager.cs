@@ -42,6 +42,8 @@ namespace TopSpeed.Input
                 new InputActionDefinition(InputAction.StartEngine, "Start the engine"),
                 new InputActionDefinition(InputAction.ReportDistance, "Report distance"),
                 new InputActionDefinition(InputAction.ReportSpeed, "Report speed"),
+                new InputActionDefinition(InputAction.ReportWheelAngle, "Report wheel angle"),
+                new InputActionDefinition(InputAction.ReportHeading, "Report heading"),
                 new InputActionDefinition(InputAction.TrackName, "Report track name"),
                 new InputActionDefinition(InputAction.Pause, "Pause")
             };

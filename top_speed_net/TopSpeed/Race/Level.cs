@@ -418,6 +418,27 @@ namespace TopSpeed.Race
             }
         }
 
+        protected void HandleWheelAngleReportRequest()
+        {
+            if (_input.GetWheelAngleReport() && _started && _acceptCurrentRaceInfo && _lap <= _nrOfLaps)
+            {
+                _acceptCurrentRaceInfo = false;
+                SpeakText($"Wheel angle {_car.FrontWheelAngleDegrees:F1} degrees");
+                PushEvent(RaceEventType.AcceptCurrentRaceInfo, 0.5f);
+            }
+        }
+
+        protected void HandleHeadingReportRequest()
+        {
+            if (_input.GetHeadingReport() && _started && _acceptCurrentRaceInfo && _lap <= _nrOfLaps)
+            {
+                _acceptCurrentRaceInfo = false;
+                var headingText = CompassHeading.FormatHeading(_car.HeadingDegrees);
+                SpeakText($"Heading {headingText}");
+                PushEvent(RaceEventType.AcceptCurrentRaceInfo, 0.5f);
+            }
+        }
+
         protected void HandlePauseRequest(ref bool pauseKeyReleased)
         {
             if (!_input.GetPause() && !pauseKeyReleased)
@@ -567,11 +588,25 @@ namespace TopSpeed.Race
 
         protected void UpdateAudioListener(float elapsed)
         {
+            var forward = _car.WorldForward;
+            var up = _car.WorldUp;
+            if (forward.LengthSquared() < 0.0001f)
+                forward = new Vector3(0f, 0f, 1f);
+            if (up.LengthSquared() < 0.0001f)
+                up = Vector3.UnitY;
+            forward = Vector3.Normalize(forward);
+            up = Vector3.Normalize(up);
+            var right = Vector3.Cross(up, forward);
+            if (right.LengthSquared() < 0.0001f)
+                right = Vector3.UnitX;
+            else
+                right = Vector3.Normalize(right);
+
             var driverOffsetX = -_car.WidthM * 0.25f;
             var driverOffsetZ = _car.LengthM * 0.1f;
-            var worldPosition = new Vector3(_car.PositionX + driverOffsetX, 0f, _car.PositionY + driverOffsetZ);
+            var worldPosition = _car.WorldPosition + (right * driverOffsetX) + (forward * driverOffsetZ);
 
-            var worldVelocity = Vector3.Zero;
+            var worldVelocity = _car.WorldVelocity;
             if (_listenerInitialized && elapsed > 0f)
             {
                 worldVelocity = (worldPosition - _lastListenerPosition) / elapsed;
@@ -579,9 +614,6 @@ namespace TopSpeed.Race
             _lastListenerPosition = worldPosition;
             _listenerInitialized = true;
 
-            var forward = new Vector3(0f, 0f, 1f);
-
-            var up = new Vector3(0f, 1f, 0f);
             var position = AudioWorld.ToMeters(worldPosition);
             var velocity = AudioWorld.ToMeters(worldVelocity);
             _audio.UpdateListener(position, forward, up, velocity);

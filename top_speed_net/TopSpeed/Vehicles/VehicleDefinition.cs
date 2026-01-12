@@ -46,8 +46,32 @@ namespace TopSpeed.Vehicles
         public float HighSpeedStability { get; set; } = 0.0f;
         public float WheelbaseM { get; set; } = 2.7f;
         public float MaxSteerDeg { get; set; } = 35f;
+        public float TrackWidthM { get; set; } = 0f;
         public float WidthM { get; set; } = 1.8f;
         public float LengthM { get; set; } = 4.5f;
+        public VehicleDynamicsModel DynamicsModel { get; set; } = VehicleDynamicsModel.FourWheel;
+        public float SteerInputRate { get; set; } = 0f;
+        public float SteerReturnRate { get; set; } = 0f;
+        public float SteerGamma { get; set; } = 0f;
+        public float MaxSteerLowDeg { get; set; } = 0f;
+        public float MaxSteerHighDeg { get; set; } = 0f;
+        public float SteerSpeedKph { get; set; } = 0f;
+        public float SteerSpeedExponent { get; set; } = 0f;
+        public float CorneringStiffnessFront { get; set; } = 0f;
+        public float CorneringStiffnessRear { get; set; } = 0f;
+        public float YawInertiaKgM2 { get; set; } = 0f;
+        public float CgToFrontAxleM { get; set; } = 0f;
+        public float CgToRearAxleM { get; set; } = 0f;
+        public float CgHeightM { get; set; } = 0f;
+        public float WeightDistributionFront { get; set; } = 0f;
+        public float BrakeBiasFront { get; set; } = 0f;
+        public float DriveBiasFront { get; set; } = 0f;
+        public float RollStiffnessFrontFraction { get; set; } = 0f;
+        public float TireLoadSensitivity { get; set; } = 0f;
+        public float DownforceCoefficient { get; set; } = 0f;
+        public float DownforceFrontBias { get; set; } = 0f;
+        public float LongitudinalStiffnessFront { get; set; } = 0f;
+        public float LongitudinalStiffnessRear { get; set; } = 0f;
         
         /// <summary>
         /// Power factor controls how fast the vehicle accelerates (0.1 = very slow, 1.0 = fast).

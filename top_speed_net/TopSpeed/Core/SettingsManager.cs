@@ -168,8 +168,12 @@ namespace TopSpeed.Core
             AppendValue(lines, settings.UsageHints ? 1 : 0);
             AppendValue(lines, settings.MenuWrapNavigation ? 1 : 0);
             AppendValue(lines, settings.MenuNavigatePanning ? 1 : 0);
-            AppendValue(lines, settings.AutoDetectAudioDeviceFormat ? 1 : 0);
+            AppendValue(lines, settings.AutoDetectAudioDeviceFormat ? 1 : 0);   
             AppendValue(lines, settings.UseTrackLayouts ? 1 : 0);
+            AppendValue(lines, (int)settings.JoystickReportWheelAngle);
+            AppendValue(lines, (int)settings.JoystickReportHeading);
+            AppendValue(lines, (int)settings.KeyReportWheelAngle);
+            AppendValue(lines, (int)settings.KeyReportHeading);
 
             try
             {
@@ -256,6 +260,10 @@ namespace TopSpeed.Core
             if (TryNext(values, ref index, out value)) settings.MenuNavigatePanning = value != 0;
             if (TryNext(values, ref index, out value)) settings.AutoDetectAudioDeviceFormat = value != 0;
             if (TryNext(values, ref index, out value)) settings.UseTrackLayouts = value != 0;
+            if (TryNext(values, ref index, out value)) settings.JoystickReportWheelAngle = AsJoystick(value, settings.JoystickReportWheelAngle);
+            if (TryNext(values, ref index, out value)) settings.JoystickReportHeading = AsJoystick(value, settings.JoystickReportHeading);
+            if (TryNext(values, ref index, out value)) settings.KeyReportWheelAngle = AsKey(value, settings.KeyReportWheelAngle);
+            if (TryNext(values, ref index, out value)) settings.KeyReportHeading = AsKey(value, settings.KeyReportHeading);
         }
 
         private static int ClampPort(int value, int fallback)

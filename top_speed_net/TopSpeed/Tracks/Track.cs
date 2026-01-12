@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.IO;
 using TopSpeed.Audio;
 using TopSpeed.Core;
@@ -189,9 +190,24 @@ namespace TopSpeed.Tracks
         public TrackAmbience Ambience => _ambience;
         public bool UserDefined => _userDefined;
         public float LaneWidth => _laneWidth;
+        public bool HasGeometry => _geometry != null;
         public TrackSurface InitialSurface => _layout != null
             ? _layout.DefaultSurface
             : (_definition.Length > 0 ? _definition[0].Surface : TrackSurface.Asphalt);
+
+        public TrackPose GetPose(float positionMeters)
+        {
+            if (_geometry != null)
+                return _geometry.GetPose(positionMeters);
+            var pos = new Vector3(0f, 0f, positionMeters);
+            return new TrackPose(pos, Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY, 0f, 0f);
+        }
+
+        public Vector3 GetWorldPosition(float positionMeters, float lateralOffset)
+        {
+            var pose = GetPose(positionMeters);
+            return pose.Position + pose.Right * lateralOffset;
+        }
 
         public void SetLaneWidth(float laneWidth)
         {

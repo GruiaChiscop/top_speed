@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using TopSpeed.Protocol;
+using TopSpeed.Vehicles;
 
 namespace TopSpeed.Data
 {
@@ -46,11 +47,35 @@ namespace TopSpeed.Data
         public float HighSpeedStability { get; }
         public float WheelbaseM { get; }
         public float MaxSteerDeg { get; }
+        public float TrackWidthM { get; }
         public float WidthM { get; }
         public float LengthM { get; }
+        public VehicleDynamicsModel DynamicsModel { get; }
         public float PowerFactor { get; }
         public float[]? GearRatios { get; }
         public float BrakeStrength { get; }
+        public float SteerInputRate { get; }
+        public float SteerReturnRate { get; }
+        public float SteerGamma { get; }
+        public float MaxSteerLowDeg { get; }
+        public float MaxSteerHighDeg { get; }
+        public float SteerSpeedKph { get; }
+        public float SteerSpeedExponent { get; }
+        public float CorneringStiffnessFront { get; }
+        public float CorneringStiffnessRear { get; }
+        public float YawInertiaKgM2 { get; }
+        public float CgToFrontAxleM { get; }
+        public float CgToRearAxleM { get; }
+        public float CgHeightM { get; }
+        public float WeightDistributionFront { get; }
+        public float BrakeBiasFront { get; }
+        public float DriveBiasFront { get; }
+        public float RollStiffnessFrontFraction { get; }
+        public float TireLoadSensitivity { get; }
+        public float DownforceCoefficient { get; }
+        public float DownforceFrontBias { get; }
+        public float LongitudinalStiffnessFront { get; }
+        public float LongitudinalStiffnessRear { get; }
 
         public VehicleParameters(
             string name,
@@ -95,11 +120,35 @@ namespace TopSpeed.Data
             float highSpeedStability = 0.0f,
             float wheelbaseM = 2.7f,
             float maxSteerDeg = 35f,
+            float trackWidthM = 0f,
             float widthM = 1.8f,
             float lengthM = 4.5f,
+            VehicleDynamicsModel dynamicsModel = VehicleDynamicsModel.FourWheel,
             float powerFactor = 0.5f,
             float[]? gearRatios = null,
-            float brakeStrength = 1.0f)
+            float brakeStrength = 1.0f,
+            float steerInputRate = 0f,
+            float steerReturnRate = 0f,
+            float steerGamma = 0f,
+            float maxSteerLowDeg = 0f,
+            float maxSteerHighDeg = 0f,
+            float steerSpeedKph = 0f,
+            float steerSpeedExponent = 0f,
+            float corneringStiffnessFront = 0f,
+            float corneringStiffnessRear = 0f,
+            float yawInertiaKgM2 = 0f,
+            float cgToFrontAxleM = 0f,
+            float cgToRearAxleM = 0f,
+            float cgHeightM = 0f,
+            float weightDistributionFront = 0f,
+            float brakeBiasFront = 0f,
+            float driveBiasFront = 0f,
+            float rollStiffnessFrontFraction = 0f,
+            float tireLoadSensitivity = 0f,
+            float downforceCoefficient = 0f,
+            float downforceFrontBias = 0f,
+            float longitudinalStiffnessFront = 0f,
+            float longitudinalStiffnessRear = 0f)
         {
             Name = name;
             _sounds[(int)VehicleAction.Engine] = engineSound;
@@ -145,11 +194,35 @@ namespace TopSpeed.Data
             HighSpeedStability = highSpeedStability;
             WheelbaseM = wheelbaseM;
             MaxSteerDeg = maxSteerDeg;
+            TrackWidthM = trackWidthM;
             WidthM = widthM;
             LengthM = lengthM;
+            DynamicsModel = dynamicsModel;
             PowerFactor = powerFactor;
             GearRatios = gearRatios;
             BrakeStrength = brakeStrength;
+            SteerInputRate = steerInputRate;
+            SteerReturnRate = steerReturnRate;
+            SteerGamma = steerGamma;
+            MaxSteerLowDeg = maxSteerLowDeg;
+            MaxSteerHighDeg = maxSteerHighDeg;
+            SteerSpeedKph = steerSpeedKph;
+            SteerSpeedExponent = steerSpeedExponent;
+            CorneringStiffnessFront = corneringStiffnessFront;
+            CorneringStiffnessRear = corneringStiffnessRear;
+            YawInertiaKgM2 = yawInertiaKgM2;
+            CgToFrontAxleM = cgToFrontAxleM;
+            CgToRearAxleM = cgToRearAxleM;
+            CgHeightM = cgHeightM;
+            WeightDistributionFront = weightDistributionFront;
+            BrakeBiasFront = brakeBiasFront;
+            DriveBiasFront = driveBiasFront;
+            RollStiffnessFrontFraction = rollStiffnessFrontFraction;
+            TireLoadSensitivity = tireLoadSensitivity;
+            DownforceCoefficient = downforceCoefficient;
+            DownforceFrontBias = downforceFrontBias;
+            LongitudinalStiffnessFront = longitudinalStiffnessFront;
+            LongitudinalStiffnessRear = longitudinalStiffnessRear;
         }
     }
 
@@ -299,6 +372,7 @@ namespace TopSpeed.Data
                 finalDriveRatio: 3.8562f, tireCircumferenceM: TireCircumferenceM(190, 55, 17),
                 lateralGripCoefficient: 0.80f, highSpeedStability: 0.25f,
                 wheelbaseM: 1.450f, widthM: 0.749f, lengthM: 2.085f,
+                dynamicsModel: VehicleDynamicsModel.Bicycle,
                 powerFactor: 0.85f, gearRatios: Zx10rRatios),
 
             // Vehicle 11: Superbike - fastest motorcycle
@@ -312,6 +386,7 @@ namespace TopSpeed.Data
                 finalDriveRatio: 4.6125f, tireCircumferenceM: TireCircumferenceM(200, 60, 17),
                 lateralGripCoefficient: 0.80f, highSpeedStability: 0.25f,
                 wheelbaseM: 1.469f, widthM: 0.806f, lengthM: 2.110f,
+                dynamicsModel: VehicleDynamicsModel.Bicycle,
                 powerFactor: 0.9f, gearRatios: PanigaleV4Ratios),
 
             // Vehicle 12: Sport motorcycle - balanced
@@ -325,6 +400,7 @@ namespace TopSpeed.Data
                 finalDriveRatio: 4.1807f, tireCircumferenceM: TireCircumferenceM(190, 55, 17),
                 lateralGripCoefficient: 0.80f, highSpeedStability: 0.25f,
                 wheelbaseM: 1.405f, widthM: 0.690f, lengthM: 2.055f,
+                dynamicsModel: VehicleDynamicsModel.Bicycle,
                 powerFactor: 0.8f, gearRatios: R1Ratios)
         };
     }

@@ -60,11 +60,35 @@ namespace TopSpeed.Vehicles
                 HighSpeedStability = parameters.HighSpeedStability,
                 WheelbaseM = parameters.WheelbaseM,
                 MaxSteerDeg = parameters.MaxSteerDeg,
+                TrackWidthM = parameters.TrackWidthM,
                 WidthM = parameters.WidthM,
                 LengthM = parameters.LengthM,
+                DynamicsModel = parameters.DynamicsModel,
                 PowerFactor = parameters.PowerFactor,
                 GearRatios = parameters.GearRatios,
-                BrakeStrength = parameters.BrakeStrength
+                BrakeStrength = parameters.BrakeStrength,
+                SteerInputRate = parameters.SteerInputRate,
+                SteerReturnRate = parameters.SteerReturnRate,
+                SteerGamma = parameters.SteerGamma,
+                MaxSteerLowDeg = parameters.MaxSteerLowDeg,
+                MaxSteerHighDeg = parameters.MaxSteerHighDeg,
+                SteerSpeedKph = parameters.SteerSpeedKph,
+                SteerSpeedExponent = parameters.SteerSpeedExponent,
+                CorneringStiffnessFront = parameters.CorneringStiffnessFront,
+                CorneringStiffnessRear = parameters.CorneringStiffnessRear,
+                YawInertiaKgM2 = parameters.YawInertiaKgM2,
+                CgToFrontAxleM = parameters.CgToFrontAxleM,
+                CgToRearAxleM = parameters.CgToRearAxleM,
+                CgHeightM = parameters.CgHeightM,
+                WeightDistributionFront = parameters.WeightDistributionFront,
+                BrakeBiasFront = parameters.BrakeBiasFront,
+                DriveBiasFront = parameters.DriveBiasFront,
+                RollStiffnessFrontFraction = parameters.RollStiffnessFrontFraction,
+                TireLoadSensitivity = parameters.TireLoadSensitivity,
+                DownforceCoefficient = parameters.DownforceCoefficient,
+                DownforceFrontBias = parameters.DownforceFrontBias,
+                LongitudinalStiffnessFront = parameters.LongitudinalStiffnessFront,
+                LongitudinalStiffnessRear = parameters.LongitudinalStiffnessRear
             };
 
             foreach (VehicleAction action in Enum.GetValues(typeof(VehicleAction)))
@@ -132,8 +156,33 @@ namespace TopSpeed.Vehicles
             var highSpeedStability = ReadFloat(settings, "highspeedstability", 0.0f);
             var wheelbase = ReadFloat(settings, "wheelbase", 2.7f);
             var maxSteerDeg = ReadFloat(settings, "maxsteerdeg", 35f);
+            var trackWidthM = ReadFloat(settings, "trackwidth", 0f);
             var widthM = ReadFloat(settings, "vehiclewidth", 1.8f);
             var lengthM = ReadFloat(settings, "vehiclelength", 4.5f);
+            var steerInputRate = ReadFloat(settings, "steerinputrate", 0f);
+            var steerReturnRate = ReadFloat(settings, "steerreturnrate", 0f);
+            var steerGamma = ReadFloat(settings, "steergamma", 0f);
+            var maxSteerLowDeg = ReadFloat(settings, "maxsteerlowdeg", 0f);
+            var maxSteerHighDeg = ReadFloat(settings, "maxsteerhighdeg", 0f);
+            var steerSpeedKph = ReadFloat(settings, "steerspeedkph", 0f);
+            var steerSpeedExponent = ReadFloat(settings, "steerspeedexp", 0f);
+            var corneringStiffnessFront = ReadFloat(settings, "corneringstiffnessfront", 0f);
+            var corneringStiffnessRear = ReadFloat(settings, "corneringstiffnessrear", 0f);
+            var yawInertiaKgM2 = ReadFloat(settings, "yawinertiakgm2", 0f);
+            var cgToFrontAxleM = ReadFloat(settings, "cgtofrontaxle", 0f);
+            var cgToRearAxleM = ReadFloat(settings, "cgtorearaxle", 0f);
+            var cgHeightM = ReadFloat(settings, "cgheight", 0f);
+            var weightDistributionFront = ReadFloat(settings, "weightdistributionfront", 0f);
+            var brakeBiasFront = ReadFloat(settings, "brakebiasfront", 0f);
+            var driveBiasFront = ReadFloat(settings, "drivebiasfront", 0f);
+            var modelRaw = ReadString(settings, "dynamicsmodel", ReadString(settings, "vehiclemodel", "fourwheel"));
+            var dynamicsModel = ParseDynamicsModel(modelRaw);
+            var rollStiffnessFront = ReadFloat(settings, "rollstiffnessfront", 0f);
+            var tireLoadSensitivity = ReadFloat(settings, "tireloadsensitivity", 0f);
+            var downforceCoefficient = ReadFloat(settings, "downforcecoefficient", 0f);
+            var downforceFrontBias = ReadFloat(settings, "downforcefrontbias", 0f);
+            var longStiffnessFront = ReadFloat(settings, "longstiffnessfront", 0f);
+            var longStiffnessRear = ReadFloat(settings, "longstiffnessrear", 0f);
 
             var tireCircumferenceM = ReadFloat(settings, "tirecircumference", 0f);
             if (tireCircumferenceM <= 0f)
@@ -186,11 +235,35 @@ namespace TopSpeed.Vehicles
                 HighSpeedStability = highSpeedStability,
                 WheelbaseM = wheelbase,
                 MaxSteerDeg = maxSteerDeg,
+                TrackWidthM = trackWidthM,
                 WidthM = widthM,
                 LengthM = lengthM,
+                DynamicsModel = dynamicsModel,
                 PowerFactor = powerFactor,
                 GearRatios = gearRatios,
-                BrakeStrength = brakeStrength
+                BrakeStrength = brakeStrength,
+                SteerInputRate = steerInputRate,
+                SteerReturnRate = steerReturnRate,
+                SteerGamma = steerGamma,
+                MaxSteerLowDeg = maxSteerLowDeg,
+                MaxSteerHighDeg = maxSteerHighDeg,
+                SteerSpeedKph = steerSpeedKph,
+                SteerSpeedExponent = steerSpeedExponent,
+                CorneringStiffnessFront = corneringStiffnessFront,
+                CorneringStiffnessRear = corneringStiffnessRear,
+                YawInertiaKgM2 = yawInertiaKgM2,
+                CgToFrontAxleM = cgToFrontAxleM,
+                CgToRearAxleM = cgToRearAxleM,
+                CgHeightM = cgHeightM,
+                WeightDistributionFront = weightDistributionFront,
+                BrakeBiasFront = brakeBiasFront,
+                DriveBiasFront = driveBiasFront,
+                RollStiffnessFrontFraction = rollStiffnessFront,
+                TireLoadSensitivity = tireLoadSensitivity,
+                DownforceCoefficient = downforceCoefficient,
+                DownforceFrontBias = downforceFrontBias,
+                LongitudinalStiffnessFront = longStiffnessFront,
+                LongitudinalStiffnessRear = longStiffnessRear
             };
 
             def.SetSoundPath(VehicleAction.Engine, ResolveSound(ReadString(settings, "enginesound", "engine.wav"), builtinRoot, customVehiclesRoot, p => p.GetSoundPath(VehicleAction.Engine)));
@@ -356,6 +429,36 @@ namespace TopSpeed.Vehicles
                     result.Add(value);
             }
             return result.Count > 0 ? result.ToArray() : null;
+        }
+
+        private static VehicleDynamicsModel ParseDynamicsModel(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return VehicleDynamicsModel.FourWheel;
+
+            if (int.TryParse(value.Trim(), out var numeric))
+                return numeric == 1 ? VehicleDynamicsModel.Bicycle : VehicleDynamicsModel.FourWheel;
+
+            var key = value.Trim().ToLowerInvariant();
+            switch (key)
+            {
+                case "bicycle":
+                case "bike":
+                case "motorcycle":
+                case "motorbike":
+                case "2wheel":
+                case "2-wheel":
+                case "two-wheel":
+                case "twowheel":
+                    return VehicleDynamicsModel.Bicycle;
+                case "fourwheel":
+                case "four-wheel":
+                case "4wheel":
+                case "4-wheel":
+                case "car":
+                default:
+                    return VehicleDynamicsModel.FourWheel;
+            }
         }
     }
 }
