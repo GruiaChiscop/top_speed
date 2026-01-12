@@ -57,6 +57,7 @@ namespace TopSpeed.Vehicles
         private float _revLimiter;
         private float _finalDriveRatio;
         private float _powerFactor;
+        private VehiclePowertrainParameters _powertrainParams;
         private float _peakTorqueNm;
         private float _peakTorqueRpm;
         private float _idleTorqueNm;
@@ -201,131 +202,42 @@ namespace TopSpeed.Vehicles
             _maxSteerDeg = Math.Max(5f, Math.Min(60f, definition.MaxSteerDeg));
             _widthM = Math.Max(0.5f, definition.WidthM);
             _lengthM = Math.Max(0.5f, definition.LengthM);
-            var baseTurnRate = Math.Max(1.0f, definition.SteeringFactor / 40.0f);
-            var steerTurnRate = definition.SteerInputRate > 0f
-                ? definition.SteerInputRate
-                : 1.6f + baseTurnRate * 0.6f;
-            var steerReturnRate = definition.SteerReturnRate > 0f
-                ? definition.SteerReturnRate
-                : steerTurnRate * 1.7f;
-            var steerGamma = definition.SteerGamma > 0.1f ? definition.SteerGamma : 1.9f;
-            var steerLowDeg = definition.MaxSteerLowDeg > 0f ? definition.MaxSteerLowDeg : _maxSteerDeg;
-            var steerHighDeg = definition.MaxSteerHighDeg > 0f
-                ? definition.MaxSteerHighDeg
-                : Math.Max(5f, Math.Min(15f, _maxSteerDeg * 0.28f));
-            var steerSpeedKph = definition.SteerSpeedKph > 0f ? definition.SteerSpeedKph : Math.Max(60f, _topSpeed * 0.5f);
-            var steerSpeedExponent = definition.SteerSpeedExponent > 0f ? definition.SteerSpeedExponent : 1.7f;
-            var cgHeight = definition.CgHeightM > 0f ? definition.CgHeightM : 0.55f;
-            var frontWeightBias = definition.WeightDistributionFront > 0f
-                ? Math.Max(0.35f, Math.Min(0.65f, definition.WeightDistributionFront))
-                : 0.52f;
-            var frontBrakeBias = definition.BrakeBiasFront > 0f
-                ? Math.Max(0.5f, Math.Min(0.75f, definition.BrakeBiasFront))
-                : 0.62f;
-            var driveBiasFront = definition.DriveBiasFront > 0f
-                ? Math.Max(0f, Math.Min(1f, definition.DriveBiasFront))
-                : 0.5f;
-            var cgToFront = 0f;
-            var cgToRear = 0f;
-            if (definition.CgToFrontAxleM > 0f && definition.CgToRearAxleM > 0f)
-            {
-                cgToFront = definition.CgToFrontAxleM;
-                cgToRear = definition.CgToRearAxleM;
-            }
-            else
-            {
-                cgToRear = frontWeightBias * _wheelbaseM;
-                cgToFront = Math.Max(0.01f, _wheelbaseM - cgToRear);
-            }
-            if (cgToFront + cgToRear <= 0.01f)
-            {
-                cgToFront = _wheelbaseM * 0.5f;
-                cgToRear = _wheelbaseM * 0.5f;
-            }
-            var baseCornering = _massKg * 9.80665f * _tireGripCoefficient * _lateralGripCoefficient;
-            var corneringStiffnessFront = definition.CorneringStiffnessFront > 0f
-                ? definition.CorneringStiffnessFront
-                : baseCornering * 5.0f;
-            var corneringStiffnessRear = definition.CorneringStiffnessRear > 0f
-                ? definition.CorneringStiffnessRear
-                : baseCornering * 5.5f;
-            var yawInertia = definition.YawInertiaKgM2 > 0f
-                ? definition.YawInertiaKgM2
-                : (_massKg * (_lengthM * _lengthM + _widthM * _widthM)) / 12.0f;
-            var trackWidth = definition.TrackWidthM > 0f ? definition.TrackWidthM : Math.Max(0.8f, _widthM * 0.9f);
-            var rollStiffnessFront = definition.RollStiffnessFrontFraction > 0f
-                ? Math.Max(0.2f, Math.Min(0.8f, definition.RollStiffnessFrontFraction))
-                : frontWeightBias;
-            var tireLoadSensitivity = definition.TireLoadSensitivity > 0f
-                ? Math.Max(0.01f, Math.Min(0.4f, definition.TireLoadSensitivity))
-                : 0.12f;
-            var downforceCoefficient = definition.DownforceCoefficient > 0f ? definition.DownforceCoefficient : 0f;
-            var downforceFrontBias = definition.DownforceFrontBias > 0f
-                ? Math.Max(0.2f, Math.Min(0.8f, definition.DownforceFrontBias))
-                : frontWeightBias;
-            var longStiffnessFront = definition.LongitudinalStiffnessFront > 0f ? definition.LongitudinalStiffnessFront : 10f;
-            var longStiffnessRear = definition.LongitudinalStiffnessRear > 0f ? definition.LongitudinalStiffnessRear : 10f;
-            _dynamicsParams = new VehicleDynamicsParameters
+            var dynamicsSetup = VehicleDynamicsSetupBuilder.Build(
+                definition,
+                _massKg,
+                _tireGripCoefficient,
+                _lateralGripCoefficient,
+                _dragCoefficient,
+                _frontalAreaM2,
+                _rollingResistanceCoefficient,
+                _topSpeed,
+                _wheelbaseM,
+                _maxSteerDeg,
+                _widthM,
+                _lengthM);
+            _dynamicsParams = dynamicsSetup.FourWheel;
+            _bicycleParams = dynamicsSetup.Bicycle;
+            _powertrainParams = new VehiclePowertrainParameters
             {
                 MassKg = _massKg,
-                WheelbaseM = _wheelbaseM,
-                TrackWidthM = trackWidth,
-                CgHeightM = cgHeight,
-                CgToFrontM = cgToFront,
-                CgToRearM = cgToRear,
-                FrontWeightBias = frontWeightBias,
-                FrontBrakeBias = frontBrakeBias,
-                DriveBiasFront = driveBiasFront,
-                YawInertiaKgM2 = yawInertia,
-                CorneringStiffnessFront = corneringStiffnessFront,
-                CorneringStiffnessRear = corneringStiffnessRear,
+                WheelRadiusM = _wheelRadiusM,
+                FinalDriveRatio = _finalDriveRatio,
+                DrivetrainEfficiency = _drivetrainEfficiency,
+                EngineBrakingTorqueNm = _engineBrakingTorqueNm,
+                EngineBraking = _engineBraking,
+                IdleRpm = _idleRpm,
+                RevLimiter = _revLimiter,
+                LaunchRpm = _launchRpm,
+                PowerFactor = _powerFactor,
+                PeakTorqueNm = _peakTorqueNm,
+                PeakTorqueRpm = _peakTorqueRpm,
+                IdleTorqueNm = _idleTorqueNm,
+                RedlineTorqueNm = _redlineTorqueNm,
+                TireGripCoefficient = _tireGripCoefficient,
+                BrakeStrength = _brakeStrength,
                 DragCoefficient = _dragCoefficient,
                 FrontalAreaM2 = _frontalAreaM2,
-                RollingResistanceCoefficient = _rollingResistanceCoefficient,
-                RollStiffnessFrontFraction = rollStiffnessFront,
-                TireLoadSensitivity = tireLoadSensitivity,
-                DownforceCoefficient = downforceCoefficient,
-                DownforceFrontBias = downforceFrontBias,
-                LongitudinalStiffnessFront = longStiffnessFront,
-                LongitudinalStiffnessRear = longStiffnessRear,
-                SteerTurnRate = steerTurnRate,
-                SteerReturnRate = steerReturnRate,
-                SteerGamma = steerGamma,
-                SteerLowDeg = steerLowDeg,
-                SteerHighDeg = steerHighDeg,
-                SteerSpeedKph = steerSpeedKph,
-                SteerSpeedExponent = steerSpeedExponent,
-                MaxSpeedKph = _topSpeed
-            };
-            _bicycleParams = new BicycleDynamicsParameters
-            {
-                MassKg = _massKg,
-                WheelbaseM = _wheelbaseM,
-                CgHeightM = cgHeight,
-                CgToFrontM = cgToFront,
-                CgToRearM = cgToRear,
-                FrontWeightBias = frontWeightBias,
-                FrontBrakeBias = frontBrakeBias,
-                DriveBiasFront = driveBiasFront,
-                YawInertiaKgM2 = yawInertia,
-                CorneringStiffnessFront = corneringStiffnessFront,
-                CorneringStiffnessRear = corneringStiffnessRear,
-                DragCoefficient = _dragCoefficient,
-                FrontalAreaM2 = _frontalAreaM2,
-                RollingResistanceCoefficient = _rollingResistanceCoefficient,
-                SteerTurnRate = steerTurnRate,
-                SteerReturnRate = steerReturnRate,
-                SteerGamma = steerGamma,
-                SteerLowDeg = steerLowDeg,
-                SteerHighDeg = steerHighDeg,
-                SteerSpeedKph = steerSpeedKph,
-                SteerSpeedExponent = steerSpeedExponent,
-                MaxSpeedKph = _topSpeed,
-                TireLoadSensitivity = tireLoadSensitivity,
-                DownforceCoefficient = downforceCoefficient,
-                DownforceFrontBias = downforceFrontBias,
-                LongitudinalStiffnessFront = longStiffnessFront,
-                LongitudinalStiffnessRear = longStiffnessRear
+                RollingResistanceCoefficient = _rollingResistanceCoefficient
             };
             _idleFreq = definition.IdleFreq;
             _topFreq = definition.TopFreq;
@@ -590,12 +502,12 @@ namespace TopSpeed.Vehicles
                 var driveForce = 0f;
                 if (_thrust > 10)
                 {
-                    var driveRpm = CalculateDriveRpm(speedForwardMps, throttle);
-                    var engineTorque = CalculateEngineTorqueNm(driveRpm) * throttle * _powerFactor;
+                    var driveRpm = VehiclePowertrainMath.CalculateDriveRpm(_engine, _gear, speedForwardMps, throttle, _powertrainParams);
+                    var engineTorque = VehiclePowertrainMath.CalculateEngineTorqueNm(driveRpm, _powertrainParams) * throttle * _powerFactor;
                     var gearRatio = _engine.GetGearRatio(_gear);
                     var wheelTorque = engineTorque * gearRatio * _finalDriveRatio * _drivetrainEfficiency;
                     driveForce = wheelTorque / _wheelRadiusM;
-                    _lastDriveRpm = CalculateDriveRpm(speedForwardMps, throttle);
+                    _lastDriveRpm = VehiclePowertrainMath.CalculateDriveRpm(_engine, _gear, speedForwardMps, throttle, _powertrainParams);
                 }
                 else
                 {
@@ -604,11 +516,11 @@ namespace TopSpeed.Vehicles
 
                 var surfaceDecelMod = _deceleration > 0f ? _currentDeceleration / _deceleration : 1.0f;
                 var brakeForce = brakeInput > 0f
-                    ? _massKg * (CalculateBrakeDecel(brakeInput, surfaceDecelMod) / 3.6f)
+                    ? _massKg * (VehiclePowertrainMath.CalculateBrakeDecel(brakeInput, surfaceDecelMod, _powertrainParams) / 3.6f)
                     : 0f;
                 var engineBrakeForce = throttle > 0.05f
                     ? 0f
-                    : _massKg * (CalculateEngineBrakingDecel(surfaceDecelMod) / 3.6f);
+                    : _massKg * (VehiclePowertrainMath.CalculateEngineBrakingDecel(_engine, _gear, surfaceDecelMod, _powertrainParams) / 3.6f);
 
                 var inputs = new VehicleDynamicsInputs
                 {
@@ -1090,39 +1002,6 @@ namespace TopSpeed.Vehicles
             }
         }
 
-        private int CalculateAcceleration()
-        {
-            var gearRange = _engine.GetGearRangeKmh(_gear);
-            var gearMin = _engine.GetGearMinSpeedKmh(_gear);
-            var gearCenter = gearMin + (gearRange * 0.18f);
-            _speedDiff = _speed - gearCenter;
-            var relSpeedDiff = _speedDiff / (gearRange * 1.0f);
-            if (Math.Abs(relSpeedDiff) < 1.9f)
-            {
-                var acceleration = (int)(100 * (0.5f + Math.Cos(relSpeedDiff * Math.PI * 0.5f)));
-                return acceleration < 5 ? 5 : acceleration;
-            }
-
-            var minAcceleration = (int)(100 * (0.5f + Math.Cos(0.95f * Math.PI)));
-            return minAcceleration < 5 ? 5 : minAcceleration;
-        }
-
-        private float CalculateDriveRpm(float speedMps, float throttle)
-        {
-            var wheelCircumference = _wheelRadiusM * 2.0f * (float)Math.PI;
-            var gearRatio = _engine.GetGearRatio(_gear);
-            var speedBasedRpm = wheelCircumference > 0f
-                ? (speedMps / wheelCircumference) * 60f * gearRatio * _finalDriveRatio
-                : 0f;
-            var launchTarget = _idleRpm + (throttle * (_launchRpm - _idleRpm));
-            var rpm = Math.Max(speedBasedRpm, launchTarget);
-            if (rpm < _idleRpm)
-                rpm = _idleRpm;
-            if (rpm > _revLimiter)
-                rpm = _revLimiter;
-            return rpm;
-        }
-
         private void UpdateAutomaticGear(float elapsed, float speedMps, float throttle, float surfaceTractionMod, float longitudinalGripFactor)
         {
             if (_gears <= 1)
@@ -1134,46 +1013,17 @@ namespace TopSpeed.Vehicles
                 return;
             }
 
-            var currentAccel = ComputeNetAccelForGear(_gear, speedMps, throttle, surfaceTractionMod, longitudinalGripFactor);
-            var bestGear = _gear;
-            var bestAccel = currentAccel;
-
-            if (_gear < _gears)
-            {
-                var upAccel = ComputeNetAccelForGear(_gear + 1, speedMps, throttle, surfaceTractionMod, longitudinalGripFactor);
-                if (upAccel > bestAccel)
-                {
-                    bestAccel = upAccel;
-                    bestGear = _gear + 1;
-                }
-            }
-
-            if (_gear > 1)
-            {
-                var downAccel = ComputeNetAccelForGear(_gear - 1, speedMps, throttle, surfaceTractionMod, longitudinalGripFactor);
-                if (downAccel > bestAccel)
-                {
-                    bestAccel = downAccel;
-                    bestGear = _gear - 1;
-                }
-            }
-
-            var currentRpm = SpeedToRpm(speedMps, _gear);
-            if (_gear < _gears && currentRpm >= _revLimiter * 0.995f)
-            {
-                ShiftAutomaticGear(_gear + 1);
-                return;
-            }
-
-            var shiftRpm = _idleRpm + (_revLimiter - _idleRpm) * 0.35f;
-            if (_gear > 1 && currentRpm < shiftRpm)
-            {
-                ShiftAutomaticGear(_gear - 1);
-                return;
-            }
-
-            if (bestGear != _gear && bestAccel > currentAccel * (1f + AutoShiftHysteresis))
-                ShiftAutomaticGear(bestGear);
+            var decision = VehiclePowertrainMath.SelectAutomaticGear(
+                _engine,
+                _gear,
+                _gears,
+                speedMps,
+                throttle,
+                surfaceTractionMod,
+                longitudinalGripFactor,
+                _powertrainParams);
+            if (decision.ShouldShift)
+                ShiftAutomaticGear(decision.TargetGear);
         }
 
         private void ShiftAutomaticGear(int newGear)
@@ -1184,94 +1034,6 @@ namespace TopSpeed.Vehicles
             _gear = newGear;
             PushEvent(BotEventType.InGear, 0.2f);
             _autoShiftCooldown = AutoShiftCooldownSeconds;
-        }
-
-        private float ComputeNetAccelForGear(int gear, float speedMps, float throttle, float surfaceTractionMod, float longitudinalGripFactor)
-        {
-            var rpm = SpeedToRpm(speedMps, gear);
-            if (rpm <= 0f)
-                return float.NegativeInfinity;
-            if (rpm > _revLimiter && gear < _gears)
-                return float.NegativeInfinity;
-
-            var engineTorque = CalculateEngineTorqueNm(rpm) * throttle * _powerFactor;
-            var gearRatio = _engine.GetGearRatio(gear);
-            var wheelTorque = engineTorque * gearRatio * _finalDriveRatio * _drivetrainEfficiency;
-            var wheelForce = wheelTorque / _wheelRadiusM;
-            var tractionLimit = _tireGripCoefficient * surfaceTractionMod * _massKg * 9.80665f;
-            if (wheelForce > tractionLimit)
-                wheelForce = tractionLimit;
-            wheelForce *= longitudinalGripFactor;
-
-            var dragForce = 0.5f * 1.225f * _dragCoefficient * _frontalAreaM2 * speedMps * speedMps;
-            var rollingForce = _rollingResistanceCoefficient * _massKg * 9.80665f;
-            var netForce = wheelForce - dragForce - rollingForce;
-            return netForce / _massKg;
-        }
-
-        private float SpeedToRpm(float speedMps, int gear)
-        {
-            var wheelCircumference = _wheelRadiusM * 2.0f * (float)Math.PI;
-            if (wheelCircumference <= 0f)
-                return 0f;
-            var gearRatio = _engine.GetGearRatio(gear);
-            return (speedMps / wheelCircumference) * 60f * gearRatio * _finalDriveRatio;
-        }
-
-        private float CalculateEngineTorqueNm(float rpm)
-        {
-            if (_peakTorqueNm <= 0f)
-                return 0f;
-            var clampedRpm = Math.Max(_idleRpm, Math.Min(_revLimiter, rpm));
-            if (clampedRpm <= _peakTorqueRpm)
-            {
-                var denom = _peakTorqueRpm - _idleRpm;
-                var t = denom > 0f ? (clampedRpm - _idleRpm) / denom : 0f;
-                return SmoothStep(_idleTorqueNm, _peakTorqueNm, t);
-            }
-            else
-            {
-                var denom = _revLimiter - _peakTorqueRpm;
-                var t = denom > 0f ? (clampedRpm - _peakTorqueRpm) / denom : 0f;
-                return SmoothStep(_peakTorqueNm, _redlineTorqueNm, t);
-            }
-        }
-
-        private static float SmoothStep(float a, float b, float t)
-        {
-            var clamped = Math.Max(0f, Math.Min(1f, t));
-            clamped = clamped * clamped * (3f - 2f * clamped);
-            return a + (b - a) * clamped;
-        }
-
-
-
-        private float CalculateBrakeDecel(float brakeInput, float surfaceDecelMod)
-        {
-            if (brakeInput <= 0f)
-                return 0f;
-            var grip = Math.Max(0.1f, _tireGripCoefficient * surfaceDecelMod);
-            var decelMps2 = brakeInput * _brakeStrength * grip * 9.80665f;
-            return decelMps2 * 3.6f;
-        }
-
-        private float CalculateEngineBrakingDecel(float surfaceDecelMod)
-        {
-            if (_engineBrakingTorqueNm <= 0f || _massKg <= 0f || _wheelRadiusM <= 0f)
-                return 0f;
-            var rpmRange = _revLimiter - _idleRpm;
-            if (rpmRange <= 0f)
-                return 0f;
-            var rpmFactor = (_engine.Rpm - _idleRpm) / rpmRange;
-            if (rpmFactor <= 0f)
-                return 0f;
-            rpmFactor = Math.Max(0f, Math.Min(1f, rpmFactor));
-            var gearRatio = _engine.GetGearRatio(_gear);
-            var drivelineTorque = _engineBrakingTorqueNm * _engineBraking * rpmFactor;
-            var wheelTorque = drivelineTorque * gearRatio * _finalDriveRatio * _drivetrainEfficiency;
-            var wheelForce = wheelTorque / _wheelRadiusM;
-            var decelMps2 = (wheelForce / _massKg) * surfaceDecelMod;
-            return Math.Max(0f, decelMps2 * 3.6f);
         }
 
         private void UpdateSpatialAudio(float listenerX, float listenerY, float trackLength, float elapsed)
