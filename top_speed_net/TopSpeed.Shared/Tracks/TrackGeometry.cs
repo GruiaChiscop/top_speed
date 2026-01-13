@@ -102,10 +102,14 @@ namespace TopSpeed.Tracks.Geometry
             var position = Vector3.Zero;
             var heading = 0f;
 
+            // Initialize with first span's starting bank and slope to avoid discontinuity
+            var initialBank = spans.Length > 0 ? DegreesToRadians(spans[0].BankStartDegrees) : 0f;
+            var initialSlope = spans.Length > 0 ? spans[0].StartSlope : 0f;
+
             positions.Add(position);
             headings.Add(heading);
-            banks.Add(0f);
-            slopes.Add(0f);
+            banks.Add(initialBank);
+            slopes.Add(initialSlope);
 
             for (var spanIndex = 0; spanIndex < spans.Length; spanIndex++)
             {
@@ -233,7 +237,8 @@ namespace TopSpeed.Tracks.Geometry
             var wrapped = sMeters % LengthMeters;
             if (wrapped < 0f)
                 wrapped += LengthMeters;
-            if (wrapped == LengthMeters)
+            // Use epsilon comparison to handle floating point precision issues
+            if (wrapped >= LengthMeters - 0.0001f)
                 return 0f;
             return wrapped;
         }

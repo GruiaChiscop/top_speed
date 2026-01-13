@@ -253,6 +253,8 @@ namespace TopSpeed.Tracks.Geometry
         {
             if (_primaryRouteEdges.Length == 0)
             {
+                if (Graph.Edges.Count == 0)
+                    throw new InvalidOperationException("Cannot resolve edge: layout has no edges.");
                 localS = 0f;
                 return Graph.Edges[0];
             }
@@ -272,6 +274,8 @@ namespace TopSpeed.Tracks.Geometry
         {
             if (_primaryRouteEdges.Length == 0)
             {
+                if (Graph.Edges.Count == 0)
+                    throw new InvalidOperationException("Cannot resolve edge: layout has no edges.");
                 edge = Graph.Edges[0];
                 localS = 0f;
                 edgeStart = 0f;
@@ -342,14 +346,14 @@ namespace TopSpeed.Tracks.Geometry
         {
             var spans = new List<TrackGeometrySpan>();
             var spacing = float.MaxValue;
-            var routeClosure = enforceClosure;
             for (var i = 0; i < edges.Length; i++)
             {
                 var geometry = edges[i].Geometry;
                 if (geometry == null || geometry.Spans.Count == 0)
                     continue;
                 spacing = Math.Min(spacing, geometry.SampleSpacingMeters);
-                routeClosure = routeClosure && geometry.EnforceClosure;
+                // Note: Route closure is determined by route.IsLoop (enforceClosure parameter),
+                // not by individual edge geometry flags
                 for (var s = 0; s < geometry.Spans.Count; s++)
                     spans.Add(geometry.Spans[s]);
             }
@@ -359,7 +363,7 @@ namespace TopSpeed.Tracks.Geometry
             if (spacing <= 0f || float.IsInfinity(spacing))
                 spacing = 1f;
 
-            return new TrackGeometrySpec(spans, spacing, routeClosure);
+            return new TrackGeometrySpec(spans, spacing, enforceClosure);
         }
 
         private static IReadOnlyList<TrackZone<T>> BuildRouteZones<T>(

@@ -282,6 +282,18 @@ namespace TopSpeed.Tracks.Geometry
                     if (!_edgeLookup.ContainsKey(edgeId))
                         throw new ArgumentException($"Route '{route.Id}' references missing edge '{edgeId}'.", nameof(routes));
                 }
+
+                // Validate edge continuity: each edge's ToNode must match the next edge's FromNode
+                for (var i = 1; i < route.EdgeIds.Count; i++)
+                {
+                    var prevEdge = _edgeLookup[route.EdgeIds[i - 1]];
+                    var currEdge = _edgeLookup[route.EdgeIds[i]];
+                    if (!prevEdge.ToNodeId.Equals(currEdge.FromNodeId, StringComparison.OrdinalIgnoreCase))
+                        throw new ArgumentException(
+                            $"Route '{route.Id}' has discontinuous edges: edge '{prevEdge.Id}' ends at node '{prevEdge.ToNodeId}' " +
+                            $"but edge '{currEdge.Id}' starts at node '{currEdge.FromNodeId}'.", nameof(routes));
+                }
+
                 _routeLookup[route.Id] = route;
             }
 

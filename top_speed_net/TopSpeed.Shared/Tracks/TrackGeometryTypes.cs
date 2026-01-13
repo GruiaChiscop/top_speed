@@ -348,7 +348,8 @@ namespace TopSpeed.Tracks.Geometry
 
         public bool Contains(float s)
         {
-            return s >= StartMeters && s < EndMeters;
+            // Use inclusive end bound to avoid single-frame blips at zone boundaries
+            return s >= StartMeters && s <= EndMeters;
         }
 
         private static bool IsFinite(float value)
