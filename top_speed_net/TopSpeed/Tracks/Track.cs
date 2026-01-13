@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Numerics;
 using System.IO;
 using TopSpeed.Audio;
@@ -28,6 +29,8 @@ namespace TopSpeed.Tracks
             public TrackSurface Surface;
             public TrackType Type;
             public float Length;
+            public bool IsSafeZone;
+            public bool IsOutOfBounds;
         }
 
         private sealed class EdgeRuntime
@@ -118,6 +121,7 @@ namespace TopSpeed.Tracks
         private TrackGraphNode[]? _graphNodes;
         private TrackGraphEdge[]? _graphEdges;
         private EdgeRuntime[]? _edgeRuntime;
+        private JunctionSafety[]? _nodeSafety;
         private Dictionary<string, int>? _edgeIndexById;
         private Dictionary<string, int>? _nodeIndexById;
         private List<int>[]? _nodeOutgoing;
@@ -144,6 +148,32 @@ namespace TopSpeed.Tracks
         private AudioSourceHandle? _soundOwl;
 
         private bool IsLayout => _layout != null && _geometry != null && _layoutSpans != null && _layoutSpanStart != null;
+
+        private readonly struct JunctionSafety
+        {
+            public readonly float RunoffLengthMeters;
+            public readonly float SafeZoneLengthMeters;
+            public readonly float SafeZoneWidthMeters;
+            public readonly bool HasSafeZoneWidth;
+            public readonly TrackSurface SafeZoneSurface;
+            public readonly bool HasSafeZoneSurface;
+
+            public JunctionSafety(
+                float runoffLengthMeters,
+                float safeZoneLengthMeters,
+                float safeZoneWidthMeters,
+                bool hasSafeZoneWidth,
+                TrackSurface safeZoneSurface,
+                bool hasSafeZoneSurface)
+            {
+                RunoffLengthMeters = runoffLengthMeters;
+                SafeZoneLengthMeters = safeZoneLengthMeters;
+                SafeZoneWidthMeters = safeZoneWidthMeters;
+                HasSafeZoneWidth = hasSafeZoneWidth;
+                SafeZoneSurface = safeZoneSurface;
+                HasSafeZoneSurface = hasSafeZoneSurface;
+            }
+        }
 
         public bool IsLoop => _layout?.PrimaryRoute.IsLoop ?? true;
 
@@ -273,11 +303,11 @@ namespace TopSpeed.Tracks
         {
             if (IsLayout && _edgeRuntime != null)
             {
-                var normalized = NormalizePosition(position);
+                var normalized = NormalizePosition(position, allowOverrun: true);
                 if (normalized.EdgeIndex >= 0 && normalized.EdgeIndex < _edgeRuntime.Length)
                 {
                     var runtime = _edgeRuntime[normalized.EdgeIndex];
-                    var localPose = runtime.Geometry.GetPoseClamped(normalized.EdgeMeters);
+                    var localPose = GetPoseOnEdge(runtime, normalized.EdgeMeters);
                     return TransformPose(localPose, runtime.Origin, runtime.HeadingRadians);
                 }
             }
@@ -353,7 +383,7 @@ namespace TopSpeed.Tracks
             if (!IsLayout || _edgeRuntime == null || _graphEdges == null)
                 return new TrackPosition(-1, 0f, position.DistanceMeters + deltaMeters);
 
-            var normalized = NormalizePosition(position);
+            var normalized = NormalizePosition(position, allowOverrun: true);
             var edgeIndex = normalized.EdgeIndex;
             var localS = normalized.EdgeMeters;
             var remaining = deltaMeters;
@@ -363,6 +393,13 @@ namespace TopSpeed.Tracks
             while (Math.Abs(remaining) > 0.0001f && safety < 1024)
             {
                 var edgeLength = _edgeRuntime[edgeIndex].LengthMeters;
+                if (remaining > 0f && localS > edgeLength)
+                {
+                    localS += remaining;
+                    traveled += remaining;
+                    remaining = 0f;
+                    break;
+                }
                 if (remaining > 0f)
                 {
                     var toEnd = edgeLength - localS;
@@ -380,6 +417,8 @@ namespace TopSpeed.Tracks
                         var next = SelectNextEdge(edgeIndex, branchHint);
                         if (next < 0)
                         {
+                            localS += remaining;
+                            traveled += remaining;
                             remaining = 0f;
                             break;
                         }
@@ -731,30 +770,58 @@ namespace TopSpeed.Tracks
             if (_lapDistance <= 0f)
                 return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
 
-            var normalized = NormalizePosition(position);
+            var normalized = NormalizePosition(position, allowOverrun: true);
             var runtime = _edgeRuntime[normalized.EdgeIndex];
-            var spanIndex = GetSpanIndex(runtime, normalized.EdgeMeters);
+            var clampedS = Clamp(normalized.EdgeMeters, 0f, runtime.LengthMeters);
+            var spanIndex = GetSpanIndex(runtime, clampedS);
             var span = runtime.Spans[spanIndex];
 
             if (updateState)
             {
                 _prevRelPos = _relPos;
-                _relPos = normalized.EdgeMeters - runtime.SpanStartMeters[spanIndex];
+                _relPos = clampedS - runtime.SpanStartMeters[spanIndex];
                 _currentRoad = spanIndex;
                 _currentEdgeIndex = normalized.EdgeIndex;
                 _currentSpanIndex = spanIndex;
             }
 
-            var width = Math.Max(0.5f, runtime.Edge.Profile.WidthAt(normalized.EdgeMeters));
-            var half = width * 0.5f;
-            return new Road
+            var width = Math.Max(0.5f, runtime.Edge.Profile.WidthAt(clampedS));
+            var surface = runtime.Edge.Profile.SurfaceAt(clampedS);
+            var road = new Road
             {
-                Left = -half,
-                Right = half,
-                Surface = runtime.Edge.Profile.SurfaceAt(normalized.EdgeMeters),
+                Left = -width * 0.5f,
+                Right = width * 0.5f,
+                Surface = surface,
                 Type = ResolveCurveType(span),
                 Length = span.LengthMeters
             };
+
+            if (normalized.EdgeMeters > runtime.LengthMeters)
+            {
+                var overrun = normalized.EdgeMeters - runtime.LengthMeters;
+                var safety = GetNodeSafety(runtime.Edge.ToNodeId);
+                var runoffLength = Math.Max(0f, safety.RunoffLengthMeters);
+                var safeLength = Math.Max(0f, safety.SafeZoneLengthMeters);
+                var safeLimit = runoffLength + safeLength;
+
+                if (overrun > runoffLength)
+                {
+                    road.IsSafeZone = overrun <= safeLimit;
+                    road.IsOutOfBounds = overrun > safeLimit;
+                    if (road.IsSafeZone || road.IsOutOfBounds)
+                    {
+                        var safeWidth = safety.HasSafeZoneWidth ? Math.Max(0.5f, safety.SafeZoneWidthMeters) : width;
+                        road.Left = -safeWidth * 0.5f;
+                        road.Right = safeWidth * 0.5f;
+                        if (safety.HasSafeZoneSurface)
+                            road.Surface = safety.SafeZoneSurface;
+                        road.Type = TrackType.Straight;
+                        road.Length = Math.Max(MinPartLengthMeters, safeLength);
+                    }
+                }
+            }
+
+            return road;
         }
 
         private Road BuildLayoutRoadForIndex(int edgeIndex, int spanIndex)
@@ -927,6 +994,10 @@ namespace TopSpeed.Tracks
             _graphEdges = new TrackGraphEdge[graph.Edges.Count];
             for (var i = 0; i < graph.Edges.Count; i++)
                 _graphEdges[i] = graph.Edges[i];
+
+            _nodeSafety = new JunctionSafety[_graphNodes.Length];
+            for (var i = 0; i < _graphNodes.Length; i++)
+                _nodeSafety[i] = ParseNodeSafety(_graphNodes[i]);
 
             _nodeIndexById = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             for (var i = 0; i < _graphNodes.Length; i++)
@@ -1113,8 +1184,12 @@ namespace TopSpeed.Tracks
             if (filtered.Count == 1)
                 return filtered[0];
 
-            if (TryChooseByTurn(currentEdgeIndex, filtered, branchHint, forward, out var chosen))
+            var hasTurnData = false;
+            if (TryChooseByTurn(currentEdgeIndex, filtered, branchHint, forward, out var chosen, out hasTurnData))
                 return chosen;
+
+            if (hasTurnData)
+                return -1;
 
             return ChooseByHeading(currentEdgeIndex, filtered, branchHint, forward);
         }
@@ -1153,22 +1228,22 @@ namespace TopSpeed.Tracks
             return false;
         }
 
-        private bool TryChooseByTurn(int currentEdgeIndex, List<int> candidates, float branchHint, bool forward, out int chosen)
+        private bool TryChooseByTurn(int currentEdgeIndex, List<int> candidates, float branchHint, bool forward, out int chosen, out bool hasTurnData)
         {
             chosen = -1;
+            hasTurnData = false;
             if (_graphEdges == null)
                 return false;
 
-            var hasTurns = false;
             for (var i = 0; i < candidates.Count; i++)
             {
                 if (_graphEdges[candidates[i]].TurnDirection != TrackTurnDirection.Unknown)
                 {
-                    hasTurns = true;
+                    hasTurnData = true;
                     break;
                 }
             }
-            if (!hasTurns)
+            if (!hasTurnData)
                 return false;
 
             TrackTurnDirection desired;
@@ -1261,7 +1336,7 @@ namespace TopSpeed.Tracks
             return bestIndex;
         }
 
-        private TrackPosition NormalizePosition(TrackPosition position)
+        private TrackPosition NormalizePosition(TrackPosition position, bool allowOverrun = false)
         {
             if (!IsLayout || _edgeRuntime == null)
                 return position;
@@ -1273,8 +1348,13 @@ namespace TopSpeed.Tracks
             if (edgeIndex < 0 || edgeIndex >= _edgeRuntime.Length)
                 return CreatePositionFromDistance(position.DistanceMeters);
 
-            var clampedS = Clamp(position.EdgeMeters, 0f, _edgeRuntime[edgeIndex].LengthMeters);
-            return new TrackPosition(edgeIndex, clampedS, position.DistanceMeters);
+            var edgeLength = _edgeRuntime[edgeIndex].LengthMeters;
+            var s = position.EdgeMeters;
+            if (!allowOverrun || s <= edgeLength)
+                s = Clamp(s, 0f, edgeLength);
+            else if (s < 0f)
+                s = 0f;
+            return new TrackPosition(edgeIndex, s, position.DistanceMeters);
         }
 
         private static float[] BuildSpanStart(TrackGeometrySpan[] spans)
@@ -1324,6 +1404,108 @@ namespace TopSpeed.Tracks
             var up = Vector3.Normalize(RotateY(localPose.Up, headingRadians));
             var heading = NormalizeRadians(localPose.HeadingRadians + headingRadians);
             return new TrackPose(position, tangent, right, up, heading, localPose.BankRadians);
+        }
+
+        private static TrackPose GetPoseOnEdge(EdgeRuntime runtime, float sMeters)
+        {
+            if (sMeters <= runtime.LengthMeters)
+                return runtime.Geometry.GetPoseClamped(sMeters);
+
+            var endPose = runtime.Geometry.GetPoseClamped(runtime.LengthMeters);
+            var extra = sMeters - runtime.LengthMeters;
+            var extendedPosition = endPose.Position + endPose.Tangent * extra;
+            return new TrackPose(
+                extendedPosition,
+                endPose.Tangent,
+                endPose.Right,
+                endPose.Up,
+                endPose.HeadingRadians,
+                endPose.BankRadians);
+        }
+
+        private JunctionSafety GetNodeSafety(string nodeId)
+        {
+            if (_nodeSafety == null || _nodeIndexById == null)
+                return default;
+            if (_nodeIndexById.TryGetValue(nodeId, out var nodeIndex))
+                return _nodeSafety[nodeIndex];
+            return default;
+        }
+
+        private JunctionSafety ParseNodeSafety(TrackGraphNode node)
+        {
+            var runoffLength = 0f;
+            var safeLength = 0f;
+            var safeWidth = 0f;
+            var hasSafeWidth = false;
+            var safeSurface = TrackSurface.Asphalt;
+            var hasSafeSurface = false;
+
+            if (node.Metadata != null && node.Metadata.Count > 0)
+            {
+                if (TryGetMetadataFloat(node.Metadata, out var value,
+                    "runoff_length", "runoff_distance"))
+                {
+                    runoffLength = Math.Max(0f, value);
+                }
+
+                if (TryGetMetadataFloat(node.Metadata, out value,
+                    "safe_zone_length", "safe_distance"))
+                {
+                    safeLength = Math.Max(0f, value);
+                }
+
+                if (TryGetMetadataFloat(node.Metadata, out value,
+                    "safe_zone_width"))
+                {
+                    safeWidth = Math.Max(0.5f, value);
+                    hasSafeWidth = true;
+                }
+
+                if (TryGetMetadataEnum(node.Metadata, out TrackSurface surface,
+                    "safe_zone_surface"))
+                {
+                    safeSurface = surface;
+                    hasSafeSurface = true;
+                }
+            }
+
+            return new JunctionSafety(
+                runoffLength,
+                safeLength,
+                safeWidth,
+                hasSafeWidth,
+                safeSurface,
+                hasSafeSurface);
+        }
+
+        private static bool TryGetMetadataFloat(IReadOnlyDictionary<string, string> metadata, out float value, params string[] keys)
+        {
+            for (var i = 0; i < keys.Length; i++)
+            {
+                if (metadata.TryGetValue(keys[i], out var text) &&
+                    float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+                {
+                    return true;
+                }
+            }
+            value = 0f;
+            return false;
+        }
+
+        private static bool TryGetMetadataEnum<TEnum>(IReadOnlyDictionary<string, string> metadata, out TEnum value, params string[] keys)
+            where TEnum : struct
+        {
+            for (var i = 0; i < keys.Length; i++)
+            {
+                if (metadata.TryGetValue(keys[i], out var text) &&
+                    Enum.TryParse(text, true, out value))
+                {
+                    return true;
+                }
+            }
+            value = default;
+            return false;
         }
 
         private static Vector3 RotateY(Vector3 value, float radians)

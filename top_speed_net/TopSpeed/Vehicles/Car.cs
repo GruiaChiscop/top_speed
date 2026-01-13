@@ -1170,6 +1170,12 @@ namespace TopSpeed.Vehicles
 
             if (_state == CarState.Running && _started())
             {
+                if (road.IsOutOfBounds)
+                {
+                    Crash();
+                    _frame++;
+                    return;
+                }
                 if (updateAudioThisFrame)
                 {
                     if (_surface == TrackSurface.Asphalt && road.Surface != TrackSurface.Asphalt)
