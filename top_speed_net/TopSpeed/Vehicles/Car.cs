@@ -117,6 +117,9 @@ namespace TopSpeed.Vehicles
         private Vector3 _worldVelocity;
         private bool _audioInitialized;
         private float _lastAudioElapsed;
+        private float _lastHeadingDegrees;
+        private float _turnTickAccumulator;
+        private bool _turnTickInitialized;
 
         private AudioSourceHandle _soundEngine;
         private AudioSourceHandle? _soundThrottle;
@@ -134,6 +137,7 @@ namespace TopSpeed.Vehicles
         private AudioSourceHandle _soundBump;
         private AudioSourceHandle _soundBadSwitch;
         private AudioSourceHandle? _soundBackfire;
+        private AudioSourceHandle? _soundTurnTick;
 
         private readonly IVibrationDevice? _vibration;
 
@@ -308,6 +312,7 @@ namespace TopSpeed.Vehicles
             _soundMiniCrash = CreateRequiredSound(Path.Combine(_legacyRoot, "crashshort.wav"));
             _soundBump = CreateRequiredSound(Path.Combine(_legacyRoot, "bump.wav"));
             _soundBadSwitch = CreateRequiredSound(Path.Combine(_legacyRoot, "badswitch.wav"));
+            _soundTurnTick = TryCreateSound(Path.Combine(_legacyRoot, "turn.wav"), spatialize: false);
 
             _soundCrash.SetDopplerFactor(0f);
             _soundMiniCrash.SetDopplerFactor(0f);
@@ -400,6 +405,9 @@ namespace TopSpeed.Vehicles
                 SteerWheelAngleRad = 0f,
                 SteerWheelAngleDeg = 0f
             };
+            _turnTickInitialized = false;
+            _turnTickAccumulator = 0f;
+            _lastHeadingDegrees = HeadingDegrees;
             _worldPosition = pose.Position + pose.Right * _positionX;
             _worldForward = new Vector3((float)Math.Sin(_dynamicsState.Yaw), 0f, (float)Math.Cos(_dynamicsState.Yaw));
             _worldUp = pose.Up.LengthSquared() > 0f ? Vector3.Normalize(pose.Up) : Vector3.UnitY;
@@ -438,6 +446,9 @@ namespace TopSpeed.Vehicles
                 SteerWheelAngleRad = 0f,
                 SteerWheelAngleDeg = 0f
             };
+            _turnTickInitialized = false;
+            _turnTickAccumulator = 0f;
+            _lastHeadingDegrees = HeadingDegrees;
             _engine.Reset();
             _prevFrequency = _idleFreq;
             _frequency = _idleFreq;
@@ -477,6 +488,9 @@ namespace TopSpeed.Vehicles
                 SteerWheelAngleRad = 0f,
                 SteerWheelAngleDeg = 0f
             };
+            _turnTickInitialized = false;
+            _turnTickAccumulator = 0f;
+            _lastHeadingDegrees = HeadingDegrees;
             // Do NOT call _engine.Reset() - preserve distance
             _prevFrequency = _idleFreq;
             _frequency = _idleFreq;
@@ -895,9 +909,10 @@ namespace TopSpeed.Vehicles
                     right = Vector3.UnitX;
                 else
                     right = Vector3.Normalize(right);
-                _worldForward = Vector3.Normalize(Vector3.Cross(right, up));
+                _worldForward = Vector3.Normalize(Vector3.Cross(right, up));    
                 _worldUp = up;
                 _worldVelocity = worldVelocity;
+                UpdateTurnTick();
 
                 if (_frame % 4 == 0)
                 {
@@ -1227,6 +1242,11 @@ namespace TopSpeed.Vehicles
                 _soundBackfire.Stop();
                 _soundBackfire.SeekToStart();
             }
+            if (_soundTurnTick != null && _soundTurnTick.IsPlaying)
+            {
+                _soundTurnTick.Stop();
+                _soundTurnTick.SeekToStart();
+            }
             _soundWipers?.Stop();
             switch (_surface)
             {
@@ -1292,6 +1312,7 @@ namespace TopSpeed.Vehicles
             _soundBump.Dispose();
             _soundBadSwitch.Dispose();
             _soundBackfire?.Dispose();
+            _soundTurnTick?.Dispose();
         }
 
         private void StopAllVibrations()
@@ -1586,6 +1607,46 @@ namespace TopSpeed.Vehicles
             if (degrees < 0f)
                 degrees += 360f;
             return degrees;
+        }
+
+        private static float NormalizeDegreesDelta(float degreesDelta)
+        {
+            degreesDelta %= 360f;
+            if (degreesDelta > 180f)
+                degreesDelta -= 360f;
+            if (degreesDelta < -180f)
+                degreesDelta += 360f;
+            return degreesDelta;
+        }
+
+        private void UpdateTurnTick()
+        {
+            if (_soundTurnTick == null)
+                return;
+
+            var currentHeading = HeadingDegrees;
+            if (!_turnTickInitialized)
+            {
+                _turnTickInitialized = true;
+                _lastHeadingDegrees = currentHeading;
+                _turnTickAccumulator = 0f;
+                return;
+            }
+
+            var delta = NormalizeDegreesDelta(currentHeading - _lastHeadingDegrees);
+            _lastHeadingDegrees = currentHeading;
+            var absDelta = Math.Abs(delta);
+            if (!IsFinite(absDelta) || absDelta <= 0f)
+                return;
+
+            _turnTickAccumulator += absDelta;
+            if (_turnTickAccumulator < 1f)
+                return;
+
+            _turnTickAccumulator %= 1f;
+            _soundTurnTick.Stop();
+            _soundTurnTick.SeekToStart();
+            _soundTurnTick.Play(loop: false);
         }
 
         private AudioSourceHandle CreateRequiredSound(string? path, bool looped = false, bool spatialize = true, bool allowHrtf = true)
