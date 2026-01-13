@@ -55,3 +55,4 @@ nunit-*.xml
 top_speed_net/SteamAudio.NET/Natives/steamaudio/**
 
 top_speed_net/TopSpeed/bin/**
+features.txt

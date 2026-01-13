@@ -10,13 +10,15 @@ namespace TopSpeed.Tracks.Geometry
         public string Id { get; }
         public string? Name { get; }
         public string? ShortName { get; }
+        public TrackIntersectionProfile? Intersection { get; }
         public IReadOnlyDictionary<string, string> Metadata { get; }
 
         public TrackGraphNode(
             string id,
             string? name = null,
             string? shortName = null,
-            IReadOnlyDictionary<string, string>? metadata = null)
+            IReadOnlyDictionary<string, string>? metadata = null,
+            TrackIntersectionProfile? intersection = null)
         {
             if (string.IsNullOrWhiteSpace(id))
                 throw new ArgumentException("Node id is required.", nameof(id));
@@ -26,6 +28,7 @@ namespace TopSpeed.Tracks.Geometry
             Name = string.IsNullOrWhiteSpace(trimmedName) ? null : trimmedName;
             var trimmedShort = shortName?.Trim();
             ShortName = string.IsNullOrWhiteSpace(trimmedShort) ? null : trimmedShort;
+            Intersection = intersection;
             Metadata = metadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
     }
@@ -59,6 +62,7 @@ namespace TopSpeed.Tracks.Geometry
         public IReadOnlyList<string> AllowedVehicles { get; }
         public IReadOnlyList<TrackAudioEmitter> Emitters { get; }
         public IReadOnlyList<TrackTriggerZone> Triggers { get; }
+        public IReadOnlyList<TrackBoundaryZone> BoundaryZones { get; }
 
         public TrackEdgeProfile(
             TrackSurface defaultSurface,
@@ -78,7 +82,8 @@ namespace TopSpeed.Tracks.Geometry
             IReadOnlyList<TrackHitLaneZone>? hitLanes = null,
             IReadOnlyList<string>? allowedVehicles = null,
             IReadOnlyList<TrackAudioEmitter>? emitters = null,
-            IReadOnlyList<TrackTriggerZone>? triggers = null)
+            IReadOnlyList<TrackTriggerZone>? triggers = null,
+            IReadOnlyList<TrackBoundaryZone>? boundaryZones = null)
         {
             if (defaultWidthMeters <= 0f)
                 throw new ArgumentOutOfRangeException(nameof(defaultWidthMeters));
@@ -101,6 +106,7 @@ namespace TopSpeed.Tracks.Geometry
             AllowedVehicles = allowedVehicles ?? Array.Empty<string>();
             Emitters = emitters ?? Array.Empty<TrackAudioEmitter>();
             Triggers = triggers ?? Array.Empty<TrackTriggerZone>();
+            BoundaryZones = boundaryZones ?? Array.Empty<TrackBoundaryZone>();
         }
 
         public TrackSurface SurfaceAt(float sMeters)

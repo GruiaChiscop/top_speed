@@ -95,6 +95,7 @@ namespace TopSpeed.Tracks.Geometry
 
             ValidateRouteGeometry(layout, opts, issues);
             ValidateGraphEdges(layout, opts, issues);
+            ValidateIntersections(layout, opts, issues);
 
             return new TrackLayoutValidationResult(issues);
         }
@@ -140,7 +141,111 @@ namespace TopSpeed.Tracks.Geometry
             }
         }
 
-        private static void ValidateGeometry(
+        private static void ValidateIntersections(TrackLayout layout, TrackLayoutValidationOptions opts, List<TrackLayoutIssue> issues)
+        {
+            if (layout.Graph == null || layout.Graph.Nodes.Count == 0)
+                return;
+
+            var edgeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var edge in layout.Graph.Edges)
+                edgeIds.Add(edge.Id);
+
+            foreach (var node in layout.Graph.Nodes)
+            {
+                var intersection = node.Intersection;
+                if (intersection == null)
+                    continue;
+
+                if (intersection.Legs.Count == 0 && intersection.Connectors.Count > 0)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                        $"Intersection '{node.Id}' defines connectors but no legs.",
+                        section: "intersection"));
+                }
+
+                var legIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var entryCount = 0;
+                var exitCount = 0;
+                foreach (var leg in intersection.Legs)
+                {
+                    if (!legIds.Add(leg.Id))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Intersection '{node.Id}' has duplicate leg id '{leg.Id}'.",
+                            section: "intersection"));
+                    }
+
+                    if (!edgeIds.Contains(leg.EdgeId))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Intersection '{node.Id}' leg '{leg.Id}' references missing edge '{leg.EdgeId}'.",
+                            section: "intersection"));
+                    }
+
+                    switch (leg.LegType)
+                    {
+                        case TrackIntersectionLegType.Entry:
+                            entryCount++;
+                            break;
+                        case TrackIntersectionLegType.Exit:
+                            exitCount++;
+                            break;
+                        case TrackIntersectionLegType.Both:
+                            entryCount++;
+                            exitCount++;
+                            break;
+                    }
+                }
+
+                if (intersection.Legs.Count > 0 && (entryCount == 0 || exitCount == 0))
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Intersection '{node.Id}' should define at least one entry and one exit leg.",
+                        section: "intersection"));
+                }
+
+                var connectorIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var connector in intersection.Connectors)
+                {
+                    if (!connectorIds.Add(connector.Id))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Intersection '{node.Id}' has duplicate connector id '{connector.Id}'.",
+                            section: "intersection"));
+                    }
+
+                    if (intersection.Legs.Count > 0)
+                    {
+                        if (!legIds.Contains(connector.FromLegId))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Intersection '{node.Id}' connector '{connector.Id}' references missing from-leg '{connector.FromLegId}'.",
+                                section: "intersection"));
+                        }
+                        if (!legIds.Contains(connector.ToLegId))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Intersection '{node.Id}' connector '{connector.Id}' references missing to-leg '{connector.ToLegId}'.",
+                                section: "intersection"));
+                        }
+                    }
+
+                    if (connector.FromLegId.Equals(connector.ToLegId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Intersection '{node.Id}' connector '{connector.Id}' loops from and to the same leg.",
+                            section: "intersection"));
+                    }
+
+                    if (connector.TurnDirection == TrackTurnDirection.Unknown)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Intersection '{node.Id}' connector '{connector.Id}' has no turn direction.",
+                            section: "intersection"));
+                    }
+                }
+            }
+        }        private static void ValidateGeometry(
             TrackGeometrySpec geometry,
             TrackLayoutValidationOptions opts,
             List<TrackLayoutIssue> issues,
