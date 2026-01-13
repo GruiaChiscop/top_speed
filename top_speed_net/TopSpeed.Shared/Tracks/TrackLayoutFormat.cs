@@ -208,7 +208,7 @@ namespace TopSpeed.Tracks.Geometry
             var nodeList = new List<TrackGraphNode>(nodes.Count);
             foreach (var node in nodes.Values)
             {
-                nodeList.Add(new TrackGraphNode(node.Id, node.Name, node.Metadata));
+                nodeList.Add(new TrackGraphNode(node.Id, node.Name, node.ShortName, node.Metadata));
             }
 
             var edgeList = new List<TrackGraphEdge>(edgeOrder.Count);
@@ -294,12 +294,13 @@ namespace TopSpeed.Tracks.Geometry
                 sb.AppendLine("[nodes]");
                 foreach (var node in layout.Graph.Nodes)
                 {
-                    var line = $"id={node.Id}";
-                    if (!string.IsNullOrWhiteSpace(node.Name))
-                        line += $" name={node.Name}";
+                    var line = new StringBuilder();
+                    line.Append("id=").Append(node.Id);
+                    AppendInlineValue(line, "name", node.Name);
+                    AppendInlineValue(line, "short_name", node.ShortName);
                     foreach (var kvp in node.Metadata)
-                        line += $" {kvp.Key}={kvp.Value}";
-                    sb.AppendLine(line);
+                        AppendInlineValue(line, kvp.Key, kvp.Value);
+                    sb.AppendLine(line.ToString());
                 }
             }
 
@@ -328,6 +329,12 @@ namespace TopSpeed.Tracks.Geometry
             {
                 sb.AppendLine();
                 sb.AppendLine($"[edge {edge.Id}]");
+                WriteValue(sb, "name", edge.Name);
+                WriteValue(sb, "short_name", edge.ShortName);
+                if (edge.ConnectorFromEdgeIds.Count > 0)
+                    WriteValue(sb, "connector_from", string.Join(",", edge.ConnectorFromEdgeIds));
+                if (edge.TurnDirection != TrackTurnDirection.Unknown)
+                    WriteValue(sb, "turn", FormatTurnDirection(edge.TurnDirection));
                 sb.AppendLine($"from={edge.FromNodeId}");
                 sb.AppendLine($"to={edge.ToNodeId}");
                 sb.AppendLine($"default_surface={edge.Profile.DefaultSurface.ToString().ToLowerInvariant()}");
@@ -508,11 +515,23 @@ namespace TopSpeed.Tracks.Geometry
             if (string.IsNullOrWhiteSpace(value))
                 return;
 
-            var encoded = value!;
+            sb.AppendLine($"{key}={EncodeValue(value!)}");
+        }
+
+        private static void AppendInlineValue(StringBuilder sb, string key, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return;
+
+            sb.Append(' ').Append(key).Append('=').Append(EncodeValue(value!));
+        }
+
+        private static string EncodeValue(string value)
+        {
+            var encoded = value;
             if (NeedsQuoting(encoded))
                 encoded = $"\"{encoded.Replace("\"", "\\\"")}\"";
-
-            sb.AppendLine($"{key}={encoded}");
+            return encoded;
         }
 
         private static string FormatFloat(float value)
@@ -1196,6 +1215,9 @@ namespace TopSpeed.Tracks.Geometry
 
             var nodeId = id!.Trim();
             named.TryGetValue("name", out var name);
+            named.TryGetValue("short_name", out var shortName);
+            if (string.IsNullOrWhiteSpace(shortName) && named.TryGetValue("short", out var shortAlt))
+                shortName = shortAlt;
             if (string.IsNullOrWhiteSpace(name) && positional.Count > 1)
                 name = positional[1];
 
@@ -1207,11 +1229,14 @@ namespace TopSpeed.Tracks.Geometry
 
             if (!string.IsNullOrWhiteSpace(name))
                 node.Name = name;
+            if (!string.IsNullOrWhiteSpace(shortName))
+                node.ShortName = shortName;
 
             foreach (var kvp in named)
             {
                 if (kvp.Key.Equals("id", StringComparison.OrdinalIgnoreCase) || kvp.Key.Equals("node", StringComparison.OrdinalIgnoreCase) ||
-                    kvp.Key.Equals("name", StringComparison.OrdinalIgnoreCase))
+                    kvp.Key.Equals("name", StringComparison.OrdinalIgnoreCase) || kvp.Key.Equals("short_name", StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals("short", StringComparison.OrdinalIgnoreCase))
                     continue;
                 node.Metadata[kvp.Key] = kvp.Value;
             }
@@ -1247,6 +1272,29 @@ namespace TopSpeed.Tracks.Geometry
             if (!string.IsNullOrWhiteSpace(to))
                 edge.ToNodeId = to;
 
+            if (named.TryGetValue("name", out var edgeName))
+                edge.Name = edgeName;
+            if (named.TryGetValue("short_name", out var edgeShort))
+                edge.ShortName = edgeShort;
+            if (string.IsNullOrWhiteSpace(edge.ShortName) && named.TryGetValue("short", out var edgeShortAlt))
+                edge.ShortName = edgeShortAlt;
+
+            if (named.TryGetValue("connector_from", out var connectorFrom) ||
+                named.TryGetValue("from_edge", out connectorFrom) ||
+                named.TryGetValue("from_edges", out connectorFrom))
+            {
+                foreach (var entry in SplitList(connectorFrom))
+                    AddIfNotEmpty(edge.ConnectorFromEdgeIds, entry);
+            }
+
+            if (named.TryGetValue("turn", out var turnValue) || named.TryGetValue("turn_direction", out turnValue))
+            {
+                if (TryParseTurnDirection(turnValue, out var turnDirection))
+                    edge.TurnDirection = turnDirection;
+                else
+                    errors.Add(new TrackLayoutError(lineNumber, $"Invalid turn direction '{turnValue}'.", line));
+            }
+
             if (named.TryGetValue("allowed_vehicles", out var vehicleList) || named.TryGetValue("vehicles", out vehicleList))
             {
                 foreach (var entry in SplitList(vehicleList))
@@ -1261,8 +1309,16 @@ namespace TopSpeed.Tracks.Geometry
                     kvp.Key.Equals("src", StringComparison.OrdinalIgnoreCase) ||
                     kvp.Key.Equals("to", StringComparison.OrdinalIgnoreCase) ||
                     kvp.Key.Equals("dst", StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals("name", StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals("short_name", StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals("short", StringComparison.OrdinalIgnoreCase) ||
                     kvp.Key.Equals("allowed_vehicles", StringComparison.OrdinalIgnoreCase) ||
-                    kvp.Key.Equals("vehicles", StringComparison.OrdinalIgnoreCase))
+                    kvp.Key.Equals("vehicles", StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals("connector_from", StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals("from_edge", StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals("from_edges", StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals("turn", StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals("turn_direction", StringComparison.OrdinalIgnoreCase))
                     continue;
                 edge.Metadata[kvp.Key] = kvp.Value;
             }
@@ -1343,11 +1399,31 @@ namespace TopSpeed.Tracks.Geometry
 
                 switch (key.ToLowerInvariant())
                 {
+                    case "name":
+                        edge.Name = value;
+                        break;
+                    case "short_name":
+                    case "short":
+                        edge.ShortName = value;
+                        break;
                     case "from":
                         edge.FromNodeId = value;
                         break;
                     case "to":
                         edge.ToNodeId = value;
+                        break;
+                    case "connector_from":
+                    case "from_edge":
+                    case "from_edges":
+                        foreach (var entry in SplitList(value))
+                            AddIfNotEmpty(edge.ConnectorFromEdgeIds, entry);
+                        break;
+                    case "turn":
+                    case "turn_direction":
+                        if (TryParseTurnDirection(value, out var turnDirection))
+                            edge.TurnDirection = turnDirection;
+                        else
+                            errors.Add(new TrackLayoutError(lineNumber, $"Invalid turn direction '{value}'.", line));
                         break;
                     case "default_surface":
                     case "surface":
@@ -1447,6 +1523,61 @@ namespace TopSpeed.Tracks.Geometry
             if (value.Equals("right", StringComparison.OrdinalIgnoreCase))
                 return TrackCurveDirection.Right;
             return TrackCurveDirection.Straight;
+        }
+
+        private static bool TryParseTurnDirection(string value, out TrackTurnDirection direction)
+        {
+            direction = TrackTurnDirection.Unknown;
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+            var trimmed = value.Trim();
+            if (trimmed.Equals("unknown", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("none", StringComparison.OrdinalIgnoreCase))
+            {
+                direction = TrackTurnDirection.Unknown;
+                return true;
+            }
+            if (trimmed.Equals("left", StringComparison.OrdinalIgnoreCase))
+            {
+                direction = TrackTurnDirection.Left;
+                return true;
+            }
+            if (trimmed.Equals("right", StringComparison.OrdinalIgnoreCase))
+            {
+                direction = TrackTurnDirection.Right;
+                return true;
+            }
+            if (trimmed.Equals("straight", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("forward", StringComparison.OrdinalIgnoreCase))
+            {
+                direction = TrackTurnDirection.Straight;
+                return true;
+            }
+            if (trimmed.Equals("uturn", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("u_turn", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("u-turn", StringComparison.OrdinalIgnoreCase))
+            {
+                direction = TrackTurnDirection.UTurn;
+                return true;
+            }
+            return false;
+        }
+
+        private static string FormatTurnDirection(TrackTurnDirection direction)
+        {
+            switch (direction)
+            {
+                case TrackTurnDirection.Left:
+                    return "left";
+                case TrackTurnDirection.Right:
+                    return "right";
+                case TrackTurnDirection.Straight:
+                    return "straight";
+                case TrackTurnDirection.UTurn:
+                    return "uturn";
+                default:
+                    return "unknown";
+            }
         }
 
         private static TrackCurveSeverity? ParseSeverity(Dictionary<string, string> named, List<string> positional)
@@ -1847,6 +1978,7 @@ namespace TopSpeed.Tracks.Geometry
         {
             public string Id { get; }
             public string? Name { get; set; }
+            public string? ShortName { get; set; }
             public Dictionary<string, string> Metadata { get; }
 
             public NodeBuilder(string id)
@@ -1861,6 +1993,8 @@ namespace TopSpeed.Tracks.Geometry
             public string Id { get; }
             public string? FromNodeId { get; set; }
             public string? ToNodeId { get; set; }
+            public string? Name { get; set; }
+            public string? ShortName { get; set; }
             public readonly List<TrackGeometrySpan> GeometrySpans = new List<TrackGeometrySpan>();
             public readonly List<TrackZone<TrackSurface>> SurfaceZones = new List<TrackZone<TrackSurface>>();
             public readonly List<TrackZone<TrackNoise>> NoiseZones = new List<TrackZone<TrackNoise>>();
@@ -1876,6 +2010,8 @@ namespace TopSpeed.Tracks.Geometry
             public readonly List<TrackAudioEmitter> Emitters = new List<TrackAudioEmitter>();
             public readonly List<TrackTriggerZone> Triggers = new List<TrackTriggerZone>();
             public readonly Dictionary<string, string> Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            public readonly List<string> ConnectorFromEdgeIds = new List<string>();
+            public TrackTurnDirection TurnDirection = TrackTurnDirection.Unknown;
 
             public TrackSurface DefaultSurface;
             public TrackNoise DefaultNoise;
@@ -1965,7 +2101,17 @@ namespace TopSpeed.Tracks.Geometry
                     Emitters,
                     Triggers);
 
-                return new TrackGraphEdge(Id, FromNodeId!, ToNodeId!, geometry, profile, Metadata);
+                return new TrackGraphEdge(
+                    Id,
+                    FromNodeId!,
+                    ToNodeId!,
+                    Name,
+                    ShortName,
+                    geometry,
+                    profile,
+                    ConnectorFromEdgeIds,
+                    TurnDirection,
+                    Metadata);
             }
         }
 

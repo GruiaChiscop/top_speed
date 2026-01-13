@@ -9,11 +9,13 @@ namespace TopSpeed.Tracks.Geometry
     {
         public string Id { get; }
         public string? Name { get; }
+        public string? ShortName { get; }
         public IReadOnlyDictionary<string, string> Metadata { get; }
 
         public TrackGraphNode(
             string id,
             string? name = null,
+            string? shortName = null,
             IReadOnlyDictionary<string, string>? metadata = null)
         {
             if (string.IsNullOrWhiteSpace(id))
@@ -22,8 +24,19 @@ namespace TopSpeed.Tracks.Geometry
             Id = id.Trim();
             var trimmedName = name?.Trim();
             Name = string.IsNullOrWhiteSpace(trimmedName) ? null : trimmedName;
+            var trimmedShort = shortName?.Trim();
+            ShortName = string.IsNullOrWhiteSpace(trimmedShort) ? null : trimmedShort;
             Metadata = metadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
+    }
+
+    public enum TrackTurnDirection
+    {
+        Unknown = 0,
+        Left = 1,
+        Right = 2,
+        Straight = 3,
+        UTurn = 4
     }
 
     public sealed class TrackEdgeProfile
@@ -140,17 +153,26 @@ namespace TopSpeed.Tracks.Geometry
         public string Id { get; }
         public string FromNodeId { get; }
         public string ToNodeId { get; }
+        public string? Name { get; }
+        public string? ShortName { get; }
         public TrackGeometrySpec Geometry { get; }
         public TrackEdgeProfile Profile { get; }
         public IReadOnlyDictionary<string, string> Metadata { get; }
+        public IReadOnlyList<string> ConnectorFromEdgeIds { get; }
+        public TrackTurnDirection TurnDirection { get; }
         public float LengthMeters { get; }
+        public bool IsConnector => ConnectorFromEdgeIds.Count > 0 || TurnDirection != TrackTurnDirection.Unknown;
 
         public TrackGraphEdge(
             string id,
             string fromNodeId,
             string toNodeId,
+            string? name,
+            string? shortName,
             TrackGeometrySpec geometry,
             TrackEdgeProfile profile,
+            IReadOnlyList<string>? connectorFromEdgeIds = null,
+            TrackTurnDirection turnDirection = TrackTurnDirection.Unknown,
             IReadOnlyDictionary<string, string>? metadata = null)
         {
             if (string.IsNullOrWhiteSpace(id))
@@ -163,9 +185,15 @@ namespace TopSpeed.Tracks.Geometry
             Id = id.Trim();
             FromNodeId = fromNodeId.Trim();
             ToNodeId = toNodeId.Trim();
+            var trimmedName = name?.Trim();
+            Name = string.IsNullOrWhiteSpace(trimmedName) ? null : trimmedName;
+            var trimmedShort = shortName?.Trim();
+            ShortName = string.IsNullOrWhiteSpace(trimmedShort) ? null : trimmedShort;
             Geometry = geometry ?? throw new ArgumentNullException(nameof(geometry));
             Profile = profile ?? throw new ArgumentNullException(nameof(profile));
             Metadata = metadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            ConnectorFromEdgeIds = connectorFromEdgeIds ?? Array.Empty<string>();
+            TurnDirection = turnDirection;
             LengthMeters = geometry.TotalLengthMeters;
         }
     }
@@ -300,7 +328,7 @@ namespace TopSpeed.Tracks.Geometry
                 throw new ArgumentNullException(nameof(profile));
 
             var node = new TrackGraphNode(nodeId);
-            var edge = new TrackGraphEdge(edgeId, node.Id, node.Id, geometry, profile);
+            var edge = new TrackGraphEdge(edgeId, node.Id, node.Id, null, null, geometry, profile);
             var route = new TrackGraphRoute(routeId, new[] { edgeId }, isLoop: true);
             return new TrackGraph(
                 new[] { node },

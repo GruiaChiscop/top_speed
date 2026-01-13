@@ -1109,6 +1109,99 @@ namespace TopSpeed.Tracks
             if (candidates.Count == 1)
                 return candidates[0];
 
+            var filtered = FilterConnectorCandidates(currentEdgeIndex, candidates);
+            if (filtered.Count == 1)
+                return filtered[0];
+
+            if (TryChooseByTurn(currentEdgeIndex, filtered, branchHint, forward, out var chosen))
+                return chosen;
+
+            return ChooseByHeading(currentEdgeIndex, filtered, branchHint, forward);
+        }
+
+        private List<int> FilterConnectorCandidates(int currentEdgeIndex, List<int> candidates)
+        {
+            if (_graphEdges == null)
+                return candidates;
+
+            var currentEdgeId = _graphEdges[currentEdgeIndex].Id;
+            var connectors = new List<int>();
+            foreach (var candidate in candidates)
+            {
+                var edge = _graphEdges[candidate];
+                if (!edge.IsConnector)
+                    continue;
+                if (edge.ConnectorFromEdgeIds.Count == 0)
+                {
+                    connectors.Add(candidate);
+                    continue;
+                }
+                if (AllowsConnectorFrom(edge, currentEdgeId))
+                    connectors.Add(candidate);
+            }
+
+            return connectors.Count > 0 ? connectors : candidates;
+        }
+
+        private bool AllowsConnectorFrom(TrackGraphEdge edge, string currentEdgeId)
+        {
+            for (var i = 0; i < edge.ConnectorFromEdgeIds.Count; i++)
+            {
+                if (edge.ConnectorFromEdgeIds[i].Equals(currentEdgeId, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        private bool TryChooseByTurn(int currentEdgeIndex, List<int> candidates, float branchHint, bool forward, out int chosen)
+        {
+            chosen = -1;
+            if (_graphEdges == null)
+                return false;
+
+            var hasTurns = false;
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                if (_graphEdges[candidates[i]].TurnDirection != TrackTurnDirection.Unknown)
+                {
+                    hasTurns = true;
+                    break;
+                }
+            }
+            if (!hasTurns)
+                return false;
+
+            TrackTurnDirection desired;
+            if (branchHint > 0.1f)
+                desired = TrackTurnDirection.Right;
+            else if (branchHint < -0.1f)
+                desired = TrackTurnDirection.Left;
+            else
+                desired = TrackTurnDirection.Straight;
+
+            var matches = new List<int>();
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                var candidate = candidates[i];
+                if (_graphEdges[candidate].TurnDirection == desired)
+                    matches.Add(candidate);
+            }
+
+            if (matches.Count == 0)
+                return false;
+
+            chosen = ChooseByHeading(currentEdgeIndex, matches, branchHint, forward);
+            return true;
+        }
+
+        private int ChooseByHeading(int currentEdgeIndex, List<int> candidates, float branchHint, bool forward)
+        {
+            if (_edgeRuntime == null || candidates == null || candidates.Count == 0)
+                return -1;
+
+            if (candidates.Count == 1)
+                return candidates[0];
+
             var currentHeading = forward
                 ? _edgeRuntime[currentEdgeIndex].EndHeadingRadians
                 : NormalizeRadians(_edgeRuntime[currentEdgeIndex].HeadingRadians + (float)Math.PI);
