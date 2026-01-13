@@ -39,6 +39,7 @@ namespace TopSpeed.Vehicles
         private float _speed;
         private float _positionX;
         private float _positionY;
+        private TrackPosition _trackPosition;
         private int _switchingGear;
         private float _autoShiftCooldown;
         private float _trackLength;
@@ -276,6 +277,7 @@ namespace TopSpeed.Vehicles
         public ComputerState State => _state;
         public float PositionX => _positionX;
         public float PositionY => _positionY;
+        public TrackPosition TrackPosition => _trackPosition;
         public float Speed => _speed;
         public int PlayerNumber => _playerNumber;
         public int VehicleIndex => _vehicleIndex;
@@ -288,10 +290,11 @@ namespace TopSpeed.Vehicles
         {
             _positionX = positionX;
             _positionY = positionY;
+            _trackPosition = _track.CreateStartPosition(positionY);
             _trackLength = trackLength;
             _laneWidth = _track.LaneWidth;
             _audioInitialized = false;
-            var pose = _track.GetPose(_positionY);
+            var pose = _track.GetPose(_trackPosition);
             _dynamicsState = new VehicleDynamicsState
             {
                 VelLong = 0f,
@@ -348,7 +351,7 @@ namespace TopSpeed.Vehicles
             {
                 VelLong = 0f,
                 VelLat = 0f,
-                Yaw = _track.GetPose(_positionY).HeadingRadians,
+                Yaw = _track.GetPose(_trackPosition).HeadingRadians,
                 YawRate = 0f,
                 SteerInput = 0f,
                 SteerWheelAngleRad = 0f,
@@ -431,6 +434,9 @@ namespace TopSpeed.Vehicles
             _diffY = ((_diffY % _trackLength) + _trackLength) % _trackLength;
             if (_diffY > _trackLength / 2)
                 _diffY = (_diffY - _trackLength) % _trackLength;
+
+            if (!_trackPosition.IsGraphPosition && _track.HasGeometry)
+                _trackPosition = _track.CreatePositionFromDistance(_positionY);
 
             if (!_horning && _diffY < -100.0f)
             {
@@ -557,12 +563,14 @@ namespace TopSpeed.Vehicles
                     0f,
                     (_dynamicsState.VelLong * yawCos) - (_dynamicsState.VelLat * yawSin));
 
-                var poseForVel = _track.GetPose(_positionY);
+                var poseForVel = _track.GetPose(_trackPosition);
                 var deltaS = Vector3.Dot(worldVelocity, poseForVel.Tangent);
                 var deltaX = Vector3.Dot(worldVelocity, poseForVel.Right);
-                _positionY += deltaS * elapsed;
+                var branchHint = _currentSteering / 100f;
+                _trackPosition = _track.Advance(_trackPosition, deltaS * elapsed, branchHint);
+                _positionY = _trackPosition.DistanceMeters;
                 _positionX += deltaX * elapsed;
-                var pose = _track.GetPose(_positionY);
+                var pose = _track.GetPose(_trackPosition);
                 _worldPosition = pose.Position + pose.Right * _positionX;
                 var up = pose.Up.LengthSquared() > 0.0001f ? Vector3.Normalize(pose.Up) : Vector3.UnitY;
                 var forwardFlat = new Vector3(yawSin, 0f, yawCos);
@@ -587,7 +595,7 @@ namespace TopSpeed.Vehicles
                     UpdateEngineFreq();
                 }
 
-                var road = _track.RoadComputer(_positionY);
+                var road = _track.RoadComputer(_trackPosition);
                 if (!_finished)
                     Evaluate(road);
             }

@@ -14,9 +14,9 @@ namespace TopSpeed.GeometryTest
             {
                 var geometry = BuildTestGeometry();
                 var ok = RunChecks(geometry, "Generated geometry", expectedLength: 940f, expectBothCurvatures: true);
-                var layoutOk = RunLayoutCheck("sample_layout.tslayout", expectedLength: 1100f, expectBothCurvatures: true);
-                var realisticOk = RunLayoutCheck("realistic_layout.tslayout", expectedLength: 3480f, expectBothCurvatures: true);
-                var loaderOk = RunLoaderCheck("realistic_layout.tslayout", expectedLength: 3480f);
+                var layoutOk = RunLayoutCheck("sample_layout.ttl", expectedLength: 1100f, expectBothCurvatures: true);
+                var realisticOk = RunLayoutCheck("realistic_layout.ttl", expectedLength: 3480f, expectBothCurvatures: true);
+                var loaderOk = RunLoaderCheck("realistic_layout.ttl", expectedLength: 3480f);
                 var allLayoutsOk = RunAllLayouts();
                 return ok && layoutOk && realisticOk && loaderOk && allLayoutsOk ? 0 : 1;
             }
@@ -163,7 +163,7 @@ namespace TopSpeed.GeometryTest
                 tracksPath = fallback;
             }
 
-            var files = System.IO.Directory.GetFiles(tracksPath, "*.tslayout");
+            var files = System.IO.Directory.GetFiles(tracksPath, "*.ttl");
             if (files.Length == 0)
             {
                 Console.WriteLine("[Layouts] No layouts found.");

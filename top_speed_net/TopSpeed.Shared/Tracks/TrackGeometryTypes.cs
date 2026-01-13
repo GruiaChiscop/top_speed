@@ -362,20 +362,25 @@ namespace TopSpeed.Tracks.Geometry
         public IReadOnlyList<TrackGeometrySpan> Spans { get; }
         public float SampleSpacingMeters { get; }
         public bool EnforceClosure { get; }
+        public float TotalLengthMeters { get; }
 
         public TrackGeometrySpec(
             IReadOnlyList<TrackGeometrySpan> spans,
             float sampleSpacingMeters = 1.0f,
             bool enforceClosure = true)
         {
-            Spans = spans ?? throw new ArgumentNullException(nameof(spans));
+            Spans = spans ?? throw new ArgumentNullException(nameof(spans));    
             if (Spans.Count == 0)
                 throw new ArgumentException("Geometry spec requires at least one span.", nameof(spans));
-            if (!IsFinite(sampleSpacingMeters) || sampleSpacingMeters <= 0f)
+            if (!IsFinite(sampleSpacingMeters) || sampleSpacingMeters <= 0f)    
                 throw new ArgumentOutOfRangeException(nameof(sampleSpacingMeters));
 
             SampleSpacingMeters = sampleSpacingMeters;
             EnforceClosure = enforceClosure;
+            var total = 0f;
+            for (var i = 0; i < Spans.Count; i++)
+                total += Spans[i].LengthMeters;
+            TotalLengthMeters = total;
         }
 
         private static bool IsFinite(float value)

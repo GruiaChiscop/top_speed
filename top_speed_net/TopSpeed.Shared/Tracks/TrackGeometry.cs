@@ -163,19 +163,16 @@ namespace TopSpeed.Tracks.Geometry
                 return default;
 
             var s = WrapDistance(sMeters);
-            var lastIndex = _positions.Length - 1;
-            var index = (int)(s / SampleSpacingMeters);
-            if (index >= lastIndex)
-            {
-                return BuildPose(_positions[lastIndex], _headings[lastIndex], _banks[lastIndex], _slopes[lastIndex]);
-            }
+            return BuildPoseAt(s);
+        }
 
-            var t = (s - index * SampleSpacingMeters) / SampleSpacingMeters;
-            var position = Vector3.Lerp(_positions[index], _positions[index + 1], t);
-            var heading = LerpAngle(_headings[index], _headings[index + 1], t);
-            var bank = _banks[index] + (_banks[index + 1] - _banks[index]) * t;
-            var slope = _slopes[index] + (_slopes[index + 1] - _slopes[index]) * t;
-            return BuildPose(position, heading, bank, slope);
+        public TrackPose GetPoseClamped(float sMeters)
+        {
+            if (_positions.Length == 0 || LengthMeters <= 0f)
+                return default;
+
+            var s = Math.Max(0f, Math.Min(LengthMeters, sMeters));
+            return BuildPoseAt(s);
         }
 
         public TrackEdges GetEdges(float sMeters, float widthMeters)
@@ -197,6 +194,16 @@ namespace TopSpeed.Tracks.Geometry
             return _spans[index];
         }
 
+        public TrackGeometrySpan GetSpanClamped(float sMeters)
+        {
+            if (_spans.Length == 0 || LengthMeters <= 0f)
+                return default;
+
+            var s = Math.Max(0f, Math.Min(LengthMeters, sMeters));
+            var index = FindSpanIndex(s);
+            return _spans[index];
+        }
+
         public float CurvatureAt(float sMeters)
         {
             if (_spans.Length == 0 || LengthMeters <= 0f)
@@ -207,6 +214,15 @@ namespace TopSpeed.Tracks.Geometry
             var spanStart = _spanStartMeters[spanIndex];
             var local = s - spanStart;
             return _spans[spanIndex].CurvatureAt(local);
+        }
+
+        public int GetSpanIndexClamped(float sMeters)
+        {
+            if (_spans.Length == 0 || LengthMeters <= 0f)
+                return -1;
+
+            var s = Math.Max(0f, Math.Min(LengthMeters, sMeters));
+            return FindSpanIndex(s);
         }
 
         private float WrapDistance(float sMeters)
@@ -231,6 +247,23 @@ namespace TopSpeed.Tracks.Geometry
             if (index < 0)
                 index = 0;
             return index;
+        }
+
+        private TrackPose BuildPoseAt(float s)
+        {
+            var lastIndex = _positions.Length - 1;
+            var index = (int)(s / SampleSpacingMeters);
+            if (index >= lastIndex)
+            {
+                return BuildPose(_positions[lastIndex], _headings[lastIndex], _banks[lastIndex], _slopes[lastIndex]);
+            }
+
+            var t = (s - index * SampleSpacingMeters) / SampleSpacingMeters;
+            var position = Vector3.Lerp(_positions[index], _positions[index + 1], t);
+            var heading = LerpAngle(_headings[index], _headings[index + 1], t);
+            var bank = _banks[index] + (_banks[index + 1] - _banks[index]) * t;
+            var slope = _slopes[index] + (_slopes[index + 1] - _slopes[index]) * t;
+            return BuildPose(position, heading, bank, slope);
         }
 
         private static TrackPose BuildPose(Vector3 position, float heading, float bank, float slope)

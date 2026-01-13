@@ -204,7 +204,7 @@ namespace TopSpeed.Race
 
             UpdatePositions();
             _car.Run(elapsed);
-            _track.Run(_car.PositionY);
+            _track.Run(_car.TrackPosition);
 
             for (var botIndex = 0; botIndex < _nComputerPlayers; botIndex++)
             {
@@ -223,10 +223,10 @@ namespace TopSpeed.Race
                 }
             }
 
-            var road = _track.RoadAtPosition(_car.PositionY);
+            var road = _track.RoadAtPosition(_car.TrackPosition);
             _car.Evaluate(road);
             UpdateAudioListener(elapsed);
-            if (_track.NextRoad(_car.PositionY, _car.Speed, (int)_settings.CurveAnnouncement, out var nextRoad))
+            if (_track.NextRoad(_car.TrackPosition, _car.Speed, (int)_settings.CurveAnnouncement, out var nextRoad))
                 CallNextRoad(nextRoad);
 
             if (_track.Lap(_car.PositionY) > _lap)

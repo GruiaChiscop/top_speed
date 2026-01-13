@@ -40,6 +40,7 @@ namespace TopSpeed.Vehicles
         private float _speed;
         private float _positionX;
         private float _positionY;
+        private TrackPosition _trackPosition;
         private bool _manualTransmission;
         private bool _backfirePlayed;
         private bool _backfirePlayedAuto;
@@ -384,17 +385,19 @@ namespace TopSpeed.Vehicles
         public float SpeedKmh => _engine.SpeedKmh;
         public float EngineRpm => _engine.Rpm;
         public float DistanceMeters => _engine.DistanceMeters;
+        public TrackPosition TrackPosition => _trackPosition;
 
-        public void Initialize(float positionX = 0, float positionY = 0)        
+        public void Initialize(float positionX = 0, float positionY = 0)
         {
             _positionX = positionX;
             _positionY = positionY;
+            _trackPosition = _track.CreateStartPosition(positionY);
             _laneWidth = _track.LaneWidth * 2;
             _audioInitialized = false;
             _lastAudioX = positionX;
             _lastAudioY = positionY;
             _lastAudioElapsed = 0f;
-            var pose = _track.GetPose(_positionY);
+            var pose = _track.GetPose(_trackPosition);
             _dynamicsState = new VehicleDynamicsState
             {
                 VelLong = 0f,
@@ -419,7 +422,8 @@ namespace TopSpeed.Vehicles
         {
             _positionX = positionX;
             _positionY = positionY;
-            var pose = _track.GetPose(_positionY);
+            _trackPosition = _track.CreatePositionFromDistance(positionY);
+            var pose = _track.GetPose(_trackPosition);
             _worldPosition = pose.Position + pose.Right * _positionX;
         }
 
@@ -440,7 +444,7 @@ namespace TopSpeed.Vehicles
             {
                 VelLong = 0f,
                 VelLat = 0f,
-                Yaw = _track.GetPose(_positionY).HeadingRadians,
+                Yaw = _track.GetPose(_trackPosition).HeadingRadians,
                 YawRate = 0f,
                 SteerInput = 0f,
                 SteerWheelAngleRad = 0f,
@@ -482,7 +486,7 @@ namespace TopSpeed.Vehicles
             {
                 VelLong = 0f,
                 VelLat = 0f,
-                Yaw = _track.GetPose(_positionY).HeadingRadians,
+                Yaw = _track.GetPose(_trackPosition).HeadingRadians,
                 YawRate = 0f,
                 SteerInput = 0f,
                 SteerWheelAngleRad = 0f,
@@ -657,6 +661,8 @@ namespace TopSpeed.Vehicles
                     _positionX = 0f;
                 if (!IsFinite(_positionY))
                     _positionY = 0f;
+                if (!_trackPosition.IsGraphPosition && _track.HasGeometry)
+                    _trackPosition = _track.CreatePositionFromDistance(_positionY);
 
                 _currentSteering = _input.GetSteering();
                 _currentThrottle = _input.GetThrottle();
@@ -895,12 +901,14 @@ namespace TopSpeed.Vehicles
                     0f,
                     (_dynamicsState.VelLong * yawCos) - (_dynamicsState.VelLat * yawSin));
 
-                var poseForVel = _track.GetPose(_positionY);
+                var poseForVel = _track.GetPose(_trackPosition);
                 var deltaS = Vector3.Dot(worldVelocity, poseForVel.Tangent);
                 var deltaX = Vector3.Dot(worldVelocity, poseForVel.Right);
-                _positionY += deltaS * elapsed;
+                var branchHint = _currentSteering / 100f;
+                _trackPosition = _track.Advance(_trackPosition, deltaS * elapsed, branchHint);
+                _positionY = _trackPosition.DistanceMeters;
                 _positionX += deltaX * elapsed;
-                var pose = _track.GetPose(_positionY);
+                var pose = _track.GetPose(_trackPosition);
                 _worldPosition = pose.Position + pose.Right * _positionX;
                 var up = pose.Up.LengthSquared() > 0.0001f ? Vector3.Normalize(pose.Up) : Vector3.UnitY;
                 var forwardFlat = new Vector3(yawSin, 0f, yawCos);

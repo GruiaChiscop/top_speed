@@ -19,6 +19,7 @@ namespace TopSpeed.Tracks
         private const int Surfaces = 5;
         private const int Noises = 12;
         private const float MinPartLengthMeters = 50.0f;
+        private const float DisconnectedNodeSpacingMeters = 2000.0f;
 
         public struct Road
         {
@@ -27,6 +28,62 @@ namespace TopSpeed.Tracks
             public TrackSurface Surface;
             public TrackType Type;
             public float Length;
+        }
+
+        private sealed class EdgeRuntime
+        {
+            public TrackGraphEdge Edge { get; }
+            public TrackGeometry Geometry { get; }
+            public TrackGeometrySpan[] Spans { get; }
+            public float[] SpanStartMeters { get; }
+            public float LengthMeters { get; }
+            public Vector3 Origin;
+            public float HeadingRadians;
+            public Vector3 EndPosition;
+            public float EndHeadingRadians;
+
+            public EdgeRuntime(TrackGraphEdge edge, TrackGeometry geometry, TrackGeometrySpan[] spans, float[] spanStartMeters)
+            {
+                Edge = edge;
+                Geometry = geometry;
+                Spans = spans;
+                SpanStartMeters = spanStartMeters;
+                LengthMeters = edge.LengthMeters;
+                Origin = Vector3.Zero;
+                HeadingRadians = 0f;
+                EndPosition = Vector3.Zero;
+                EndHeadingRadians = 0f;
+            }
+        }
+
+        private readonly struct TrackSpanKey : IEquatable<TrackSpanKey>
+        {
+            public int EdgeIndex { get; }
+            public int SpanIndex { get; }
+
+            public TrackSpanKey(int edgeIndex, int spanIndex)
+            {
+                EdgeIndex = edgeIndex;
+                SpanIndex = spanIndex;
+            }
+
+            public bool Equals(TrackSpanKey other)
+            {
+                return EdgeIndex == other.EdgeIndex && SpanIndex == other.SpanIndex;
+            }
+
+            public override bool Equals(object? obj)
+            {
+                return obj is TrackSpanKey other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    return (EdgeIndex * 397) ^ SpanIndex;
+                }
+            }
         }
 
         private readonly AudioManager _audio;
@@ -51,11 +108,23 @@ namespace TopSpeed.Tracks
         private float _relPos;
         private float _prevRelPos;
         private int _lastCalled;
+        private TrackSpanKey _lastCalledSpan;
         private float _factor;
         private float _noiseLength;
         private float _noiseStartPos;
         private float _noiseEndPos;
         private bool _noisePlaying;
+
+        private TrackGraphNode[]? _graphNodes;
+        private TrackGraphEdge[]? _graphEdges;
+        private EdgeRuntime[]? _edgeRuntime;
+        private Dictionary<string, int>? _edgeIndexById;
+        private Dictionary<string, int>? _nodeIndexById;
+        private List<int>[]? _nodeOutgoing;
+        private List<int>[]? _nodeIncoming;
+        private int _currentEdgeIndex;
+        private int _currentSpanIndex;
+        private int _primaryEdgeIndex;
 
         private AudioSourceHandle? _soundCrowd;
         private AudioSourceHandle? _soundOcean;
@@ -75,6 +144,8 @@ namespace TopSpeed.Tracks
         private AudioSourceHandle? _soundOwl;
 
         private bool IsLayout => _layout != null && _geometry != null && _layoutSpans != null && _layoutSpanStart != null;
+
+        public bool IsLoop => _layout?.PrimaryRoute.IsLoop ?? true;
 
         private Track(string trackName, TrackData data, AudioManager audio, bool userDefined)
         {
@@ -100,7 +171,7 @@ namespace TopSpeed.Tracks
             _audio = audio;
             _layout = layout ?? throw new ArgumentNullException(nameof(layout));
             _geometry = geometry ?? throw new ArgumentNullException(nameof(geometry));
-            _laneWidth = Math.Max(1f, _layout.DefaultWidthMeters * 0.5f);
+            _laneWidth = Math.Max(1f, _layout.WidthAt(0f) * 0.5f);
             UpdateCurveScale();
             _callLength = CallLengthMeters;
             _weather = _layout.Weather;
@@ -109,7 +180,7 @@ namespace TopSpeed.Tracks
             _segmentCount = _layout.Geometry.Spans.Count;
             _layoutSpans = new TrackGeometrySpan[_segmentCount];
             _layoutSpanStart = new float[_segmentCount];
-            _currentNoise = _layout.DefaultNoise;
+            _currentNoise = _layout.NoiseAt(0f);
 
             var distance = 0f;
             for (var i = 0; i < _segmentCount; i++)
@@ -119,6 +190,7 @@ namespace TopSpeed.Tracks
                 distance += _layoutSpans[i].LengthMeters;
             }
 
+            BuildGraphRuntime();
             InitializeSounds();
         }
 
@@ -194,15 +266,42 @@ namespace TopSpeed.Tracks
         public float LaneWidth => _laneWidth;
         public bool HasGeometry => _geometry != null;
         public TrackSurface InitialSurface => _layout != null
-            ? _layout.DefaultSurface
+            ? _layout.SurfaceAt(0f)
             : (_definition.Length > 0 ? _definition[0].Surface : TrackSurface.Asphalt);
+
+        public TrackPose GetPose(TrackPosition position)
+        {
+            if (IsLayout && _edgeRuntime != null)
+            {
+                var normalized = NormalizePosition(position);
+                if (normalized.EdgeIndex >= 0 && normalized.EdgeIndex < _edgeRuntime.Length)
+                {
+                    var runtime = _edgeRuntime[normalized.EdgeIndex];
+                    var localPose = runtime.Geometry.GetPoseClamped(normalized.EdgeMeters);
+                    return TransformPose(localPose, runtime.Origin, runtime.HeadingRadians);
+                }
+            }
+
+            if (_geometry != null)
+                return _geometry.GetPose(position.DistanceMeters);
+            var pos = new Vector3(0f, 0f, position.DistanceMeters);
+            return new TrackPose(pos, Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY, 0f, 0f);
+        }
 
         public TrackPose GetPose(float positionMeters)
         {
+            if (IsLayout)
+                return GetPose(CreatePositionFromDistance(positionMeters));
             if (_geometry != null)
                 return _geometry.GetPose(positionMeters);
             var pos = new Vector3(0f, 0f, positionMeters);
             return new TrackPose(pos, Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY, 0f, 0f);
+        }
+
+        public Vector3 GetWorldPosition(TrackPosition position, float lateralOffset)
+        {
+            var pose = GetPose(position);
+            return pose.Position + pose.Right * lateralOffset;
         }
 
         public Vector3 GetWorldPosition(float positionMeters, float lateralOffset)
@@ -224,6 +323,102 @@ namespace TopSpeed.Tracks
             return (int)(position / _lapDistance) + 1;
         }
 
+        public int Lap(TrackPosition position)
+        {
+            return Lap(position.DistanceMeters);
+        }
+
+        public TrackPosition CreateStartPosition(float distanceMeters = 0f)
+        {
+            if (!IsLayout || _edgeRuntime == null || _layout == null || _edgeIndexById == null)
+                return new TrackPosition(-1, 0f, distanceMeters);
+
+            return CreatePositionFromDistance(distanceMeters);
+        }
+
+        public TrackPosition CreatePositionFromDistance(float distanceMeters)
+        {
+            if (!IsLayout || _layout == null || _edgeRuntime == null || _edgeIndexById == null)
+                return new TrackPosition(-1, 0f, distanceMeters);
+
+            var edge = _layout.ResolvePrimaryEdge(distanceMeters, out var localS);
+            if (!_edgeIndexById.TryGetValue(edge.Id, out var edgeIndex))
+                edgeIndex = _primaryEdgeIndex;
+            localS = Clamp(localS, 0f, _edgeRuntime[edgeIndex].LengthMeters);
+            return new TrackPosition(edgeIndex, localS, distanceMeters);
+        }
+
+        public TrackPosition Advance(TrackPosition position, float deltaMeters, float branchHint)
+        {
+            if (!IsLayout || _edgeRuntime == null || _graphEdges == null)
+                return new TrackPosition(-1, 0f, position.DistanceMeters + deltaMeters);
+
+            var normalized = NormalizePosition(position);
+            var edgeIndex = normalized.EdgeIndex;
+            var localS = normalized.EdgeMeters;
+            var remaining = deltaMeters;
+            var traveled = 0f;
+            var safety = 0;
+
+            while (Math.Abs(remaining) > 0.0001f && safety < 1024)
+            {
+                var edgeLength = _edgeRuntime[edgeIndex].LengthMeters;
+                if (remaining > 0f)
+                {
+                    var toEnd = edgeLength - localS;
+                    if (remaining <= toEnd)
+                    {
+                        localS += remaining;
+                        traveled += remaining;
+                        remaining = 0f;
+                    }
+                    else
+                    {
+                        localS = edgeLength;
+                        traveled += toEnd;
+                        remaining -= toEnd;
+                        var next = SelectNextEdge(edgeIndex, branchHint);
+                        if (next < 0)
+                        {
+                            remaining = 0f;
+                            break;
+                        }
+                        edgeIndex = next;
+                        localS = 0f;
+                    }
+                }
+                else
+                {
+                    var toStart = localS;
+                    var step = -remaining;
+                    if (step <= toStart)
+                    {
+                        localS -= step;
+                        traveled -= step;
+                        remaining = 0f;
+                    }
+                    else
+                    {
+                        localS = 0f;
+                        traveled -= toStart;
+                        remaining += toStart;
+                        var prev = SelectPreviousEdge(edgeIndex, branchHint);
+                        if (prev < 0)
+                        {
+                            remaining = 0f;
+                            break;
+                        }
+                        edgeIndex = prev;
+                        localS = _edgeRuntime[edgeIndex].LengthMeters;
+                    }
+                }
+
+                safety++;
+            }
+
+            return new TrackPosition(edgeIndex, localS, normalized.DistanceMeters + traveled);
+        }
+
 
         public void Initialize()
         {
@@ -234,9 +429,12 @@ namespace TopSpeed.Tracks
                 _lapDistance = _geometry!.LengthMeters;
                 _lapCenter = 0f;
                 _currentRoad = 0;
+                _currentEdgeIndex = _primaryEdgeIndex;
+                _currentSpanIndex = 0;
                 _relPos = 0f;
                 _prevRelPos = 0f;
                 _lastCalled = 0;
+                _lastCalledSpan = new TrackSpanKey(-1, -1);
             }
             else
             {
@@ -303,18 +501,30 @@ namespace TopSpeed.Tracks
 
         public void Run(float position)
         {
-            if (_noisePlaying && position > _noiseEndPos)
+            if (IsLayout)
+            {
+                Run(CreatePositionFromDistance(position));
+                return;
+            }
+
+            Run(new TrackPosition(-1, 0f, position));
+        }
+
+        public void Run(TrackPosition position)
+        {
+            if (_noisePlaying && position.DistanceMeters > _noiseEndPos)
                 _noisePlaying = false;
 
             if (IsLayout)
             {
                 if (_lapDistance == 0)
                     Initialize();
-                if (_lapDistance <= 0f)
+                if (_lapDistance <= 0f || _edgeRuntime == null)
                     return;
 
-                var pos = WrapDistance(position);
-                var noise = _layout!.NoiseAt(pos);
+                var normalized = NormalizePosition(position);
+                var runtime = _edgeRuntime[normalized.EdgeIndex];
+                var noise = runtime.Edge.Profile.NoiseAt(normalized.EdgeMeters);
                 if (noise != _currentNoise)
                 {
                     _noisePlaying = false;
@@ -324,16 +534,16 @@ namespace TopSpeed.Tracks
                 switch (noise)
                 {
                     case TrackNoise.Crowd:
-                        UpdateLoopingNoiseLayout(_soundCrowd, position, noise);
+                        UpdateLoopingNoiseLayout(_soundCrowd, normalized.DistanceMeters, noise, normalized);
                         break;
                     case TrackNoise.Ocean:
-                        UpdateLoopingNoiseLayout(_soundOcean, position, noise, pan: -10);
+                        UpdateLoopingNoiseLayout(_soundOcean, normalized.DistanceMeters, noise, normalized, pan: -10);
                         break;
                     case TrackNoise.Runway:
                         PlayIfNotPlaying(_soundAirplane);
                         break;
                     case TrackNoise.Clock:
-                        UpdateLoopingNoiseLayout(_soundClock, position, noise, pan: 25);
+                        UpdateLoopingNoiseLayout(_soundClock, normalized.DistanceMeters, noise, normalized, pan: 25);
                         break;
                     case TrackNoise.Jet:
                         PlayIfNotPlaying(_soundJet);
@@ -342,13 +552,13 @@ namespace TopSpeed.Tracks
                         PlayIfNotPlaying(_soundThunder);
                         break;
                     case TrackNoise.Pile:
-                        UpdateLoopingNoiseLayout(_soundPile, position, noise);
+                        UpdateLoopingNoiseLayout(_soundPile, normalized.DistanceMeters, noise, normalized);
                         break;
                     case TrackNoise.Construction:
-                        UpdateLoopingNoiseLayout(_soundConstruction, position, noise);
+                        UpdateLoopingNoiseLayout(_soundConstruction, normalized.DistanceMeters, noise, normalized);
                         break;
                     case TrackNoise.River:
-                        UpdateLoopingNoiseLayout(_soundRiver, position, noise);
+                        UpdateLoopingNoiseLayout(_soundRiver, normalized.DistanceMeters, noise, normalized);
                         break;
                     case TrackNoise.Helicopter:
                         PlayIfNotPlaying(_soundHelicopter);
@@ -371,19 +581,20 @@ namespace TopSpeed.Tracks
             if (_segmentCount == 0)
                 return;
 
+            var legacyPosition = position.DistanceMeters;
             switch (_definition[_currentRoad].Noise)
             {
                 case TrackNoise.Crowd:
-                    UpdateLoopingNoise(_soundCrowd, position);
+                    UpdateLoopingNoise(_soundCrowd, legacyPosition);
                     break;
                 case TrackNoise.Ocean:
-                    UpdateLoopingNoise(_soundOcean, position, pan: -10);
+                    UpdateLoopingNoise(_soundOcean, legacyPosition, pan: -10);
                     break;
                 case TrackNoise.Runway:
                     PlayIfNotPlaying(_soundAirplane);
                     break;
                 case TrackNoise.Clock:
-                    UpdateLoopingNoise(_soundClock, position, pan: 25);
+                    UpdateLoopingNoise(_soundClock, legacyPosition, pan: 25);
                     break;
                 case TrackNoise.Jet:
                     PlayIfNotPlaying(_soundJet);
@@ -392,13 +603,13 @@ namespace TopSpeed.Tracks
                     PlayIfNotPlaying(_soundThunder);
                     break;
                 case TrackNoise.Pile:
-                    UpdateLoopingNoise(_soundPile, position);
+                    UpdateLoopingNoise(_soundPile, legacyPosition);
                     break;
                 case TrackNoise.Construction:
-                    UpdateLoopingNoise(_soundConstruction, position);
+                    UpdateLoopingNoise(_soundConstruction, legacyPosition);
                     break;
                 case TrackNoise.River:
-                    UpdateLoopingNoise(_soundRiver, position);
+                    UpdateLoopingNoise(_soundRiver, legacyPosition);
                     break;
                 case TrackNoise.Helicopter:
                     PlayIfNotPlaying(_soundHelicopter);
@@ -419,6 +630,14 @@ namespace TopSpeed.Tracks
 
         public Road RoadAtPosition(float position)
         {
+            if (IsLayout)
+                return RoadAtPosition(CreatePositionFromDistance(position));
+
+            return RoadAtPosition(new TrackPosition(-1, 0f, position));
+        }
+
+        public Road RoadAtPosition(TrackPosition position)
+        {
             if (_lapDistance == 0)
                 Initialize();
 
@@ -427,8 +646,8 @@ namespace TopSpeed.Tracks
                 return BuildLayoutRoad(position, updateState: true);
             }
 
-            var lap = (int)(position / _lapDistance);
-            var pos = WrapDistance(position);
+            var lap = (int)(position.DistanceMeters / _lapDistance);
+            var pos = WrapDistance(position.DistanceMeters);
             var dist = 0.0f;
             var center = lap * _lapCenter;
 
@@ -459,6 +678,14 @@ namespace TopSpeed.Tracks
 
         public Road RoadComputer(float position)
         {
+            if (IsLayout)
+                return RoadComputer(CreatePositionFromDistance(position));
+
+            return RoadComputer(new TrackPosition(-1, 0f, position));
+        }
+
+        public Road RoadComputer(TrackPosition position)
+        {
             if (_lapDistance == 0)
                 Initialize();
 
@@ -467,8 +694,8 @@ namespace TopSpeed.Tracks
                 return BuildLayoutRoad(position, updateState: false);
             }
 
-            var lap = (int)(position / _lapDistance);
-            var pos = WrapDistance(position);
+            var lap = (int)(position.DistanceMeters / _lapDistance);
+            var pos = WrapDistance(position.DistanceMeters);
             var dist = 0.0f;
             var center = lap * _lapCenter;
             var relPos = 0.0f;
@@ -496,61 +723,76 @@ namespace TopSpeed.Tracks
             return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
         }
 
-        private Road BuildLayoutRoad(float position, bool updateState)
+        private Road BuildLayoutRoad(TrackPosition position, bool updateState)
         {
-            if (!IsLayout || _layoutSpans == null || _layoutSpanStart == null)
+            if (!IsLayout || _edgeRuntime == null)
                 return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
 
             if (_lapDistance <= 0f)
                 return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
 
-            var pos = WrapDistance(position);
-            var index = LayoutSpanIndexAt(pos);
-            var span = _layoutSpans[index];
+            var normalized = NormalizePosition(position);
+            var runtime = _edgeRuntime[normalized.EdgeIndex];
+            var spanIndex = GetSpanIndex(runtime, normalized.EdgeMeters);
+            var span = runtime.Spans[spanIndex];
 
             if (updateState)
             {
                 _prevRelPos = _relPos;
-                _relPos = pos - _layoutSpanStart[index];
-                _currentRoad = index;
+                _relPos = normalized.EdgeMeters - runtime.SpanStartMeters[spanIndex];
+                _currentRoad = spanIndex;
+                _currentEdgeIndex = normalized.EdgeIndex;
+                _currentSpanIndex = spanIndex;
             }
 
-            var width = Math.Max(0.5f, _layout!.WidthAt(pos));
+            var width = Math.Max(0.5f, runtime.Edge.Profile.WidthAt(normalized.EdgeMeters));
             var half = width * 0.5f;
             return new Road
             {
                 Left = -half,
                 Right = half,
-                Surface = _layout.SurfaceAt(pos),
+                Surface = runtime.Edge.Profile.SurfaceAt(normalized.EdgeMeters),
                 Type = ResolveCurveType(span),
                 Length = span.LengthMeters
             };
         }
 
-        private Road BuildLayoutRoadForIndex(int index)
+        private Road BuildLayoutRoadForIndex(int edgeIndex, int spanIndex)
         {
-            if (!IsLayout || _layoutSpans == null || _layoutSpanStart == null)
+            if (!IsLayout || _edgeRuntime == null)
                 return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
 
-            if (index < 0 || index >= _layoutSpans.Length)
+            if (edgeIndex < 0 || edgeIndex >= _edgeRuntime.Length)
                 return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
 
-            var span = _layoutSpans[index];
+            var runtime = _edgeRuntime[edgeIndex];
+            if (spanIndex < 0 || spanIndex >= runtime.Spans.Length)
+                return new Road { Left = 0, Right = 0, Surface = TrackSurface.Asphalt, Type = TrackType.Straight, Length = MinPartLengthMeters };
+
+            var span = runtime.Spans[spanIndex];
             var sampleOffset = Math.Min(0.25f, span.LengthMeters * 0.5f);
-            var pos = WrapDistance(_layoutSpanStart[index] + sampleOffset);
-            var width = Math.Max(0.5f, _layout!.WidthAt(pos));
+            var pos = Clamp(runtime.SpanStartMeters[spanIndex] + sampleOffset, 0f, runtime.LengthMeters);
+            var width = Math.Max(0.5f, runtime.Edge.Profile.WidthAt(pos));
             var half = width * 0.5f;
             return new Road
             {
                 Left = -half,
                 Right = half,
-                Surface = _layout.SurfaceAt(pos),
+                Surface = runtime.Edge.Profile.SurfaceAt(pos),
                 Type = ResolveCurveType(span),
                 Length = span.LengthMeters
             };
         }
 
         public bool NextRoad(float position, float speed, int curveAnnouncementMode, out Road road)
+        {
+            if (IsLayout)
+                return NextRoad(CreatePositionFromDistance(position), speed, curveAnnouncementMode, out road);
+
+            return NextRoad(new TrackPosition(-1, 0f, position), speed, curveAnnouncementMode, out road);
+        }
+
+        public bool NextRoad(TrackPosition position, float speed, int curveAnnouncementMode, out Road road)
         {
             road = new Road();
             if (_segmentCount == 0)
@@ -576,7 +818,7 @@ namespace TopSpeed.Tracks
             }
 
             var lookAhead = _callLength + speed / 2;
-            var roadAhead = RoadIndexAt(position + lookAhead);
+            var roadAhead = RoadIndexAt(position.DistanceMeters + lookAhead);
             if (roadAhead < 0)
                 return false;
 
@@ -594,10 +836,10 @@ namespace TopSpeed.Tracks
             return false;
         }
 
-        private bool NextLayoutRoad(float position, float speed, int curveAnnouncementMode, out Road road)
+        private bool NextLayoutRoad(TrackPosition position, float speed, int curveAnnouncementMode, out Road road)
         {
             road = new Road();
-            if (!IsLayout || _layoutSpans == null || _layoutSpanStart == null)
+            if (!IsLayout || _edgeRuntime == null)
                 return false;
 
             if (_lapDistance == 0)
@@ -608,25 +850,31 @@ namespace TopSpeed.Tracks
 
             if (curveAnnouncementMode == 0)
             {
-                var currentLength = _layoutSpans[_currentRoad].LengthMeters;
+                var runtime = _edgeRuntime[_currentEdgeIndex];
+                var currentLength = runtime.Spans[_currentSpanIndex].LengthMeters;
                 if ((_relPos + _callLength > currentLength) && (_prevRelPos + _callLength <= currentLength))
                 {
-                    road = BuildLayoutRoadForIndex((_currentRoad + 1) % _segmentCount);
-                    return road.Length > 0f;
+                    var nextSpan = GetNextSpanKey(_currentEdgeIndex, _currentSpanIndex);
+                    if (nextSpan.EdgeIndex >= 0)
+                    {
+                        road = BuildLayoutRoadForIndex(nextSpan.EdgeIndex, nextSpan.SpanIndex);
+                        return road.Length > 0f;
+                    }
                 }
                 return false;
             }
 
             var lookAhead = _callLength + speed / 2;
-            var roadAhead = LayoutSpanIndexAt(position + lookAhead);
-            if (roadAhead < 0)
+            var aheadPos = Advance(position, lookAhead, branchHint: 0f);
+            if (!aheadPos.IsGraphPosition)
                 return false;
-
-            var delta = (roadAhead - _lastCalled + _segmentCount) % _segmentCount;
-            if (delta > 0 && delta <= _segmentCount / 2)
+            var runtimeAhead = _edgeRuntime[aheadPos.EdgeIndex];
+            var spanIndex = GetSpanIndex(runtimeAhead, aheadPos.EdgeMeters);
+            var key = new TrackSpanKey(aheadPos.EdgeIndex, spanIndex);
+            if (_lastCalledSpan.EdgeIndex < 0 || !key.Equals(_lastCalledSpan))
             {
-                road = BuildLayoutRoadForIndex(roadAhead);
-                _lastCalled = roadAhead;
+                road = BuildLayoutRoadForIndex(key.EdgeIndex, key.SpanIndex);
+                _lastCalledSpan = key;
                 return road.Length > 0f;
             }
 
@@ -664,6 +912,353 @@ namespace TopSpeed.Tracks
             if (index >= _layoutSpanStart.Length)
                 index = _layoutSpanStart.Length - 1;
             return index;
+        }
+
+        private void BuildGraphRuntime()
+        {
+            if (_layout == null)
+                return;
+
+            var graph = _layout.Graph;
+            _graphNodes = new TrackGraphNode[graph.Nodes.Count];
+            for (var i = 0; i < graph.Nodes.Count; i++)
+                _graphNodes[i] = graph.Nodes[i];
+
+            _graphEdges = new TrackGraphEdge[graph.Edges.Count];
+            for (var i = 0; i < graph.Edges.Count; i++)
+                _graphEdges[i] = graph.Edges[i];
+
+            _nodeIndexById = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < _graphNodes.Length; i++)
+                _nodeIndexById[_graphNodes[i].Id] = i;
+
+            _edgeIndexById = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < _graphEdges.Length; i++)
+                _edgeIndexById[_graphEdges[i].Id] = i;
+
+            _primaryEdgeIndex = 0;
+            if (graph.PrimaryRoute.EdgeIds.Count > 0 && _edgeIndexById.TryGetValue(graph.PrimaryRoute.EdgeIds[0], out var primaryIndex))
+                _primaryEdgeIndex = primaryIndex;
+
+            _edgeRuntime = new EdgeRuntime[_graphEdges.Length];
+            for (var i = 0; i < _graphEdges.Length; i++)
+            {
+                var edge = _graphEdges[i];
+                var spans = new TrackGeometrySpan[edge.Geometry.Spans.Count];
+                for (var s = 0; s < spans.Length; s++)
+                    spans[s] = edge.Geometry.Spans[s];
+                var spanStart = BuildSpanStart(spans);
+                var geometry = TrackGeometry.Build(edge.Geometry);
+                _edgeRuntime[i] = new EdgeRuntime(edge, geometry, spans, spanStart);
+            }
+
+            _nodeOutgoing = new List<int>[_graphNodes.Length];
+            _nodeIncoming = new List<int>[_graphNodes.Length];
+            for (var i = 0; i < _graphNodes.Length; i++)
+            {
+                _nodeOutgoing[i] = new List<int>();
+                _nodeIncoming[i] = new List<int>();
+            }
+
+            for (var i = 0; i < _graphEdges.Length; i++)
+            {
+                var edge = _graphEdges[i];
+                if (!_nodeIndexById.TryGetValue(edge.FromNodeId, out var fromIndex))
+                    continue;
+                if (!_nodeIndexById.TryGetValue(edge.ToNodeId, out var toIndex))
+                    continue;
+                _nodeOutgoing[fromIndex].Add(i);
+                _nodeIncoming[toIndex].Add(i);
+            }
+
+            var nodePositions = new Vector3[_graphNodes.Length];
+            var nodeHeadings = new float[_graphNodes.Length];
+            var nodeSet = new bool[_graphNodes.Length];
+            var edgeBuilt = new bool[_graphEdges.Length];
+            var queue = new Queue<int>();
+            var component = 0;
+
+            void SeedNode(int nodeIndex)
+            {
+                nodePositions[nodeIndex] = new Vector3(component * DisconnectedNodeSpacingMeters, 0f, 0f);
+                nodeHeadings[nodeIndex] = 0f;
+                nodeSet[nodeIndex] = true;
+                queue.Enqueue(nodeIndex);
+            }
+
+            if (_graphEdges.Length > 0 && _nodeIndexById.TryGetValue(_graphEdges[_primaryEdgeIndex].FromNodeId, out var startNode))
+                SeedNode(startNode);
+
+            while (queue.Count > 0)
+            {
+                var nodeIndex = queue.Dequeue();
+                var nodePos = nodePositions[nodeIndex];
+                var nodeHeading = nodeHeadings[nodeIndex];
+                foreach (var edgeIndex in _nodeOutgoing[nodeIndex])
+                {
+                    if (!edgeBuilt[edgeIndex])
+                    {
+                        ApplyEdgeTransform(edgeIndex, nodePos, nodeHeading);
+                        edgeBuilt[edgeIndex] = true;
+                    }
+
+                    var edge = _graphEdges[edgeIndex];
+                    if (_nodeIndexById.TryGetValue(edge.ToNodeId, out var toIndex) && !nodeSet[toIndex])
+                    {
+                        var runtime = _edgeRuntime[edgeIndex];
+                        nodePositions[toIndex] = runtime.EndPosition;
+                        nodeHeadings[toIndex] = runtime.EndHeadingRadians;
+                        nodeSet[toIndex] = true;
+                        queue.Enqueue(toIndex);
+                    }
+                }
+            }
+
+            for (var i = 0; i < _graphNodes.Length; i++)
+            {
+                if (nodeSet[i])
+                    continue;
+                component++;
+                SeedNode(i);
+
+                while (queue.Count > 0)
+                {
+                    var nodeIndex = queue.Dequeue();
+                    var nodePos = nodePositions[nodeIndex];
+                    var nodeHeading = nodeHeadings[nodeIndex];
+                    foreach (var edgeIndex in _nodeOutgoing[nodeIndex])
+                    {
+                        if (!edgeBuilt[edgeIndex])
+                        {
+                            ApplyEdgeTransform(edgeIndex, nodePos, nodeHeading);
+                            edgeBuilt[edgeIndex] = true;
+                        }
+
+                        var edge = _graphEdges[edgeIndex];
+                        if (_nodeIndexById.TryGetValue(edge.ToNodeId, out var toIndex) && !nodeSet[toIndex])
+                        {
+                            var runtime = _edgeRuntime[edgeIndex];
+                            nodePositions[toIndex] = runtime.EndPosition;
+                            nodeHeadings[toIndex] = runtime.EndHeadingRadians;
+                            nodeSet[toIndex] = true;
+                            queue.Enqueue(toIndex);
+                        }
+                    }
+                }
+            }
+
+            for (var i = 0; i < _graphEdges.Length; i++)
+            {
+                if (edgeBuilt[i])
+                    continue;
+                var edge = _graphEdges[i];
+                if (_nodeIndexById.TryGetValue(edge.FromNodeId, out var fromIndex) && nodeSet[fromIndex])
+                {
+                    ApplyEdgeTransform(i, nodePositions[fromIndex], nodeHeadings[fromIndex]);
+                    edgeBuilt[i] = true;
+                }
+            }
+        }
+
+        private TrackSpanKey GetNextSpanKey(int edgeIndex, int spanIndex)
+        {
+            if (_edgeRuntime == null)
+                return new TrackSpanKey(-1, -1);
+
+            if (edgeIndex < 0 || edgeIndex >= _edgeRuntime.Length)
+                return new TrackSpanKey(-1, -1);
+
+            var runtime = _edgeRuntime[edgeIndex];
+            if (spanIndex + 1 < runtime.Spans.Length)
+                return new TrackSpanKey(edgeIndex, spanIndex + 1);
+
+            var nextEdge = SelectNextEdge(edgeIndex, 0f);
+            if (nextEdge < 0)
+                return new TrackSpanKey(-1, -1);
+            return new TrackSpanKey(nextEdge, 0);
+        }
+
+        private int SelectNextEdge(int currentEdgeIndex, float branchHint)
+        {
+            if (_graphEdges == null || _nodeOutgoing == null || _nodeIndexById == null)
+                return -1;
+
+            var edge = _graphEdges[currentEdgeIndex];
+            if (!_nodeIndexById.TryGetValue(edge.ToNodeId, out var nodeIndex))
+                return -1;
+            var candidates = _nodeOutgoing[nodeIndex];
+            return ChooseEdgeByHeading(currentEdgeIndex, candidates, branchHint, forward: true);
+        }
+
+        private int SelectPreviousEdge(int currentEdgeIndex, float branchHint)
+        {
+            if (_graphEdges == null || _nodeIncoming == null || _nodeIndexById == null)
+                return -1;
+
+            var edge = _graphEdges[currentEdgeIndex];
+            if (!_nodeIndexById.TryGetValue(edge.FromNodeId, out var nodeIndex))
+                return -1;
+            var candidates = _nodeIncoming[nodeIndex];
+            return ChooseEdgeByHeading(currentEdgeIndex, candidates, branchHint, forward: false);
+        }
+
+        private int ChooseEdgeByHeading(int currentEdgeIndex, List<int> candidates, float branchHint, bool forward)
+        {
+            if (_edgeRuntime == null || candidates == null || candidates.Count == 0)
+                return -1;
+            if (candidates.Count == 1)
+                return candidates[0];
+
+            var currentHeading = forward
+                ? _edgeRuntime[currentEdgeIndex].EndHeadingRadians
+                : NormalizeRadians(_edgeRuntime[currentEdgeIndex].HeadingRadians + (float)Math.PI);
+
+            var bestIndex = candidates[0];
+            if (branchHint > 0.1f)
+            {
+                var bestDelta = float.NegativeInfinity;
+                foreach (var candidate in candidates)
+                {
+                    var candidateHeading = forward
+                        ? _edgeRuntime[candidate].HeadingRadians
+                        : NormalizeRadians(_edgeRuntime[candidate].EndHeadingRadians + (float)Math.PI);
+                    var delta = NormalizeRadians(candidateHeading - currentHeading);
+                    if (delta > bestDelta)
+                    {
+                        bestDelta = delta;
+                        bestIndex = candidate;
+                    }
+                }
+                return bestIndex;
+            }
+
+            if (branchHint < -0.1f)
+            {
+                var bestDelta = float.PositiveInfinity;
+                foreach (var candidate in candidates)
+                {
+                    var candidateHeading = forward
+                        ? _edgeRuntime[candidate].HeadingRadians
+                        : NormalizeRadians(_edgeRuntime[candidate].EndHeadingRadians + (float)Math.PI);
+                    var delta = NormalizeRadians(candidateHeading - currentHeading);
+                    if (delta < bestDelta)
+                    {
+                        bestDelta = delta;
+                        bestIndex = candidate;
+                    }
+                }
+                return bestIndex;
+            }
+
+            var bestAbs = float.PositiveInfinity;
+            foreach (var candidate in candidates)
+            {
+                var candidateHeading = forward
+                    ? _edgeRuntime[candidate].HeadingRadians
+                    : NormalizeRadians(_edgeRuntime[candidate].EndHeadingRadians + (float)Math.PI);
+                var delta = NormalizeRadians(candidateHeading - currentHeading);
+                var abs = Math.Abs(delta);
+                if (abs < bestAbs)
+                {
+                    bestAbs = abs;
+                    bestIndex = candidate;
+                }
+            }
+
+            return bestIndex;
+        }
+
+        private TrackPosition NormalizePosition(TrackPosition position)
+        {
+            if (!IsLayout || _edgeRuntime == null)
+                return position;
+
+            if (!position.IsGraphPosition)
+                return CreatePositionFromDistance(position.DistanceMeters);
+
+            var edgeIndex = position.EdgeIndex;
+            if (edgeIndex < 0 || edgeIndex >= _edgeRuntime.Length)
+                return CreatePositionFromDistance(position.DistanceMeters);
+
+            var clampedS = Clamp(position.EdgeMeters, 0f, _edgeRuntime[edgeIndex].LengthMeters);
+            return new TrackPosition(edgeIndex, clampedS, position.DistanceMeters);
+        }
+
+        private static float[] BuildSpanStart(TrackGeometrySpan[] spans)
+        {
+            var start = new float[spans.Length];
+            var total = 0f;
+            for (var i = 0; i < spans.Length; i++)
+            {
+                start[i] = total;
+                total += spans[i].LengthMeters;
+            }
+            return start;
+        }
+
+        private static int GetSpanIndex(EdgeRuntime runtime, float sMeters)
+        {
+            var s = Clamp(sMeters, 0f, runtime.LengthMeters);
+            var index = Array.BinarySearch(runtime.SpanStartMeters, s);
+            if (index >= 0)
+                return index;
+            index = ~index - 1;
+            if (index < 0)
+                index = 0;
+            if (index >= runtime.SpanStartMeters.Length)
+                index = runtime.SpanStartMeters.Length - 1;
+            return index;
+        }
+
+        private void ApplyEdgeTransform(int edgeIndex, Vector3 origin, float headingRadians)
+        {
+            if (_edgeRuntime == null)
+                return;
+
+            var runtime = _edgeRuntime[edgeIndex];
+            runtime.Origin = origin;
+            runtime.HeadingRadians = headingRadians;
+            var endPose = runtime.Geometry.GetPoseClamped(runtime.LengthMeters);
+            runtime.EndPosition = origin + RotateY(endPose.Position, headingRadians);
+            runtime.EndHeadingRadians = NormalizeRadians(headingRadians + endPose.HeadingRadians);
+        }
+
+        private static TrackPose TransformPose(TrackPose localPose, Vector3 origin, float headingRadians)
+        {
+            var position = origin + RotateY(localPose.Position, headingRadians);
+            var tangent = Vector3.Normalize(RotateY(localPose.Tangent, headingRadians));
+            var right = Vector3.Normalize(RotateY(localPose.Right, headingRadians));
+            var up = Vector3.Normalize(RotateY(localPose.Up, headingRadians));
+            var heading = NormalizeRadians(localPose.HeadingRadians + headingRadians);
+            return new TrackPose(position, tangent, right, up, heading, localPose.BankRadians);
+        }
+
+        private static Vector3 RotateY(Vector3 value, float radians)
+        {
+            var sin = (float)Math.Sin(radians);
+            var cos = (float)Math.Cos(radians);
+            return new Vector3(
+                value.X * cos + value.Z * sin,
+                value.Y,
+                -value.X * sin + value.Z * cos);
+        }
+
+        private static float NormalizeRadians(float radians)
+        {
+            var twoPi = (float)(Math.PI * 2.0);
+            radians %= twoPi;
+            if (radians > Math.PI)
+                radians -= twoPi;
+            else if (radians < -Math.PI)
+                radians += twoPi;
+            return radians;
+        }
+
+        private static float Clamp(float value, float min, float max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
         }
 
         private TrackType ResolveCurveType(TrackGeometrySpan span)
@@ -719,23 +1314,24 @@ namespace TopSpeed.Tracks
             _noisePlaying = true;
         }
 
-        private void CalculateNoiseLengthLayout(float position, TrackNoise noise)
+        private void CalculateNoiseLengthLayout(TrackPosition position, TrackNoise noise)
         {
             _noiseLength = 0f;
-            if (_layout == null || _lapDistance <= 0f)
+            if (!IsLayout || _edgeRuntime == null)
             {
                 _noisePlaying = false;
                 return;
             }
 
-            var pos = WrapDistance(position);
+            var normalized = NormalizePosition(position);
+            var runtime = _edgeRuntime[normalized.EdgeIndex];
             var start = 0f;
-            var end = _lapDistance;
+            var end = runtime.LengthMeters;
             var found = false;
-            for (var i = 0; i < _layout.NoiseZones.Count; i++)
+            for (var i = 0; i < runtime.Edge.Profile.NoiseZones.Count; i++)
             {
-                var zone = _layout.NoiseZones[i];
-                if (zone.Value == noise && zone.Contains(pos))
+                var zone = runtime.Edge.Profile.NoiseZones[i];
+                if (zone.Value == noise && zone.Contains(normalized.EdgeMeters))
                 {
                     start = zone.StartMeters;
                     end = zone.EndMeters;
@@ -746,10 +1342,11 @@ namespace TopSpeed.Tracks
 
             if (!found)
             {
-                if (noise == _layout.DefaultNoise)
+                var currentNoise = runtime.Edge.Profile.NoiseAt(normalized.EdgeMeters);
+                if (noise == currentNoise)
                 {
                     start = 0f;
-                    end = _lapDistance;
+                    end = runtime.LengthMeters;
                     found = true;
                 }
                 else
@@ -766,8 +1363,8 @@ namespace TopSpeed.Tracks
                 return;
             }
 
-            var offset = pos - start;
-            _noiseStartPos = position - offset;
+            var offset = normalized.EdgeMeters - start;
+            _noiseStartPos = normalized.DistanceMeters - offset;
             _noiseEndPos = _noiseStartPos + _noiseLength;
             _noisePlaying = true;
         }
@@ -799,14 +1396,14 @@ namespace TopSpeed.Tracks
             }
         }
 
-        private void UpdateLoopingNoiseLayout(AudioSourceHandle? sound, float position, TrackNoise noise, int? pan = null)
+        private void UpdateLoopingNoiseLayout(AudioSourceHandle? sound, float position, TrackNoise noise, TrackPosition trackPosition, int? pan = null)
         {
             if (sound == null)
                 return;
 
             if (!_noisePlaying)
             {
-                CalculateNoiseLengthLayout(position, noise);
+                CalculateNoiseLengthLayout(trackPosition, noise);
                 if (_noiseLength <= 0f)
                     return;
             }

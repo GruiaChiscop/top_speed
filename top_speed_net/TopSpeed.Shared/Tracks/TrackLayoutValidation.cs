@@ -15,20 +15,29 @@ namespace TopSpeed.Tracks.Geometry
         public string Message { get; }
         public int? SpanIndex { get; }
         public string? Section { get; }
+        public string? EdgeId { get; }
 
-        public TrackLayoutIssue(TrackLayoutIssueSeverity severity, string message, int? spanIndex = null, string? section = null)
+        public TrackLayoutIssue(
+            TrackLayoutIssueSeverity severity,
+            string message,
+            int? spanIndex = null,
+            string? section = null,
+            string? edgeId = null)
         {
             Severity = severity;
             Message = message;
             SpanIndex = spanIndex;
             Section = section;
+            EdgeId = edgeId;
         }
 
         public override string ToString()
         {
             var location = string.Empty;
+            if (!string.IsNullOrWhiteSpace(EdgeId))
+                location = $"[edge {EdgeId}] ";
             if (!string.IsNullOrWhiteSpace(Section))
-                location = $"[{Section}] ";
+                location = $"[{Section}] " + location;
             if (SpanIndex.HasValue)
                 location += $"Span {SpanIndex.Value}: ";
             return $"{Severity}: {location}{Message}";
@@ -84,19 +93,67 @@ namespace TopSpeed.Tracks.Geometry
             var opts = options ?? new TrackLayoutValidationOptions();
             var issues = new List<TrackLayoutIssue>();
 
-            ValidateGeometry(layout, opts, issues);
-            ValidateZones(layout, opts, issues);
-            ValidateMarkers(layout, issues);
+            ValidateRouteGeometry(layout, opts, issues);
+            ValidateGraphEdges(layout, opts, issues);
 
             return new TrackLayoutValidationResult(issues);
         }
 
-        private static void ValidateGeometry(TrackLayout layout, TrackLayoutValidationOptions opts, List<TrackLayoutIssue> issues)
+                private static void ValidateRouteGeometry(TrackLayout layout, TrackLayoutValidationOptions opts, List<TrackLayoutIssue> issues)
         {
-            var spans = layout.Geometry.Spans;
+            var routeId = layout.PrimaryRoute != null ? layout.PrimaryRoute.Id : "primary";
+            ValidateGeometry(layout.Geometry, opts, issues, $"route:{routeId}", layout.PrimaryRoute?.IsLoop ?? true);
+        }
+
+        private static void ValidateGraphEdges(TrackLayout layout, TrackLayoutValidationOptions opts, List<TrackLayoutIssue> issues)
+        {
+            if (layout.Graph == null || layout.Graph.Edges.Count == 0)
+            {
+                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                    "Graph edges are missing.",
+                    section: "graph"));
+                return;
+            }
+
+            for (var i = 0; i < layout.Graph.Edges.Count; i++)
+            {
+                var edge = layout.Graph.Edges[i];
+                var checkClosure = edge.FromNodeId == edge.ToNodeId && edge.Geometry.EnforceClosure;
+                ValidateGeometry(edge.Geometry, opts, issues, edge.Id, checkClosure);
+                var defaultWidth = edge.Profile.DefaultWidthMeters;
+                if (defaultWidth < opts.MinWidthMeters)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                        $"Default width {defaultWidth:0.###}m below minimum {opts.MinWidthMeters:0.###}m.",
+                        section: "width",
+                        edgeId: edge.Id));
+                }
+                else if (defaultWidth < opts.WarningWidthMeters)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Default width {defaultWidth:0.###}m below recommended {opts.WarningWidthMeters:0.###}m.",
+                        section: "width",
+                        edgeId: edge.Id));
+                }
+                ValidateZones(edge.Profile, edge.LengthMeters, opts, issues, edge.Id);
+                ValidateMarkers(edge.Profile, edge.LengthMeters, issues, edge.Id);
+            }
+        }
+
+        private static void ValidateGeometry(
+            TrackGeometrySpec geometry,
+            TrackLayoutValidationOptions opts,
+            List<TrackLayoutIssue> issues,
+            string? edgeId,
+            bool checkClosure)
+        {
+            var spans = geometry.Spans;
             if (spans.Count == 0)
             {
-                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error, "Geometry spans are missing.", section: "geometry"));
+                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                    "Geometry spans are missing.",
+                    section: "geometry",
+                    edgeId: edgeId));
                 return;
             }
 
@@ -113,7 +170,8 @@ namespace TopSpeed.Tracks.Geometry
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                         $"Span length {span.LengthMeters:0.###}m is very short.",
                         i,
-                        "geometry"));
+                        "geometry",
+                        edgeId));
                 }
 
                 var maxSlope = Math.Max(Math.Abs(span.StartSlope), Math.Abs(span.EndSlope));
@@ -123,50 +181,54 @@ namespace TopSpeed.Tracks.Geometry
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
                         $"Slope {slopePercent:0.##}% exceeds max {opts.MaxSlopePercent:0.##}%.",
                         i,
-                        "geometry"));
+                        "geometry",
+                        edgeId));
                 }
                 else if (slopePercent > opts.WarningSlopePercent)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                         $"Slope {slopePercent:0.##}% exceeds warning {opts.WarningSlopePercent:0.##}%.",
                         i,
-                        "geometry"));
+                        "geometry",
+                        edgeId));
                 }
 
                 var bank = Math.Max(Math.Abs(span.BankStartDegrees), Math.Abs(span.BankEndDegrees));
                 if (bank > opts.MaxBankDegrees)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
-                        $"Bank {bank:0.##}째 exceeds max {opts.MaxBankDegrees:0.##}째.",
+                        $"Bank {bank:0.##}� exceeds max {opts.MaxBankDegrees:0.##}�.",
                         i,
-                        "geometry"));
+                        "geometry",
+                        edgeId));
                 }
                 else if (bank > opts.WarningBankDegrees)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
-                        $"Bank {bank:0.##}째 exceeds warning {opts.WarningBankDegrees:0.##}째.",
+                        $"Bank {bank:0.##}� exceeds warning {opts.WarningBankDegrees:0.##}�.",
                         i,
-                        "geometry"));
+                        "geometry",
+                        edgeId));
                 }
 
                 switch (span.Kind)
                 {
                     case TrackGeometrySpanKind.Arc:
-                        ValidateRadius(span.RadiusMeters, opts, i, issues);
+                        ValidateRadius(span.RadiusMeters, opts, i, issues, edgeId);
                         minRadius = Math.Min(minRadius, span.RadiusMeters);
                         break;
                     case TrackGeometrySpanKind.Clothoid:
                         if (span.StartRadiusMeters > 0f)
                         {
-                            ValidateRadius(span.StartRadiusMeters, opts, i, issues);
+                            ValidateRadius(span.StartRadiusMeters, opts, i, issues, edgeId);
                             minRadius = Math.Min(minRadius, span.StartRadiusMeters);
                         }
                         if (span.EndRadiusMeters > 0f)
                         {
-                            ValidateRadius(span.EndRadiusMeters, opts, i, issues);
+                            ValidateRadius(span.EndRadiusMeters, opts, i, issues, edgeId);
                             minRadius = Math.Min(minRadius, span.EndRadiusMeters);
                         }
-                        ValidateClothoidLength(span, opts, i, issues);
+                        ValidateClothoidLength(span, opts, i, issues, edgeId);
                         break;
                 }
 
@@ -176,7 +238,8 @@ namespace TopSpeed.Tracks.Geometry
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                         "Curved span has no curve severity for announcements.",
                         i,
-                        "geometry"));
+                        "geometry",
+                        edgeId));
                 }
             }
 
@@ -184,10 +247,12 @@ namespace TopSpeed.Tracks.Geometry
             {
                 issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                     $"Total length {totalLength:0.###}m is very short.",
-                    section: "geometry"));
+                    section: "geometry",
+                    edgeId: edgeId));
             }
 
-            for (var i = 0; i < spans.Count; i++)
+            var curvatureChecks = checkClosure ? spans.Count : spans.Count - 1;
+            for (var i = 0; i < curvatureChecks; i++)
             {
                 var current = spans[i];
                 var next = spans[(i + 1) % spans.Count];
@@ -197,57 +262,71 @@ namespace TopSpeed.Tracks.Geometry
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
                         $"Curvature jump {delta:0.#####} 1/m exceeds max {opts.MaxCurvatureJump:0.#####}.",
                         i,
-                        "geometry"));
+                        "geometry",
+                        edgeId));
                 }
                 else if (delta > opts.WarningCurvatureJump)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                         $"Curvature jump {delta:0.#####} 1/m exceeds warning {opts.WarningCurvatureJump:0.#####}.",
                         i,
-                        "geometry"));
+                        "geometry",
+                        edgeId));
                 }
             }
 
-            if (layout.Geometry.SampleSpacingMeters <= 0f)
+            if (geometry.SampleSpacingMeters <= 0f)
                 return;
 
             if (minRadius < float.MaxValue)
             {
-                var spacing = layout.Geometry.SampleSpacingMeters;
+                var spacing = geometry.SampleSpacingMeters;
                 if (spacing > minRadius / 2f)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
                         $"Sample spacing {spacing:0.###}m is too coarse for min radius {minRadius:0.###}m.",
-                        section: "environment"));
+                        section: "environment",
+                        edgeId: edgeId));
                 }
                 else if (spacing > minRadius / 4f)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                         $"Sample spacing {spacing:0.###}m may be too coarse for min radius {minRadius:0.###}m.",
-                        section: "environment"));
+                        section: "environment",
+                        edgeId: edgeId));
                 }
             }
-        }
-
-        private static void ValidateRadius(float radius, TrackLayoutValidationOptions opts, int spanIndex, List<TrackLayoutIssue> issues)
+        }                private static void ValidateRadius(
+            float radius,
+            TrackLayoutValidationOptions opts,
+            int spanIndex,
+            List<TrackLayoutIssue> issues,
+            string? edgeId)
         {
             if (radius < opts.MinRadiusMeters)
             {
                 issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
                     $"Radius {radius:0.###}m below minimum {opts.MinRadiusMeters:0.###}m.",
                     spanIndex,
-                    "geometry"));
+                    "geometry",
+                    edgeId));
             }
             else if (radius > opts.MaxRadiusMeters)
             {
                 issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                     $"Radius {radius:0.###}m above recommended max {opts.MaxRadiusMeters:0.###}m.",
                     spanIndex,
-                    "geometry"));
+                    "geometry",
+                    edgeId));
             }
         }
 
-        private static void ValidateClothoidLength(TrackGeometrySpan span, TrackLayoutValidationOptions opts, int spanIndex, List<TrackLayoutIssue> issues)
+        private static void ValidateClothoidLength(
+            TrackGeometrySpan span,
+            TrackLayoutValidationOptions opts,
+            int spanIndex,
+            List<TrackLayoutIssue> issues,
+            string? edgeId)
         {
             var start = span.StartRadiusMeters;
             var end = span.EndRadiusMeters;
@@ -269,36 +348,36 @@ namespace TopSpeed.Tracks.Geometry
                 issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                     $"Clothoid length ratio {ratio:0.###} (length/radius) is very short.",
                     spanIndex,
-                    "geometry"));
+                    "geometry",
+                    edgeId));
             }
             else if (ratio > opts.WarningClothoidRatioMax)
             {
                 issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                     $"Clothoid length ratio {ratio:0.###} (length/radius) is very long.",
                     spanIndex,
-                    "geometry"));
+                    "geometry",
+                    edgeId));
             }
         }
 
-        private static void ValidateZones(TrackLayout layout, TrackLayoutValidationOptions opts, List<TrackLayoutIssue> issues)
+        private static void ValidateZones(TrackEdgeProfile profile, float length, TrackLayoutValidationOptions opts, List<TrackLayoutIssue> issues, string? edgeId)
         {
-            var length = TrackGeometry.Build(layout.Geometry).LengthMeters;
-
-            ValidateZoneRange(layout.SurfaceZones, length, "surface", issues);
-            ValidateZoneRange(layout.NoiseZones, length, "noise", issues);
-            ValidateWidthZones(layout.WidthZones, length, opts, issues);
-            ValidateSpeedZones(layout.SpeedLimitZones, length, issues);
+            ValidateZoneRange(profile.SurfaceZones, length, "surface", issues, edgeId);
+            ValidateZoneRange(profile.NoiseZones, length, "noise", issues, edgeId);
+            ValidateWidthZones(profile.WidthZones, length, opts, issues, edgeId);
+            ValidateSpeedZones(profile.SpeedLimitZones, length, issues, edgeId);
 
             if (!opts.AllowZoneOverlap)
             {
-                CheckOverlaps(layout.SurfaceZones, "surface", issues, zone => (zone.StartMeters, zone.EndMeters));
-                CheckOverlaps(layout.NoiseZones, "noise", issues, zone => (zone.StartMeters, zone.EndMeters));
-                CheckOverlaps(layout.WidthZones, "width", issues, zone => (zone.StartMeters, zone.EndMeters));
-                CheckOverlaps(layout.SpeedLimitZones, "speed_limits", issues, zone => (zone.StartMeters, zone.EndMeters));
+                CheckOverlaps(profile.SurfaceZones, "surface", issues, edgeId, zone => (zone.StartMeters, zone.EndMeters));
+                CheckOverlaps(profile.NoiseZones, "noise", issues, edgeId, zone => (zone.StartMeters, zone.EndMeters));
+                CheckOverlaps(profile.WidthZones, "width", issues, edgeId, zone => (zone.StartMeters, zone.EndMeters));
+                CheckOverlaps(profile.SpeedLimitZones, "speed_limits", issues, edgeId, zone => (zone.StartMeters, zone.EndMeters));
             }
         }
 
-        private static void ValidateZoneRange<T>(IReadOnlyList<TrackZone<T>> zones, float length, string section, List<TrackLayoutIssue> issues)
+        private static void ValidateZoneRange<T>(IReadOnlyList<TrackZone<T>> zones, float length, string section, List<TrackLayoutIssue> issues, string? edgeId)
         {
             for (var i = 0; i < zones.Count; i++)
             {
@@ -308,19 +387,21 @@ namespace TopSpeed.Tracks.Geometry
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
                         "Zone has negative start/end.",
                         i,
-                        section));
+                        section,
+                        edgeId));
                 }
                 if (zone.EndMeters > length)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                         "Zone extends beyond track length.",
                         i,
-                        section));
+                        section,
+                        edgeId));
                 }
             }
         }
 
-        private static void ValidateWidthZones(IReadOnlyList<TrackWidthZone> zones, float length, TrackLayoutValidationOptions opts, List<TrackLayoutIssue> issues)
+        private static void ValidateWidthZones(IReadOnlyList<TrackWidthZone> zones, float length, TrackLayoutValidationOptions opts, List<TrackLayoutIssue> issues, string? edgeId)
         {
             for (var i = 0; i < zones.Count; i++)
             {
@@ -330,33 +411,37 @@ namespace TopSpeed.Tracks.Geometry
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
                         "Width zone has negative start/end.",
                         i,
-                        "width"));
+                        "width",
+                        edgeId));
                 }
                 if (zone.EndMeters > length)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                         "Width zone extends beyond track length.",
                         i,
-                        "width"));
+                        "width",
+                        edgeId));
                 }
                 if (zone.WidthMeters < opts.MinWidthMeters)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
                         $"Width {zone.WidthMeters:0.###}m below minimum {opts.MinWidthMeters:0.###}m.",
                         i,
-                        "width"));
+                        "width",
+                        edgeId));
                 }
                 else if (zone.WidthMeters < opts.WarningWidthMeters)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                         $"Width {zone.WidthMeters:0.###}m below recommended {opts.WarningWidthMeters:0.###}m.",
                         i,
-                        "width"));
+                        "width",
+                        edgeId));
                 }
             }
         }
 
-        private static void ValidateSpeedZones(IReadOnlyList<TrackSpeedLimitZone> zones, float length, List<TrackLayoutIssue> issues)
+        private static void ValidateSpeedZones(IReadOnlyList<TrackSpeedLimitZone> zones, float length, List<TrackLayoutIssue> issues, string? edgeId)
         {
             for (var i = 0; i < zones.Count; i++)
             {
@@ -366,42 +451,46 @@ namespace TopSpeed.Tracks.Geometry
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
                         "Speed limit zone has negative start/end.",
                         i,
-                        "speed_limits"));
+                        "speed_limits",
+                        edgeId));
                 }
                 if (zone.EndMeters > length)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                         "Speed limit zone extends beyond track length.",
                         i,
-                        "speed_limits"));
+                        "speed_limits",
+                        edgeId));
                 }
                 if (zone.MaxSpeedKph < 20f)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                         $"Speed limit {zone.MaxSpeedKph:0.###} kph is very low.",
                         i,
-                        "speed_limits"));
+                        "speed_limits",
+                        edgeId));
                 }
             }
         }
 
-        private static void ValidateMarkers(TrackLayout layout, List<TrackLayoutIssue> issues)
+        private static void ValidateMarkers(TrackEdgeProfile profile, float length, List<TrackLayoutIssue> issues, string? edgeId)
         {
-            var length = TrackGeometry.Build(layout.Geometry).LengthMeters;
-            for (var i = 0; i < layout.Markers.Count; i++)
+            var markers = profile.Markers;
+            for (var i = 0; i < markers.Count; i++)
             {
-                var marker = layout.Markers[i];
+                var marker = markers[i];
                 if (marker.PositionMeters < 0f || marker.PositionMeters > length)
                 {
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
                         $"Marker '{marker.Name}' is outside track bounds.",
                         i,
-                        "markers"));
+                        "markers",
+                        edgeId));
                 }
             }
         }
 
-        private static void CheckOverlaps<T>(IReadOnlyList<T> zones, string section, List<TrackLayoutIssue> issues, Func<T, (float start, float end)> getRange)
+        private static void CheckOverlaps<T>(IReadOnlyList<T> zones, string section, List<TrackLayoutIssue> issues, string? edgeId, Func<T, (float start, float end)> getRange)
         {
             var ranges = new List<(float start, float end, int index)>();
             for (var i = 0; i < zones.Count; i++)
@@ -420,7 +509,8 @@ namespace TopSpeed.Tracks.Geometry
                     issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
                         $"Zones {prev.index} and {current.index} overlap.",
                         current.index,
-                        section));
+                        section,
+                        edgeId));
                 }
             }
         }
