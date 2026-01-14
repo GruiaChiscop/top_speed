@@ -255,6 +255,10 @@ namespace TopSpeed.Tracks.Geometry
         public float HeightMeters { get; }
         public float Severity { get; }
         public bool IsSolid { get; }
+        public float? FrictionMultiplier { get; }
+        public float? Restitution { get; }
+        public float? Damping { get; }
+        public float? DamageMultiplier { get; }
         public IReadOnlyDictionary<string, string> Metadata { get; }
 
         public TrackBoundaryZone(
@@ -267,6 +271,10 @@ namespace TopSpeed.Tracks.Geometry
             float heightMeters,
             bool isSolid = true,
             float severity = 1f,
+            float? frictionMultiplier = null,
+            float? restitution = null,
+            float? damping = null,
+            float? damageMultiplier = null,
             IReadOnlyDictionary<string, string>? metadata = null)
         {
             if (!TrackGraphValidation.IsFinite(startMeters))
@@ -280,9 +288,17 @@ namespace TopSpeed.Tracks.Geometry
             if (!TrackGraphValidation.IsFinite(widthMeters) || widthMeters < 0f)
                 throw new ArgumentOutOfRangeException(nameof(widthMeters));
             if (!TrackGraphValidation.IsFinite(heightMeters) || heightMeters < 0f)
-                throw new ArgumentOutOfRangeException(nameof(heightMeters));
-            if (!TrackGraphValidation.IsFinite(severity) || severity < 0f)
-                throw new ArgumentOutOfRangeException(nameof(severity));
+                throw new ArgumentOutOfRangeException(nameof(heightMeters));    
+            if (!TrackGraphValidation.IsFinite(severity) || severity < 0f)      
+                throw new ArgumentOutOfRangeException(nameof(severity));        
+            if (frictionMultiplier.HasValue && (!TrackGraphValidation.IsFinite(frictionMultiplier.Value) || frictionMultiplier.Value < 0f))
+                throw new ArgumentOutOfRangeException(nameof(frictionMultiplier));
+            if (restitution.HasValue && (!TrackGraphValidation.IsFinite(restitution.Value) || restitution.Value < 0f))
+                throw new ArgumentOutOfRangeException(nameof(restitution));
+            if (damping.HasValue && (!TrackGraphValidation.IsFinite(damping.Value) || damping.Value < 0f))
+                throw new ArgumentOutOfRangeException(nameof(damping));
+            if (damageMultiplier.HasValue && (!TrackGraphValidation.IsFinite(damageMultiplier.Value) || damageMultiplier.Value < 0f))
+                throw new ArgumentOutOfRangeException(nameof(damageMultiplier));
 
             StartMeters = startMeters;
             EndMeters = endMeters;
@@ -293,6 +309,10 @@ namespace TopSpeed.Tracks.Geometry
             HeightMeters = heightMeters;
             IsSolid = isSolid;
             Severity = severity;
+            FrictionMultiplier = frictionMultiplier;
+            Restitution = restitution;
+            Damping = damping;
+            DamageMultiplier = damageMultiplier;
             Metadata = metadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
 
@@ -330,7 +350,9 @@ namespace TopSpeed.Tracks.Geometry
     public enum TrackLaneOwnerKind
     {
         Leg = 0,
-        Connector = 1
+        Connector = 1,
+        StartFinish = 2,
+        Custom = 3
     }
 
     public enum TrackLaneDirection
@@ -611,6 +633,114 @@ namespace TopSpeed.Tracks.Geometry
         }
     }
 
+    public enum TrackLaneGroupKind
+    {
+        Leg = 0,
+        Connector = 1,
+        Custom = 2
+    }
+
+    public sealed class TrackLaneGroup
+    {
+        public string Id { get; }
+        public TrackLaneGroupKind Kind { get; }
+        public string? OwnerId { get; }
+        public IReadOnlyList<string> LaneIds { get; }
+        public int LaneCount { get; }
+        public float WidthMeters { get; }
+        public float SpeedLimitKph { get; }
+        public TrackTurnDirection TurnDirection { get; }
+        public int Priority { get; }
+        public IReadOnlyDictionary<string, string> Metadata { get; }
+
+        public TrackLaneGroup(
+            string id,
+            TrackLaneGroupKind kind,
+            string? ownerId = null,
+            IReadOnlyList<string>? laneIds = null,
+            int laneCount = 0,
+            float widthMeters = 0f,
+            float speedLimitKph = 0f,
+            TrackTurnDirection turnDirection = TrackTurnDirection.Unknown,
+            int priority = 0,
+            IReadOnlyDictionary<string, string>? metadata = null)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+                throw new ArgumentException("Lane group id is required.", nameof(id));
+            if ((kind == TrackLaneGroupKind.Leg || kind == TrackLaneGroupKind.Connector) &&
+                string.IsNullOrWhiteSpace(ownerId))
+                throw new ArgumentException("Lane group owner id is required for leg/connector groups.", nameof(ownerId));
+            if (laneCount < 0)
+                throw new ArgumentOutOfRangeException(nameof(laneCount));
+            if (!TrackGraphValidation.IsFinite(widthMeters) || widthMeters < 0f)
+                throw new ArgumentOutOfRangeException(nameof(widthMeters));
+            if (!TrackGraphValidation.IsFinite(speedLimitKph) || speedLimitKph < 0f)
+                throw new ArgumentOutOfRangeException(nameof(speedLimitKph));
+
+            var ids = laneIds ?? Array.Empty<string>();
+            if (ids.Count == 0 && laneCount == 0)
+                throw new ArgumentException("Lane group must define lane_ids or lane_count.", nameof(laneIds));
+
+            Id = id.Trim();
+            Kind = kind;
+            OwnerId = string.IsNullOrWhiteSpace(ownerId) ? null : ownerId!.Trim();
+            LaneIds = ids;
+            LaneCount = laneCount;
+            WidthMeters = widthMeters;
+            SpeedLimitKph = speedLimitKph;
+            TurnDirection = turnDirection;
+            Priority = priority;
+            Metadata = metadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    public sealed class TrackLaneTransition
+    {
+        public string Id { get; }
+        public string FromGroupId { get; }
+        public string ToGroupId { get; }
+        public TrackTurnDirection TurnDirection { get; }
+        public IReadOnlyList<string> FromLaneIds { get; }
+        public IReadOnlyList<string> ToLaneIds { get; }
+        public bool AllowsLaneChange { get; }
+        public float ChangeLengthMeters { get; }
+        public int Priority { get; }
+        public IReadOnlyDictionary<string, string> Metadata { get; }
+
+        public TrackLaneTransition(
+            string id,
+            string fromGroupId,
+            string toGroupId,
+            TrackTurnDirection turnDirection,
+            IReadOnlyList<string>? fromLaneIds = null,
+            IReadOnlyList<string>? toLaneIds = null,
+            bool allowsLaneChange = false,
+            float changeLengthMeters = 0f,
+            int priority = 0,
+            IReadOnlyDictionary<string, string>? metadata = null)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+                throw new ArgumentException("Lane transition id is required.", nameof(id));
+            if (string.IsNullOrWhiteSpace(fromGroupId))
+                throw new ArgumentException("Lane transition from group id is required.", nameof(fromGroupId));
+            if (string.IsNullOrWhiteSpace(toGroupId))
+                throw new ArgumentException("Lane transition to group id is required.", nameof(toGroupId));
+            if (!TrackGraphValidation.IsFinite(changeLengthMeters) || changeLengthMeters < 0f)
+                throw new ArgumentOutOfRangeException(nameof(changeLengthMeters));
+
+            Id = id.Trim();
+            FromGroupId = fromGroupId.Trim();
+            ToGroupId = toGroupId.Trim();
+            TurnDirection = turnDirection;
+            FromLaneIds = fromLaneIds ?? Array.Empty<string>();
+            ToLaneIds = toLaneIds ?? Array.Empty<string>();
+            AllowsLaneChange = allowsLaneChange;
+            ChangeLengthMeters = changeLengthMeters;
+            Priority = priority;
+            Metadata = metadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
     public sealed class TrackLaneLink
     {
         public string Id { get; }
@@ -666,10 +796,23 @@ namespace TopSpeed.Tracks.Geometry
         Island = 2,
         Crosswalk = 3,
         StopLine = 4,
-        Median = 5,
-        Sidewalk = 6,
-        Shoulder = 7,
-        Custom = 8
+        StartLine = 5,
+        FinishLine = 6,
+        GridBox = 7,
+        TimingGate = 8,
+        Median = 9,
+        Sidewalk = 10,
+        Shoulder = 11,
+        Custom = 12
+    }
+
+    public enum TrackIntersectionAreaOwnerKind
+    {
+        None = 0,
+        Leg = 1,
+        Connector = 2,
+        LaneGroup = 3,
+        Custom = 4
     }
 
     public readonly struct TrackPoint3
@@ -726,6 +869,9 @@ namespace TopSpeed.Tracks.Geometry
         public string Id { get; }
         public TrackIntersectionAreaShape Shape { get; }
         public TrackIntersectionAreaKind Kind { get; }
+        public TrackIntersectionAreaOwnerKind OwnerKind { get; }
+        public string? OwnerId { get; }
+        public IReadOnlyList<string> LaneIds { get; }
         public float RadiusMeters { get; }
         public float WidthMeters { get; }
         public float LengthMeters { get; }
@@ -734,6 +880,8 @@ namespace TopSpeed.Tracks.Geometry
         public float HeadingDegrees { get; }
         public float ElevationMeters { get; }
         public TrackSurface Surface { get; }
+        public float ThicknessMeters { get; }
+        public int Priority { get; }
         public IReadOnlyList<TrackPoint3> Points { get; }
         public IReadOnlyDictionary<string, string> Metadata { get; }
 
@@ -749,6 +897,11 @@ namespace TopSpeed.Tracks.Geometry
             float headingDegrees,
             float elevationMeters,
             TrackSurface surface,
+            TrackIntersectionAreaOwnerKind ownerKind = TrackIntersectionAreaOwnerKind.None,
+            string? ownerId = null,
+            IReadOnlyList<string>? laneIds = null,
+            float thicknessMeters = 0f,
+            int priority = 0,
             IReadOnlyList<TrackPoint3>? points = null,
             IReadOnlyDictionary<string, string>? metadata = null)
         {
@@ -768,10 +921,18 @@ namespace TopSpeed.Tracks.Geometry
                 throw new ArgumentOutOfRangeException(nameof(headingDegrees));
             if (!TrackGraphValidation.IsFinite(elevationMeters))
                 throw new ArgumentOutOfRangeException(nameof(elevationMeters));
+            if (!TrackGraphValidation.IsFinite(thicknessMeters) || thicknessMeters < 0f)
+                throw new ArgumentOutOfRangeException(nameof(thicknessMeters));
+            if (ownerKind != TrackIntersectionAreaOwnerKind.None && string.IsNullOrWhiteSpace(ownerId))
+                throw new ArgumentException("Intersection area owner id is required.", nameof(ownerId));
+            if (ownerKind == TrackIntersectionAreaOwnerKind.None && !string.IsNullOrWhiteSpace(ownerId))
+                throw new ArgumentException("Intersection area owner id set without an owner kind.", nameof(ownerId));
 
             Id = id.Trim();
             Shape = shape;
             Kind = kind;
+            OwnerKind = ownerKind;
+            OwnerId = string.IsNullOrWhiteSpace(ownerId) ? null : ownerId!.Trim();
             RadiusMeters = radiusMeters;
             WidthMeters = widthMeters;
             LengthMeters = lengthMeters;
@@ -780,6 +941,23 @@ namespace TopSpeed.Tracks.Geometry
             HeadingDegrees = headingDegrees;
             ElevationMeters = elevationMeters;
             Surface = surface;
+            ThicknessMeters = thicknessMeters;
+            Priority = priority;
+            if (laneIds == null || laneIds.Count == 0)
+            {
+                LaneIds = Array.Empty<string>();
+            }
+            else
+            {
+                var trimmed = new List<string>(laneIds.Count);
+                foreach (var laneId in laneIds)
+                {
+                    if (string.IsNullOrWhiteSpace(laneId))
+                        throw new ArgumentException("Intersection area lane id is required.", nameof(laneIds));
+                    trimmed.Add(laneId.Trim());
+                }
+                LaneIds = trimmed;
+            }
             Points = points ?? Array.Empty<TrackPoint3>();
             Metadata = metadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
@@ -801,6 +979,8 @@ namespace TopSpeed.Tracks.Geometry
         public IReadOnlyList<TrackIntersectionConnector> Connectors { get; }
         public IReadOnlyList<TrackLane> Lanes { get; }
         public IReadOnlyList<TrackLaneLink> LaneLinks { get; }
+        public IReadOnlyList<TrackLaneGroup> LaneGroups { get; }
+        public IReadOnlyList<TrackLaneTransition> LaneTransitions { get; }
         public IReadOnlyList<TrackIntersectionArea> Areas { get; }
         public IReadOnlyDictionary<string, string> Metadata { get; }
 
@@ -816,9 +996,11 @@ namespace TopSpeed.Tracks.Geometry
             TrackIntersectionControl control = TrackIntersectionControl.None,
             int priority = 0,
             IReadOnlyList<TrackIntersectionLeg>? legs = null,
-            IReadOnlyList<TrackIntersectionConnector>? connectors = null,
+            IReadOnlyList<TrackIntersectionConnector>? connectors = null,       
             IReadOnlyList<TrackLane>? lanes = null,
             IReadOnlyList<TrackLaneLink>? laneLinks = null,
+            IReadOnlyList<TrackLaneGroup>? laneGroups = null,
+            IReadOnlyList<TrackLaneTransition>? laneTransitions = null,
             IReadOnlyList<TrackIntersectionArea>? areas = null,
             IReadOnlyDictionary<string, string>? metadata = null)
         {
@@ -851,6 +1033,86 @@ namespace TopSpeed.Tracks.Geometry
             Connectors = connectors ?? Array.Empty<TrackIntersectionConnector>();
             Lanes = lanes ?? Array.Empty<TrackLane>();
             LaneLinks = laneLinks ?? Array.Empty<TrackLaneLink>();
+            LaneGroups = laneGroups ?? Array.Empty<TrackLaneGroup>();
+            LaneTransitions = laneTransitions ?? Array.Empty<TrackLaneTransition>();
+            Areas = areas ?? Array.Empty<TrackIntersectionArea>();
+            Metadata = metadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    public enum TrackStartFinishKind
+    {
+        Start = 0,
+        Finish = 1,
+        StartFinish = 2,
+        Split = 3,
+        Custom = 4
+    }
+
+    public sealed class TrackStartFinishSubgraph
+    {
+        public string Id { get; }
+        public string EdgeId { get; }
+        public TrackStartFinishKind Kind { get; }
+        public float StartMeters { get; }
+        public float EndMeters { get; }
+        public float LengthMeters => EndMeters - StartMeters;
+        public float WidthMeters { get; }
+        public float HeadingDegrees { get; }
+        public TrackSurface Surface { get; }
+        public int Priority { get; }
+        public IReadOnlyList<TrackLane> Lanes { get; }
+        public IReadOnlyList<TrackLaneLink> LaneLinks { get; }
+        public IReadOnlyList<TrackLaneGroup> LaneGroups { get; }
+        public IReadOnlyList<TrackLaneTransition> LaneTransitions { get; }
+        public IReadOnlyList<TrackIntersectionArea> Areas { get; }
+        public IReadOnlyDictionary<string, string> Metadata { get; }
+
+        public TrackStartFinishSubgraph(
+            string id,
+            string edgeId,
+            TrackStartFinishKind kind,
+            float startMeters,
+            float endMeters,
+            float widthMeters,
+            float headingDegrees,
+            TrackSurface surface,
+            int priority = 0,
+            IReadOnlyList<TrackLane>? lanes = null,
+            IReadOnlyList<TrackLaneLink>? laneLinks = null,
+            IReadOnlyList<TrackLaneGroup>? laneGroups = null,
+            IReadOnlyList<TrackLaneTransition>? laneTransitions = null,
+            IReadOnlyList<TrackIntersectionArea>? areas = null,
+            IReadOnlyDictionary<string, string>? metadata = null)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+                throw new ArgumentException("Start/finish id is required.", nameof(id));
+            if (string.IsNullOrWhiteSpace(edgeId))
+                throw new ArgumentException("Start/finish edge id is required.", nameof(edgeId));
+            if (!TrackGraphValidation.IsFinite(startMeters))
+                throw new ArgumentOutOfRangeException(nameof(startMeters));
+            if (!TrackGraphValidation.IsFinite(endMeters))
+                throw new ArgumentOutOfRangeException(nameof(endMeters));
+            if (endMeters < startMeters)
+                throw new ArgumentException("Start/finish end must be >= start.", nameof(endMeters));
+            if (!TrackGraphValidation.IsFinite(widthMeters) || widthMeters <= 0f)
+                throw new ArgumentOutOfRangeException(nameof(widthMeters));
+            if (!TrackGraphValidation.IsFinite(headingDegrees))
+                throw new ArgumentOutOfRangeException(nameof(headingDegrees));
+
+            Id = id.Trim();
+            EdgeId = edgeId.Trim();
+            Kind = kind;
+            StartMeters = startMeters;
+            EndMeters = endMeters;
+            WidthMeters = widthMeters;
+            HeadingDegrees = headingDegrees;
+            Surface = surface;
+            Priority = priority;
+            Lanes = lanes ?? Array.Empty<TrackLane>();
+            LaneLinks = laneLinks ?? Array.Empty<TrackLaneLink>();
+            LaneGroups = laneGroups ?? Array.Empty<TrackLaneGroup>();
+            LaneTransitions = laneTransitions ?? Array.Empty<TrackLaneTransition>();
             Areas = areas ?? Array.Empty<TrackIntersectionArea>();
             Metadata = metadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }

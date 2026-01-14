@@ -402,6 +402,15 @@ namespace TopSpeed.GeometryTest
                 }
             }
 
+            if (layout.StartFinishSubgraphs.Count > 0)
+            {
+                Console.WriteLine("[Verbose] Start/Finish Subgraphs:");
+                foreach (var subgraph in layout.StartFinishSubgraphs)
+                {
+                    PrintStartFinish(subgraph, verbosity);
+                }
+            }
+
             Console.WriteLine("[Verbose] Edges:");
             foreach (var edge in layout.Graph.Edges)
             {
@@ -419,7 +428,7 @@ namespace TopSpeed.GeometryTest
             Console.WriteLine($"      Radii: outer={intersection.OuterRadiusMeters:0.###}m inner={intersection.InnerRadiusMeters:0.###}m radius={intersection.RadiusMeters:0.###}m");
             Console.WriteLine($"      Lanes: entry={intersection.EntryLanes} exit={intersection.ExitLanes} turn={intersection.TurnLanes}");
             Console.WriteLine($"      SpeedLimit: {intersection.SpeedLimitKph:0.###} kph");
-            Console.WriteLine($"      Legs={intersection.Legs.Count}, Connectors={intersection.Connectors.Count}, Lanes={intersection.Lanes.Count}, LaneLinks={intersection.LaneLinks.Count}, Areas={intersection.Areas.Count}");
+            Console.WriteLine($"      Legs={intersection.Legs.Count}, Connectors={intersection.Connectors.Count}, Lanes={intersection.Lanes.Count}, LaneLinks={intersection.LaneLinks.Count}, LaneGroups={intersection.LaneGroups.Count}, LaneTransitions={intersection.LaneTransitions.Count}, Areas={intersection.Areas.Count}");
 
             if (verbosity < 1)
                 return;
@@ -460,13 +469,100 @@ namespace TopSpeed.GeometryTest
                 Console.WriteLine($"      LaneLink[{i}] id={link.Id} from={link.FromLaneId} to={link.ToLaneId} turn={link.TurnDirection} lane_change={link.AllowsLaneChange} change_len={link.ChangeLengthMeters:0.###}m priority={link.Priority}");
             }
 
+            for (var i = 0; i < intersection.LaneGroups.Count; i++)
+            {
+                var group = intersection.LaneGroups[i];
+                var owner = group.OwnerId ?? "(none)";
+                Console.WriteLine($"      LaneGroup[{i}] id={group.Id} kind={group.Kind} owner={owner} lanes={group.LaneIds.Count} lane_count={group.LaneCount} width={group.WidthMeters:0.###}m speed={group.SpeedLimitKph:0.###} kph turn={group.TurnDirection} priority={group.Priority}");
+                if (verbosity > 1 && group.LaneIds.Count > 0)
+                    Console.WriteLine($"        LaneIds: {string.Join(", ", group.LaneIds)}");
+            }
+
+            for (var i = 0; i < intersection.LaneTransitions.Count; i++)
+            {
+                var transition = intersection.LaneTransitions[i];
+                Console.WriteLine($"      LaneTransition[{i}] id={transition.Id} from={transition.FromGroupId} to={transition.ToGroupId} turn={transition.TurnDirection} lane_change={transition.AllowsLaneChange} change_len={transition.ChangeLengthMeters:0.###}m priority={transition.Priority}");
+                if (verbosity > 1)
+                {
+                    if (transition.FromLaneIds.Count > 0)
+                        Console.WriteLine($"        FromLanes: {string.Join(", ", transition.FromLaneIds)}");
+                    if (transition.ToLaneIds.Count > 0)
+                        Console.WriteLine($"        ToLanes: {string.Join(", ", transition.ToLaneIds)}");
+                }
+            }
+
             for (var i = 0; i < intersection.Areas.Count; i++)
             {
                 var area = intersection.Areas[i];
-                Console.WriteLine($"      Area[{i}] id={area.Id} shape={area.Shape} kind={area.Kind} radius={area.RadiusMeters:0.###}m size=({area.WidthMeters:0.###}x{area.LengthMeters:0.###}) offset=({area.OffsetXMeters:0.###},{area.OffsetZMeters:0.###}) heading={area.HeadingDegrees:0.###} elev={area.ElevationMeters:0.###}m surface={area.Surface}");
+                var owner = area.OwnerId ?? "(none)";
+                Console.WriteLine($"      Area[{i}] id={area.Id} shape={area.Shape} kind={area.Kind} owner={area.OwnerKind}:{owner} radius={area.RadiusMeters:0.###}m size=({area.WidthMeters:0.###}x{area.LengthMeters:0.###}) offset=({area.OffsetXMeters:0.###},{area.OffsetZMeters:0.###}) heading={area.HeadingDegrees:0.###} elev={area.ElevationMeters:0.###}m surface={area.Surface} thickness={area.ThicknessMeters:0.###} priority={area.Priority}");
                 if (verbosity > 1)
                 {
                     PrintPointList("        Points", area.Points);
+                    if (area.LaneIds.Count > 0)
+                        Console.WriteLine($"        LaneIds: {string.Join(", ", area.LaneIds)}");
+                }
+            }
+        }
+
+        private static void PrintStartFinish(TrackStartFinishSubgraph subgraph, int verbosity)
+        {
+            Console.WriteLine($"  StartFinish id={subgraph.Id} edge={subgraph.EdgeId} kind={subgraph.Kind} s=({subgraph.StartMeters:0.###}-{subgraph.EndMeters:0.###})m width={subgraph.WidthMeters:0.###}m heading={subgraph.HeadingDegrees:0.###} surface={subgraph.Surface} priority={subgraph.Priority}");
+            Console.WriteLine($"    Lanes={subgraph.Lanes.Count}, LaneLinks={subgraph.LaneLinks.Count}, LaneGroups={subgraph.LaneGroups.Count}, LaneTransitions={subgraph.LaneTransitions.Count}, Areas={subgraph.Areas.Count}");
+            if (verbosity < 1)
+                return;
+
+            for (var i = 0; i < subgraph.Lanes.Count; i++)
+            {
+                var lane = subgraph.Lanes[i];
+                Console.WriteLine($"    Lane[{i}] id={lane.Id} owner={lane.OwnerKind}:{lane.OwnerId} index={lane.Index} width={lane.WidthMeters:0.###}m offset={lane.CenterOffsetMeters:0.###}m shoulders=({lane.ShoulderLeftMeters:0.###},{lane.ShoulderRightMeters:0.###}) type={lane.LaneType} dir={lane.Direction} markings=({lane.MarkingLeft},{lane.MarkingRight}) entry={lane.EntryHeadingDegrees:0.###} exit={lane.ExitHeadingDegrees:0.###} bank={lane.BankDegrees:0.###} cross={lane.CrossSlopeDegrees:0.###} speed={lane.SpeedLimitKph:0.###} kph surface={lane.Surface} priority={lane.Priority}");
+                if (verbosity > 1)
+                {
+                    PrintPointList("      Centerline", lane.CenterlinePoints);
+                    PrintPointList("      LeftEdge", lane.LeftEdgePoints);
+                    PrintPointList("      RightEdge", lane.RightEdgePoints);
+                    PrintProfileList("      Profile", lane.Profile);
+                }
+            }
+
+            for (var i = 0; i < subgraph.LaneLinks.Count; i++)
+            {
+                var link = subgraph.LaneLinks[i];
+                Console.WriteLine($"    LaneLink[{i}] id={link.Id} from={link.FromLaneId} to={link.ToLaneId} turn={link.TurnDirection} lane_change={link.AllowsLaneChange} change_len={link.ChangeLengthMeters:0.###}m priority={link.Priority}");
+            }
+
+            for (var i = 0; i < subgraph.LaneGroups.Count; i++)
+            {
+                var group = subgraph.LaneGroups[i];
+                var owner = group.OwnerId ?? "(none)";
+                Console.WriteLine($"    LaneGroup[{i}] id={group.Id} kind={group.Kind} owner={owner} lanes={group.LaneIds.Count} lane_count={group.LaneCount} width={group.WidthMeters:0.###}m speed={group.SpeedLimitKph:0.###} kph turn={group.TurnDirection} priority={group.Priority}");
+                if (verbosity > 1 && group.LaneIds.Count > 0)
+                    Console.WriteLine($"      LaneIds: {string.Join(", ", group.LaneIds)}");
+            }
+
+            for (var i = 0; i < subgraph.LaneTransitions.Count; i++)
+            {
+                var transition = subgraph.LaneTransitions[i];
+                Console.WriteLine($"    LaneTransition[{i}] id={transition.Id} from={transition.FromGroupId} to={transition.ToGroupId} turn={transition.TurnDirection} lane_change={transition.AllowsLaneChange} change_len={transition.ChangeLengthMeters:0.###}m priority={transition.Priority}");
+                if (verbosity > 1)
+                {
+                    if (transition.FromLaneIds.Count > 0)
+                        Console.WriteLine($"      FromLanes: {string.Join(", ", transition.FromLaneIds)}");
+                    if (transition.ToLaneIds.Count > 0)
+                        Console.WriteLine($"      ToLanes: {string.Join(", ", transition.ToLaneIds)}");
+                }
+            }
+
+            for (var i = 0; i < subgraph.Areas.Count; i++)
+            {
+                var area = subgraph.Areas[i];
+                var owner = area.OwnerId ?? "(none)";
+                Console.WriteLine($"    Area[{i}] id={area.Id} shape={area.Shape} kind={area.Kind} owner={area.OwnerKind}:{owner} radius={area.RadiusMeters:0.###}m size=({area.WidthMeters:0.###}x{area.LengthMeters:0.###}) offset=({area.OffsetXMeters:0.###},{area.OffsetZMeters:0.###}) heading={area.HeadingDegrees:0.###} elev={area.ElevationMeters:0.###}m surface={area.Surface} thickness={area.ThicknessMeters:0.###} priority={area.Priority}");
+                if (verbosity > 1)
+                {
+                    PrintPointList("      Points", area.Points);
+                    if (area.LaneIds.Count > 0)
+                        Console.WriteLine($"      LaneIds: {string.Join(", ", area.LaneIds)}");
                 }
             }
         }

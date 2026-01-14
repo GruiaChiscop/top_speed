@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Numerics;
 
 namespace TopSpeed.Tracks.Geometry
 {
@@ -61,6 +62,12 @@ namespace TopSpeed.Tracks.Geometry
         public float WarningWidthMeters { get; set; } = 8f;
         public float WarningClothoidRatioMin { get; set; } = 0.1f;
         public float WarningClothoidRatioMax { get; set; } = 3.0f;
+        public float WarningClosureDistanceMeters { get; set; } = 2f;
+        public float MaxClosureDistanceMeters { get; set; } = 5f;
+        public float WarningClosureHeadingDegrees { get; set; } = 5f;
+        public float MaxClosureHeadingDegrees { get; set; } = 15f;
+        public float WarningTotalTurnDegrees { get; set; } = 5f;
+        public float MaxTotalTurnDegrees { get; set; } = 15f;
         public bool AllowZoneOverlap { get; set; } = false;
     }
 
@@ -98,6 +105,7 @@ namespace TopSpeed.Tracks.Geometry
             ValidateRouteGeometry(layout, opts, issues);
             ValidateGraphEdges(layout, opts, issues);
             ValidateIntersections(layout, opts, issues);
+            ValidateStartFinishSubgraphs(layout, opts, issues);
 
             return new TrackLayoutValidationResult(issues);
         }
@@ -688,7 +696,14 @@ namespace TopSpeed.Tracks.Geometry
                     }
 
                 }
+                var laneGroupIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var group in intersection.LaneGroups)
+                    laneGroupIds.Add(group.Id);
                 var areaIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var hasStopLine = false;
+                var hasConflict = false;
+                var hasCore = false;
+                var hasCrosswalk = false;
                 foreach (var area in intersection.Areas)
                 {
                     if (!areaIds.Add(area.Id))
@@ -724,6 +739,814 @@ namespace TopSpeed.Tracks.Geometry
                                     section: "intersection"));
                             }
                             break;
+                    }
+
+                    if (area.OwnerKind != TrackIntersectionAreaOwnerKind.None)
+                    {
+                        var ownerId = area.OwnerId;
+                        if (string.IsNullOrWhiteSpace(ownerId))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Intersection '{node.Id}' area '{area.Id}' missing owner id for {area.OwnerKind}.",
+                                section: "intersection"));
+                        }
+                        else
+                        {
+                            switch (area.OwnerKind)
+                            {
+                                case TrackIntersectionAreaOwnerKind.Leg:
+                                    if (!legLookup.ContainsKey(ownerId!))
+                                    {
+                                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                            $"Intersection '{node.Id}' area '{area.Id}' references missing leg '{ownerId}'.",
+                                            section: "intersection"));
+                                    }
+                                    break;
+                                case TrackIntersectionAreaOwnerKind.Connector:
+                                    if (!connectorLookup.ContainsKey(ownerId!))
+                                    {
+                                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                            $"Intersection '{node.Id}' area '{area.Id}' references missing connector '{ownerId}'.",
+                                            section: "intersection"));
+                                    }
+                                    break;
+                                case TrackIntersectionAreaOwnerKind.LaneGroup:
+                                    if (!laneGroupIds.Contains(ownerId!))
+                                    {
+                                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                            $"Intersection '{node.Id}' area '{area.Id}' references missing lane group '{ownerId}'.",
+                                            section: "intersection"));
+                                    }
+                                    break;
+                            }
+                        }
+                    }
+
+                    if (area.LaneIds.Count > 0)
+                    {
+                        foreach (var laneId in area.LaneIds)
+                        {
+                            if (!laneIds.Contains(laneId))
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                    $"Intersection '{node.Id}' area '{area.Id}' references missing lane '{laneId}'.",
+                                    section: "intersection"));
+                            }
+                        }
+                    }
+
+                    switch (area.Kind)
+                    {
+                        case TrackIntersectionAreaKind.StopLine:
+                            hasStopLine = true;
+                            if (area.OwnerKind == TrackIntersectionAreaOwnerKind.None && area.LaneIds.Count == 0)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Intersection '{node.Id}' area '{area.Id}' stop line has no owner or lane_ids.",
+                                    section: "intersection"));
+                            }
+                            if (area.Shape == TrackIntersectionAreaShape.Circle)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Intersection '{node.Id}' area '{area.Id}' stop line should not be circular.",
+                                    section: "intersection"));
+                            }
+                            break;
+                        case TrackIntersectionAreaKind.StartLine:
+                        case TrackIntersectionAreaKind.FinishLine:
+                        case TrackIntersectionAreaKind.TimingGate:
+                            if (area.Shape == TrackIntersectionAreaShape.Circle)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Intersection '{node.Id}' area '{area.Id}' line/gate should not be circular.",
+                                    section: "intersection"));
+                            }
+                            break;
+                        case TrackIntersectionAreaKind.GridBox:
+                            if (area.Shape == TrackIntersectionAreaShape.Circle)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Intersection '{node.Id}' area '{area.Id}' grid box should not be circular.",
+                                    section: "intersection"));
+                            }
+                            break;
+                        case TrackIntersectionAreaKind.Conflict:
+                            hasConflict = true;
+                            if (area.OwnerKind == TrackIntersectionAreaOwnerKind.None && area.LaneIds.Count == 0)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Intersection '{node.Id}' area '{area.Id}' conflict zone has no owner or lane_ids.",
+                                    section: "intersection"));
+                            }
+                            break;
+                        case TrackIntersectionAreaKind.Core:
+                            hasCore = true;
+                            break;
+                        case TrackIntersectionAreaKind.Crosswalk:
+                            hasCrosswalk = true;
+                            if (area.Shape == TrackIntersectionAreaShape.Circle)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Intersection '{node.Id}' area '{area.Id}' crosswalk should not be circular.",
+                                    section: "intersection"));
+                            }
+                            break;
+                    }
+                }
+
+                if (intersection.Control != TrackIntersectionControl.None && (entryCount > 0 || exitCount > 0))
+                {
+                    if (!hasStopLine)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Intersection '{node.Id}' uses {intersection.Control} control but has no stop_line area.",
+                            section: "intersection"));
+                    }
+                }
+
+                if (intersection.Connectors.Count > 1 && !hasConflict)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Intersection '{node.Id}' has multiple connectors but no conflict area.",
+                        section: "intersection"));
+                }
+
+                if ((intersection.Shape == TrackIntersectionShape.Circle ||
+                     intersection.Shape == TrackIntersectionShape.Roundabout) && !hasCore)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Intersection '{node.Id}' uses {intersection.Shape} shape but has no core area.",
+                        section: "intersection"));
+                }
+
+                if (hasCrosswalk && intersection.Control == TrackIntersectionControl.None)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Intersection '{node.Id}' defines crosswalk areas but has no control.",
+                        section: "intersection"));
+                }
+
+                ValidateLaneSubgraphs(intersection, node.Id, legLookup, connectorLookup, issues);
+            }
+        }
+
+        private static void ValidateStartFinishSubgraphs(TrackLayout layout, TrackLayoutValidationOptions opts, List<TrackLayoutIssue> issues)
+        {
+            if (layout.StartFinishSubgraphs == null || layout.StartFinishSubgraphs.Count == 0)
+                return;
+
+            var edgeLookup = new Dictionary<string, TrackGraphEdge>(StringComparer.OrdinalIgnoreCase);
+            foreach (var edge in layout.Graph.Edges)
+                edgeLookup[edge.Id] = edge;
+
+            var subgraphIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var subgraph in layout.StartFinishSubgraphs)
+            {
+                if (!subgraphIds.Add(subgraph.Id))
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                        $"Start/finish '{subgraph.Id}' has duplicate id.",
+                        section: "start_finish"));
+                    continue;
+                }
+
+                if (!edgeLookup.TryGetValue(subgraph.EdgeId, out var edge))
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                        $"Start/finish '{subgraph.Id}' references missing edge '{subgraph.EdgeId}'.",
+                        section: "start_finish"));
+                }
+                else
+                {
+                    if (subgraph.StartMeters < 0f || subgraph.EndMeters < 0f)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Start/finish '{subgraph.Id}' uses negative start/end.",
+                            section: "start_finish",
+                            edgeId: edge.Id));
+                    }
+                    if (subgraph.EndMeters > edge.LengthMeters)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Start/finish '{subgraph.Id}' end {subgraph.EndMeters:0.###}m exceeds edge length {edge.LengthMeters:0.###}m.",
+                            section: "start_finish",
+                            edgeId: edge.Id));
+                    }
+                }
+
+                if (subgraph.WidthMeters < opts.MinWidthMeters)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                        $"Start/finish '{subgraph.Id}' width {subgraph.WidthMeters:0.###}m below minimum {opts.MinWidthMeters:0.###}m.",
+                        section: "start_finish"));
+                }
+                else if (subgraph.WidthMeters < opts.WarningWidthMeters)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Start/finish '{subgraph.Id}' width {subgraph.WidthMeters:0.###}m below recommended {opts.WarningWidthMeters:0.###}m.",
+                        section: "start_finish"));
+                }
+
+                var laneIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var lane in subgraph.Lanes)
+                {
+                    if (!laneIds.Add(lane.Id))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Start/finish '{subgraph.Id}' has duplicate lane id '{lane.Id}'.",
+                            section: "start_finish"));
+                    }
+
+                    if (lane.OwnerKind != TrackLaneOwnerKind.StartFinish && lane.OwnerKind != TrackLaneOwnerKind.Custom)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Start/finish '{subgraph.Id}' lane '{lane.Id}' uses owner_kind {lane.OwnerKind}.",
+                            section: "start_finish"));
+                    }
+                }
+
+                var laneLinkIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var link in subgraph.LaneLinks)
+                {
+                    if (!laneLinkIds.Add(link.Id))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Start/finish '{subgraph.Id}' has duplicate lane link id '{link.Id}'.",
+                            section: "start_finish"));
+                    }
+
+                    if (!laneIds.Contains(link.FromLaneId))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Start/finish '{subgraph.Id}' lane link '{link.Id}' references missing from-lane '{link.FromLaneId}'.",
+                            section: "start_finish"));
+                    }
+                    if (!laneIds.Contains(link.ToLaneId))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Start/finish '{subgraph.Id}' lane link '{link.Id}' references missing to-lane '{link.ToLaneId}'.",
+                            section: "start_finish"));
+                    }
+                }
+
+                var laneGroupIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var group in subgraph.LaneGroups)
+                {
+                    if (!laneGroupIds.Add(group.Id))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Start/finish '{subgraph.Id}' has duplicate lane group id '{group.Id}'.",
+                            section: "start_finish"));
+                    }
+
+                    if (group.LaneCount <= 0 && group.LaneIds.Count == 0)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Start/finish '{subgraph.Id}' lane group '{group.Id}' missing lane_count and lane_ids.",
+                            section: "start_finish"));
+                    }
+
+                    if (group.LaneCount > 0 && group.LaneIds.Count > 0 && group.LaneCount != group.LaneIds.Count)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Start/finish '{subgraph.Id}' lane group '{group.Id}' lane_count {group.LaneCount} differs from lane_ids {group.LaneIds.Count}.",
+                            section: "start_finish"));
+                    }
+
+                    foreach (var laneId in group.LaneIds)
+                    {
+                        if (!laneIds.Contains(laneId))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Start/finish '{subgraph.Id}' lane group '{group.Id}' references missing lane '{laneId}'.",
+                                section: "start_finish"));
+                        }
+                    }
+                }
+
+                var transitionIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var transition in subgraph.LaneTransitions)
+                {
+                    if (!transitionIds.Add(transition.Id))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Start/finish '{subgraph.Id}' has duplicate lane transition id '{transition.Id}'.",
+                            section: "start_finish"));
+                    }
+
+                    if (!laneGroupIds.Contains(transition.FromGroupId))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Start/finish '{subgraph.Id}' lane transition '{transition.Id}' references missing from-group '{transition.FromGroupId}'.",
+                            section: "start_finish"));
+                    }
+                    if (!laneGroupIds.Contains(transition.ToGroupId))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Start/finish '{subgraph.Id}' lane transition '{transition.Id}' references missing to-group '{transition.ToGroupId}'.",
+                            section: "start_finish"));
+                    }
+
+                    foreach (var laneId in transition.FromLaneIds)
+                    {
+                        if (!laneIds.Contains(laneId))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Start/finish '{subgraph.Id}' lane transition '{transition.Id}' references missing from-lane '{laneId}'.",
+                                section: "start_finish"));
+                        }
+                    }
+                    foreach (var laneId in transition.ToLaneIds)
+                    {
+                        if (!laneIds.Contains(laneId))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Start/finish '{subgraph.Id}' lane transition '{transition.Id}' references missing to-lane '{laneId}'.",
+                                section: "start_finish"));
+                        }
+                    }
+                }
+
+                var areaIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var hasStartLine = false;
+                var hasFinishLine = false;
+                foreach (var area in subgraph.Areas)
+                {
+                    if (!areaIds.Add(area.Id))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Start/finish '{subgraph.Id}' has duplicate area id '{area.Id}'.",
+                            section: "start_finish"));
+                    }
+
+                    switch (area.Shape)
+                    {
+                        case TrackIntersectionAreaShape.Circle:
+                            if (area.RadiusMeters <= 0f)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                    $"Start/finish '{subgraph.Id}' area '{area.Id}' circle radius must be > 0.",
+                                    section: "start_finish"));
+                            }
+                            break;
+                        case TrackIntersectionAreaShape.Box:
+                            if (area.WidthMeters <= 0f || area.LengthMeters <= 0f)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                    $"Start/finish '{subgraph.Id}' area '{area.Id}' box width/length must be > 0.",
+                                    section: "start_finish"));
+                            }
+                            break;
+                        case TrackIntersectionAreaShape.Polygon:
+                            if (area.Points.Count < 3)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                    $"Start/finish '{subgraph.Id}' area '{area.Id}' polygon must define at least 3 points.",
+                                    section: "start_finish"));
+                            }
+                            break;
+                    }
+
+                    if (area.OwnerKind == TrackIntersectionAreaOwnerKind.Leg || area.OwnerKind == TrackIntersectionAreaOwnerKind.Connector)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Start/finish '{subgraph.Id}' area '{area.Id}' uses owner_kind {area.OwnerKind}.",
+                            section: "start_finish"));
+                    }
+                    if (area.OwnerKind == TrackIntersectionAreaOwnerKind.LaneGroup)
+                    {
+                        var ownerId = area.OwnerId;
+                        if (!string.IsNullOrWhiteSpace(ownerId) && !laneGroupIds.Contains(ownerId!))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Start/finish '{subgraph.Id}' area '{area.Id}' references missing lane group '{ownerId}'.",
+                                section: "start_finish"));
+                        }
+                    }
+                    foreach (var laneId in area.LaneIds)
+                    {
+                        if (!laneIds.Contains(laneId))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Start/finish '{subgraph.Id}' area '{area.Id}' references missing lane '{laneId}'.",
+                                section: "start_finish"));
+                        }
+                    }
+
+                    switch (area.Kind)
+                    {
+                        case TrackIntersectionAreaKind.StartLine:
+                            hasStartLine = true;
+                            if (area.Shape == TrackIntersectionAreaShape.Circle)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Start/finish '{subgraph.Id}' area '{area.Id}' start line should not be circular.",
+                                    section: "start_finish"));
+                            }
+                            break;
+                        case TrackIntersectionAreaKind.FinishLine:
+                            hasFinishLine = true;
+                            if (area.Shape == TrackIntersectionAreaShape.Circle)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Start/finish '{subgraph.Id}' area '{area.Id}' finish line should not be circular.",
+                                    section: "start_finish"));
+                            }
+                            break;
+                        case TrackIntersectionAreaKind.GridBox:
+                        case TrackIntersectionAreaKind.TimingGate:
+                            if (area.Shape == TrackIntersectionAreaShape.Circle)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Start/finish '{subgraph.Id}' area '{area.Id}' should not be circular.",
+                                    section: "start_finish"));
+                            }
+                            break;
+                    }
+                }
+
+                if (subgraph.Kind == TrackStartFinishKind.Start && !hasStartLine)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Start/finish '{subgraph.Id}' is start-only but has no start_line area.",
+                        section: "start_finish"));
+                }
+
+                if (subgraph.Kind == TrackStartFinishKind.Finish && !hasFinishLine)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Start/finish '{subgraph.Id}' is finish-only but has no finish_line area.",
+                        section: "start_finish"));
+                }
+            }
+        }
+
+        private static void ValidateLaneSubgraphs(
+            TrackIntersectionProfile intersection,
+            string nodeId,
+            Dictionary<string, TrackIntersectionLeg> legLookup,
+            Dictionary<string, TrackIntersectionConnector> connectorLookup,
+            List<TrackLayoutIssue> issues)
+        {
+            var laneIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var laneLookup = new Dictionary<string, TrackLane>(StringComparer.OrdinalIgnoreCase);
+            foreach (var lane in intersection.Lanes)
+            {
+                laneIds.Add(lane.Id);
+                laneLookup[lane.Id] = lane;
+                if (lane.OwnerKind != TrackLaneOwnerKind.Leg && lane.OwnerKind != TrackLaneOwnerKind.Connector)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Intersection '{nodeId}' lane '{lane.Id}' uses owner_kind {lane.OwnerKind}.",
+                        section: "intersection"));
+                }
+            }
+
+            if (intersection.Lanes.Count > 0 && intersection.LaneGroups.Count == 0)
+            {
+                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                    $"Intersection '{nodeId}' defines lanes but no lane_groups for lane-aware routing.",
+                    section: "intersection"));
+            }
+
+            var groupIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var groupLookup = new Dictionary<string, TrackLaneGroup>(StringComparer.OrdinalIgnoreCase);
+            var laneGroupMembership = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in intersection.LaneGroups)
+            {
+                if (!groupIds.Add(group.Id))
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                        $"Intersection '{nodeId}' has duplicate lane group id '{group.Id}'.",
+                        section: "intersection"));
+                }
+                else
+                {
+                    groupLookup[group.Id] = group;
+                }
+
+                if (group.Kind == TrackLaneGroupKind.Leg)
+                {
+                    var ownerId = group.OwnerId;
+                    if (ownerId == null || ownerId.Trim().Length == 0)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Intersection '{nodeId}' lane group '{group.Id}' references missing leg '{group.OwnerId}'.",
+                            section: "intersection"));
+                    }
+                    else if (!legLookup.ContainsKey(ownerId))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Intersection '{nodeId}' lane group '{group.Id}' references missing leg '{group.OwnerId}'.",
+                            section: "intersection"));
+                    }
+                    else
+                    {
+                        var leg = legLookup[ownerId];
+                        if (leg.LaneCount > 0)
+                        {
+                            if (group.LaneIds.Count > 0 && group.LaneIds.Count != leg.LaneCount)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Intersection '{nodeId}' lane group '{group.Id}' lane_ids count {group.LaneIds.Count} differs from leg '{leg.Id}' lane count {leg.LaneCount}.",
+                                    section: "intersection"));
+                            }
+                            if (group.LaneCount > 0 && group.LaneCount != leg.LaneCount)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Intersection '{nodeId}' lane group '{group.Id}' lane_count {group.LaneCount} differs from leg '{leg.Id}' lane count {leg.LaneCount}.",
+                                    section: "intersection"));
+                            }
+                        }
+                    }
+                }
+                else if (group.Kind == TrackLaneGroupKind.Connector)
+                {
+                    var ownerId = group.OwnerId;
+                    if (ownerId == null || ownerId.Trim().Length == 0)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Intersection '{nodeId}' lane group '{group.Id}' references missing connector '{group.OwnerId}'.",
+                            section: "intersection"));
+                    }
+                    else if (!connectorLookup.ContainsKey(ownerId))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Intersection '{nodeId}' lane group '{group.Id}' references missing connector '{group.OwnerId}'.",
+                            section: "intersection"));
+                    }
+                    else
+                    {
+                        var connector = connectorLookup[ownerId];
+                        if (connector.LaneCount > 0)
+                        {
+                            if (group.LaneIds.Count > 0 && group.LaneIds.Count != connector.LaneCount)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Intersection '{nodeId}' lane group '{group.Id}' lane_ids count {group.LaneIds.Count} differs from connector '{connector.Id}' lane count {connector.LaneCount}.",
+                                    section: "intersection"));
+                            }
+                            if (group.LaneCount > 0 && group.LaneCount != connector.LaneCount)
+                            {
+                                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                    $"Intersection '{nodeId}' lane group '{group.Id}' lane_count {group.LaneCount} differs from connector '{connector.Id}' lane count {connector.LaneCount}.",
+                                    section: "intersection"));
+                            }
+                        }
+                    }
+                }
+
+                if (group.LaneIds.Count > 0 && group.LaneCount > 0 && group.LaneCount != group.LaneIds.Count)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Intersection '{nodeId}' lane group '{group.Id}' lane_count {group.LaneCount} differs from lane_ids count {group.LaneIds.Count}.",
+                        section: "intersection"));
+                }
+
+                foreach (var laneId in group.LaneIds)
+                {
+                    if (!laneIds.Contains(laneId))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Intersection '{nodeId}' lane group '{group.Id}' references missing lane '{laneId}'.",
+                            section: "intersection"));
+                        continue;
+                    }
+
+                    laneGroupMembership.TryGetValue(laneId, out var count);
+                    laneGroupMembership[laneId] = count + 1;
+
+                    if (laneLookup.TryGetValue(laneId, out var lane))
+                    {
+                        if (group.Kind == TrackLaneGroupKind.Leg &&
+                            (!string.Equals(lane.OwnerId, group.OwnerId, StringComparison.OrdinalIgnoreCase) ||
+                             lane.OwnerKind != TrackLaneOwnerKind.Leg))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                $"Intersection '{nodeId}' lane '{laneId}' does not match leg group owner '{group.OwnerId}'.",
+                                section: "intersection"));
+                        }
+                        else if (group.Kind == TrackLaneGroupKind.Connector &&
+                                 (!string.Equals(lane.OwnerId, group.OwnerId, StringComparison.OrdinalIgnoreCase) ||
+                                  lane.OwnerKind != TrackLaneOwnerKind.Connector))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                $"Intersection '{nodeId}' lane '{laneId}' does not match connector group owner '{group.OwnerId}'.",
+                                section: "intersection"));
+                        }
+                    }
+                }
+            }
+
+            if (intersection.LaneGroups.Count > 0)
+            {
+                foreach (var lane in laneLookup.Values)
+                {
+                    if (!laneGroupMembership.ContainsKey(lane.Id))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Intersection '{nodeId}' lane '{lane.Id}' is not assigned to any lane group.",
+                            section: "intersection"));
+                    }
+                    else if (laneGroupMembership[lane.Id] > 1)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Intersection '{nodeId}' lane '{lane.Id}' belongs to multiple lane groups.",
+                            section: "intersection"));
+                    }
+                }
+            }
+
+            if (intersection.LaneGroups.Count > 0 && intersection.LaneTransitions.Count == 0)
+            {
+                issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                    $"Intersection '{nodeId}' defines lane groups but no lane transitions.",
+                    section: "intersection"));
+            }
+
+            var transitionIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var incoming = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var outgoing = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var groupId in groupIds)
+            {
+                incoming[groupId] = 0;
+                outgoing[groupId] = 0;
+            }
+            foreach (var transition in intersection.LaneTransitions)
+            {
+                if (!transitionIds.Add(transition.Id))
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                        $"Intersection '{nodeId}' has duplicate lane transition id '{transition.Id}'.",
+                        section: "intersection"));
+                }
+
+                if (!groupIds.Contains(transition.FromGroupId))
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                        $"Intersection '{nodeId}' lane transition '{transition.Id}' references missing from-group '{transition.FromGroupId}'.",
+                        section: "intersection"));
+                }
+                if (!groupIds.Contains(transition.ToGroupId))
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                        $"Intersection '{nodeId}' lane transition '{transition.Id}' references missing to-group '{transition.ToGroupId}'.",
+                        section: "intersection"));
+                }
+                if (groupIds.Contains(transition.FromGroupId))
+                    outgoing[transition.FromGroupId] = outgoing[transition.FromGroupId] + 1;
+                if (groupIds.Contains(transition.ToGroupId))
+                    incoming[transition.ToGroupId] = incoming[transition.ToGroupId] + 1;
+
+                if (transition.FromGroupId.Equals(transition.ToGroupId, StringComparison.OrdinalIgnoreCase))
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Intersection '{nodeId}' lane transition '{transition.Id}' loops from and to the same group.",
+                        section: "intersection"));
+                }
+
+                if (transition.TurnDirection == TrackTurnDirection.Unknown)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Intersection '{nodeId}' lane transition '{transition.Id}' has no turn direction.",
+                        section: "intersection"));
+                }
+
+                if (transition.ChangeLengthMeters > 0f && !transition.AllowsLaneChange)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Intersection '{nodeId}' lane transition '{transition.Id}' sets change_length but lane_change is false.",
+                        section: "intersection"));
+                }
+
+                if (transition.AllowsLaneChange && transition.ChangeLengthMeters <= 0f)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Intersection '{nodeId}' lane transition '{transition.Id}' allows lane changes but has no change_length.",
+                        section: "intersection"));
+                }
+
+                if (transition.FromLaneIds.Count > 0)
+                {
+                    foreach (var laneId in transition.FromLaneIds)
+                    {
+                        if (!laneIds.Contains(laneId))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Intersection '{nodeId}' lane transition '{transition.Id}' references missing from-lane '{laneId}'.",
+                                section: "intersection"));
+                            continue;
+                        }
+
+                        if (groupLookup.TryGetValue(transition.FromGroupId, out var group) &&
+                            group.LaneIds.Count > 0 &&
+                            !ContainsIgnoreCase(group.LaneIds, laneId))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Intersection '{nodeId}' lane transition '{transition.Id}' from-lane '{laneId}' is not in group '{group.Id}'.",
+                                section: "intersection"));
+                        }
+                    }
+                }
+
+                if (transition.ToLaneIds.Count > 0)
+                {
+                    foreach (var laneId in transition.ToLaneIds)
+                    {
+                        if (!laneIds.Contains(laneId))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Intersection '{nodeId}' lane transition '{transition.Id}' references missing to-lane '{laneId}'.",
+                                section: "intersection"));
+                            continue;
+                        }
+
+                        if (groupLookup.TryGetValue(transition.ToGroupId, out var group) &&
+                            group.LaneIds.Count > 0 &&
+                            !ContainsIgnoreCase(group.LaneIds, laneId))
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                                $"Intersection '{nodeId}' lane transition '{transition.Id}' to-lane '{laneId}' is not in group '{group.Id}'.",
+                                section: "intersection"));
+                        }
+                    }
+                }
+
+                if (transition.FromLaneIds.Count > 0 && transition.ToLaneIds.Count > 0 &&
+                    transition.FromLaneIds.Count != transition.ToLaneIds.Count)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Intersection '{nodeId}' lane transition '{transition.Id}' has mismatched from/to lane counts.",
+                        section: "intersection"));
+                }
+            }
+
+            foreach (var group in intersection.LaneGroups)
+            {
+                incoming.TryGetValue(group.Id, out var inCount);
+                outgoing.TryGetValue(group.Id, out var outCount);
+
+                if (group.Kind == TrackLaneGroupKind.Leg)
+                {
+                    if (group.OwnerId != null && legLookup.TryGetValue(group.OwnerId, out var leg))
+                    {
+                        switch (leg.LegType)
+                        {
+                            case TrackIntersectionLegType.Entry:
+                                if (outCount == 0)
+                                {
+                                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                        $"Intersection '{nodeId}' lane group '{group.Id}' is entry-only but has no outgoing transitions.",
+                                        section: "intersection"));
+                                }
+                                break;
+                            case TrackIntersectionLegType.Exit:
+                                if (inCount == 0)
+                                {
+                                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                        $"Intersection '{nodeId}' lane group '{group.Id}' is exit-only but has no incoming transitions.",
+                                        section: "intersection"));
+                                }
+                                break;
+                            case TrackIntersectionLegType.Both:
+                                if (outCount == 0)
+                                {
+                                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                        $"Intersection '{nodeId}' lane group '{group.Id}' has no outgoing transitions.",
+                                        section: "intersection"));
+                                }
+                                if (inCount == 0)
+                                {
+                                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                        $"Intersection '{nodeId}' lane group '{group.Id}' has no incoming transitions.",
+                                        section: "intersection"));
+                                }
+                                break;
+                        }
+                    }
+                }
+                else if (group.Kind == TrackLaneGroupKind.Connector)
+                {
+                    if (inCount == 0)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Intersection '{nodeId}' lane group '{group.Id}' has no incoming transitions.",
+                            section: "intersection"));
+                    }
+                    if (outCount == 0)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Intersection '{nodeId}' lane group '{group.Id}' has no outgoing transitions.",
+                            section: "intersection"));
+                    }
+                }
+                else if (group.Kind == TrackLaneGroupKind.Custom)
+                {
+                    if (inCount == 0 && outCount == 0)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Intersection '{nodeId}' lane group '{group.Id}' is isolated (no incoming/outgoing transitions).",
+                            section: "intersection"));
                     }
                 }
             }
@@ -863,6 +1686,80 @@ namespace TopSpeed.Tracks.Geometry
                 }
             }
 
+            if (checkClosure)
+            {
+                var strictClosure = !geometry.EnforceClosure;
+                var totalTurnRadians = ComputeTotalTurnRadians(spans);
+                var turnDeltaRadians = NormalizeTurnDelta(totalTurnRadians);
+                var turnDeltaDegrees = RadiansToDegrees(turnDeltaRadians);
+                if (turnDeltaDegrees > opts.MaxTotalTurnDegrees)
+                {
+                    issues.Add(new TrackLayoutIssue(strictClosure ? TrackLayoutIssueSeverity.Error : TrackLayoutIssueSeverity.Warning,
+                        $"Total turn delta {turnDeltaDegrees:0.###}° exceeds max {opts.MaxTotalTurnDegrees:0.###}°.",
+                        section: "geometry",
+                        edgeId: edgeId));
+                }
+                else if (turnDeltaDegrees > opts.WarningTotalTurnDegrees)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                        $"Total turn delta {turnDeltaDegrees:0.###}° exceeds warning {opts.WarningTotalTurnDegrees:0.###}°.",
+                        section: "geometry",
+                        edgeId: edgeId));
+                }
+
+                var spacing = geometry.SampleSpacingMeters;
+                if (spacing > 0f)
+                {
+                    try
+                    {
+                        var rawSpec = new TrackGeometrySpec(spans, spacing, enforceClosure: false);
+                        var rawGeometry = TrackGeometry.Build(rawSpec);
+                        var startPose = rawGeometry.GetPose(0f);
+                        var endPose = rawGeometry.GetPose(rawGeometry.LengthMeters);
+                        var closureDistance = Vector3.Distance(startPose.Position, endPose.Position);
+                        var headingDelta = Math.Abs(NormalizeAngle(endPose.HeadingRadians - startPose.HeadingRadians));
+                        var headingDeltaDegrees = RadiansToDegrees(headingDelta);
+
+                        if (closureDistance > opts.MaxClosureDistanceMeters)
+                        {
+                            issues.Add(new TrackLayoutIssue(strictClosure ? TrackLayoutIssueSeverity.Error : TrackLayoutIssueSeverity.Warning,
+                                $"Closure distance {closureDistance:0.###}m exceeds max {opts.MaxClosureDistanceMeters:0.###}m.",
+                                section: "geometry",
+                                edgeId: edgeId));
+                        }
+                        else if (closureDistance > opts.WarningClosureDistanceMeters)
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                $"Closure distance {closureDistance:0.###}m exceeds warning {opts.WarningClosureDistanceMeters:0.###}m.",
+                                section: "geometry",
+                                edgeId: edgeId));
+                        }
+
+                        if (headingDeltaDegrees > opts.MaxClosureHeadingDegrees)
+                        {
+                            issues.Add(new TrackLayoutIssue(strictClosure ? TrackLayoutIssueSeverity.Error : TrackLayoutIssueSeverity.Warning,
+                                $"Closure heading delta {headingDeltaDegrees:0.###}° exceeds max {opts.MaxClosureHeadingDegrees:0.###}°.",
+                                section: "geometry",
+                                edgeId: edgeId));
+                        }
+                        else if (headingDeltaDegrees > opts.WarningClosureHeadingDegrees)
+                        {
+                            issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                                $"Closure heading delta {headingDeltaDegrees:0.###}° exceeds warning {opts.WarningClosureHeadingDegrees:0.###}°.",
+                                section: "geometry",
+                                edgeId: edgeId));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Warning,
+                            $"Closure validation failed to build geometry: {ex.Message}",
+                            section: "geometry",
+                            edgeId: edgeId));
+                    }
+                }
+            }
+
             if (geometry.SampleSpacingMeters <= 0f)
                 return;
 
@@ -962,7 +1859,7 @@ namespace TopSpeed.Tracks.Geometry
             ValidateRangeZones(profile.Hazards, length, "hazards", issues, edgeId, z => (z.StartMeters, z.EndMeters));
             ValidateRangeZones(profile.HitLanes, length, "hit_lanes", issues, edgeId, z => (z.StartMeters, z.EndMeters));
             ValidateRangeZones(profile.Triggers, length, "triggers", issues, edgeId, z => (z.StartMeters, z.EndMeters));
-            ValidateRangeZones(profile.BoundaryZones, length, "boundaries", issues, edgeId, z => (z.StartMeters, z.EndMeters));
+            ValidateBoundaryZones(profile.BoundaryZones, length, issues, edgeId);
 
             // Validate point-based elements
             ValidatePositionalElements(profile.Checkpoints, length, "checkpoints", issues, edgeId, c => c.PositionMeters);
@@ -1001,6 +1898,68 @@ namespace TopSpeed.Tracks.Geometry
                         edgeId));
                 }
             }
+        }
+
+        private static void ValidateBoundaryZones(IReadOnlyList<TrackBoundaryZone> zones, float length, List<TrackLayoutIssue> issues, string? edgeId)
+        {
+            for (var i = 0; i < zones.Count; i++)
+            {
+                var zone = zones[i];
+                if (zone.StartMeters < 0f || zone.EndMeters < 0f)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                        "Boundary zone has negative start/end.",
+                        i,
+                        "boundaries",
+                        edgeId));
+                }
+                if (zone.EndMeters > length)
+                {
+                    issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                        "Boundary zone extends beyond edge length.",
+                        i,
+                        "boundaries",
+                        edgeId));
+                }
+            }
+        }
+
+        private static float ComputeTotalTurnRadians(IReadOnlyList<TrackGeometrySpan> spans)
+        {
+            var total = 0f;
+            for (var i = 0; i < spans.Count; i++)
+            {
+                var span = spans[i];
+                var avgCurvature = (span.StartCurvature + span.EndCurvature) * 0.5f;
+                total += avgCurvature * span.LengthMeters;
+            }
+            return total;
+        }
+
+        private static float NormalizeTurnDelta(float totalTurnRadians)
+        {
+            var twoPi = (float)(Math.PI * 2.0);
+            if (twoPi <= 0f)
+                return Math.Abs(totalTurnRadians);
+
+            var turns = totalTurnRadians / twoPi;
+            var nearest = (float)Math.Round(turns) * twoPi;
+            return Math.Abs(totalTurnRadians - nearest);
+        }
+
+        private static float NormalizeAngle(float angle)
+        {
+            var twoPi = (float)(Math.PI * 2.0);
+            while (angle > Math.PI)
+                angle -= twoPi;
+            while (angle <= -Math.PI)
+                angle += twoPi;
+            return angle;
+        }
+
+        private static float RadiansToDegrees(float radians)
+        {
+            return (float)(radians * (180.0 / Math.PI));
         }
 
         private static void ValidatePositionalElements<T>(IReadOnlyList<T> elements, float length, string section, List<TrackLayoutIssue> issues, string? edgeId, Func<T, float> getPosition)
@@ -1132,7 +2091,7 @@ namespace TopSpeed.Tracks.Geometry
             }
         }
 
-                private static float ComputePolylineLength(IReadOnlyList<TrackPoint3> points)
+        private static float ComputePolylineLength(IReadOnlyList<TrackPoint3> points)
         {
             if (points == null || points.Count < 2)
                 return 0f;
@@ -1142,6 +2101,16 @@ namespace TopSpeed.Tracks.Geometry
                 length += Distance(points[i - 1], points[i]);
             }
             return length;
+        }
+
+        private static bool ContainsIgnoreCase(IReadOnlyList<string> values, string value)
+        {
+            for (var i = 0; i < values.Count; i++)
+            {
+                if (string.Equals(values[i], value, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
         }
 
         private static float Distance(TrackPoint3 a, TrackPoint3 b)

@@ -149,8 +149,9 @@ namespace TopSpeed.Tracks.Geometry
         public IReadOnlyList<TrackZone<TrackSurface>> SurfaceZones { get; }
         public IReadOnlyList<TrackZone<TrackNoise>> NoiseZones { get; }
         public IReadOnlyList<TrackWidthZone> WidthZones { get; }
-        public IReadOnlyList<TrackSpeedLimitZone> SpeedLimitZones { get; }
+        public IReadOnlyList<TrackSpeedLimitZone> SpeedLimitZones { get; }      
         public IReadOnlyList<TrackMarker> Markers { get; }
+        public IReadOnlyList<TrackStartFinishSubgraph> StartFinishSubgraphs { get; }
         public float PrimaryRouteLengthMeters => _primaryRouteLength;
 
         private readonly TrackGeometrySpec _primaryRouteGeometry;
@@ -166,11 +167,12 @@ namespace TopSpeed.Tracks.Geometry
             TrackNoise defaultNoise,
             float defaultWidthMeters,
             TrackLayoutMetadata? metadata = null,
-            IReadOnlyList<TrackZone<TrackSurface>>? surfaceZones = null,
+            IReadOnlyList<TrackZone<TrackSurface>>? surfaceZones = null,        
             IReadOnlyList<TrackZone<TrackNoise>>? noiseZones = null,
             IReadOnlyList<TrackWidthZone>? widthZones = null,
             IReadOnlyList<TrackSpeedLimitZone>? speedLimitZones = null,
-            IReadOnlyList<TrackMarker>? markers = null)
+            IReadOnlyList<TrackMarker>? markers = null,
+            IReadOnlyList<TrackStartFinishSubgraph>? startFinishSubgraphs = null)
             : this(
                 CreateSingleLoopGraph(
                     geometry,
@@ -189,7 +191,8 @@ namespace TopSpeed.Tracks.Geometry
                 defaultSurface,
                 defaultNoise,
                 defaultWidthMeters,
-                metadata)
+                metadata,
+                startFinishSubgraphs)
         {
         }
 
@@ -200,7 +203,8 @@ namespace TopSpeed.Tracks.Geometry
             TrackSurface defaultSurface,
             TrackNoise defaultNoise,
             float defaultWidthMeters,
-            TrackLayoutMetadata? metadata = null)
+            TrackLayoutMetadata? metadata = null,
+            IReadOnlyList<TrackStartFinishSubgraph>? startFinishSubgraphs = null)
         {
             if (defaultWidthMeters <= 0f)
                 throw new ArgumentOutOfRangeException(nameof(defaultWidthMeters));
@@ -212,6 +216,7 @@ namespace TopSpeed.Tracks.Geometry
             DefaultNoise = defaultNoise;
             DefaultWidthMeters = defaultWidthMeters;
             Metadata = metadata ?? new TrackLayoutMetadata();
+            StartFinishSubgraphs = startFinishSubgraphs ?? Array.Empty<TrackStartFinishSubgraph>();
 
             PrimaryRoute = graph.PrimaryRoute;
             _primaryRouteEdges = ResolveRouteEdges(graph, PrimaryRoute);
