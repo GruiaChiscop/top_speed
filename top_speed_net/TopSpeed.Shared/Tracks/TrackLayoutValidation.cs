@@ -49,10 +49,10 @@ namespace TopSpeed.Tracks.Geometry
         public float MinSpanLengthMeters { get; set; } = 5f;
         public float MinRadiusMeters { get; set; } = 15f;
         public float MaxRadiusMeters { get; set; } = 20000f;
-        public float WarningBankDegrees { get; set; } = 8f;
-        public float WarningCrossSlopeDegrees { get; set; } = 5f;
-        public float MaxCrossSlopeDegrees { get; set; } = 12f;
-        public float MaxBankDegrees { get; set; } = 15f;
+        public float WarningBankDegrees { get; set; } = 15f;
+        public float WarningCrossSlopeDegrees { get; set; } = 15f;
+        public float MaxCrossSlopeDegrees { get; set; } = 25f;
+        public float MaxBankDegrees { get; set; } = 25f;
         public float WarningSlopePercent { get; set; } = 6f;
         public float MaxSlopePercent { get; set; } = 12f;
         public float WarningCurvatureJump { get; set; } = 0.005f;
@@ -171,7 +171,13 @@ namespace TopSpeed.Tracks.Geometry
                 var exitCount = 0;
                 foreach (var leg in intersection.Legs)
                 {
-                    
+                    if (!legIds.Add(leg.Id))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Intersection '{node.Id}' has duplicate leg id '{leg.Id}'.",
+                            section: "intersection"));
+                    }
+
                     legLookup[leg.Id] = leg;
 
                     if (!edgeIds.Contains(leg.EdgeId))
@@ -221,7 +227,13 @@ namespace TopSpeed.Tracks.Geometry
                 var connectorLookup = new Dictionary<string, TrackIntersectionConnector>(StringComparer.OrdinalIgnoreCase);
                 foreach (var connector in intersection.Connectors)
                 {
-                    
+                    if (!connectorIds.Add(connector.Id))
+                    {
+                        issues.Add(new TrackLayoutIssue(TrackLayoutIssueSeverity.Error,
+                            $"Intersection '{node.Id}' has duplicate connector id '{connector.Id}'.",
+                            section: "intersection"));
+                    }
+
                     connectorLookup[connector.Id] = connector;
 
                     if (intersection.Legs.Count > 0)

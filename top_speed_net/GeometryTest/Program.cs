@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using TopSpeed.Tracks.Geometry;
 
@@ -13,11 +14,11 @@ namespace TopSpeed.GeometryTest
             try
             {
                 // If a path is provided, validate just that file
-                if (args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]))
+                ParseArgs(args, out var path, out var verbosity);
+                if (!string.IsNullOrWhiteSpace(path))
                 {
-                    var path = args[0];
                     Console.WriteLine($"Validating: {path}");
-                    return RunSingleFile(path) ? 0 : 1;
+                    return RunSingleFile(path, verbosity) ? 0 : 1;
                 }
 
                 // Otherwise run all standard tests
@@ -37,7 +38,7 @@ namespace TopSpeed.GeometryTest
             }
         }
 
-        private static bool RunSingleFile(string path)
+        private static bool RunSingleFile(string path, int verbosity)
         {
             if (!System.IO.File.Exists(path))
             {
@@ -54,8 +55,17 @@ namespace TopSpeed.GeometryTest
                 return false;
             }
             Console.WriteLine("[Parse] OK");
+            var layout = result.Layout;
+            if (layout == null)
+            {
+                Console.WriteLine("[Parse] No layout produced.");
+                return false;
+            }
 
-            var validation = TrackLayoutValidator.Validate(result.Layout);
+            if (verbosity > 0)
+                PrintVerboseLayout(layout, verbosity);
+
+            var validation = TrackLayoutValidator.Validate(layout);
             PrintValidation(validation, System.IO.Path.GetFileName(path));
             
             if (!validation.IsValid)
@@ -64,7 +74,7 @@ namespace TopSpeed.GeometryTest
                 return false;
             }
 
-            var geometry = TrackGeometry.Build(result.Layout.Geometry);
+            var geometry = TrackGeometry.Build(layout.Geometry);
             Console.WriteLine($"[Geometry] Built successfully");
             Console.WriteLine($"  Length: {geometry.LengthMeters:0.###}m");
             Console.WriteLine($"  Spans: {result.Layout.Geometry.Spans.Count}");
@@ -314,6 +324,311 @@ namespace TopSpeed.GeometryTest
             while (angle <= -Math.PI)
                 angle += twoPi;
             return angle;
+        }
+
+        private static void ParseArgs(string[] args, out string? path, out int verbosity)
+        {
+            path = null;
+            verbosity = 0;
+
+            for (var i = 0; i < args.Length; i++)
+            {
+                var arg = args[i];
+                if (string.IsNullOrWhiteSpace(arg))
+                    continue;
+
+                if (arg.Equals("-v", StringComparison.OrdinalIgnoreCase) ||
+                    arg.Equals("--verbose", StringComparison.OrdinalIgnoreCase))
+                {
+                    verbosity = Math.Max(verbosity, 1);
+                    if (i + 1 < args.Length && int.TryParse(args[i + 1], out var nextLevel))
+                    {
+                        verbosity = Math.Max(verbosity, nextLevel);
+                        i++;
+                    }
+                    continue;
+                }
+
+                if (arg.StartsWith("--verbose=", StringComparison.OrdinalIgnoreCase))
+                {
+                    var value = arg.Substring("--verbose=".Length);
+                    verbosity = int.TryParse(value, out var level) ? level : Math.Max(verbosity, 1);
+                    continue;
+                }
+
+                if (arg.StartsWith("-v=", StringComparison.OrdinalIgnoreCase) ||
+                    arg.StartsWith("-v:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var value = arg.Substring(3);
+                    verbosity = int.TryParse(value, out var level) ? level : Math.Max(verbosity, 1);
+                    continue;
+                }
+
+                if (path == null)
+                {
+                    path = arg;
+                    continue;
+                }
+            }
+        }
+
+        private static void PrintVerboseLayout(TrackLayout layout, int verbosity)
+        {
+            Console.WriteLine("[Verbose] Layout summary:");
+            Console.WriteLine($"  Name: {layout.Metadata.Name ?? "(none)"}");
+            Console.WriteLine($"  Author: {layout.Metadata.Author ?? "(none)"}");
+            Console.WriteLine($"  Version: {layout.Metadata.Version ?? "(none)"}");
+            Console.WriteLine($"  Description: {layout.Metadata.Description ?? "(none)"}");
+            Console.WriteLine($"  Tags: {(layout.Metadata.Tags.Count == 0 ? "(none)" : string.Join(", ", layout.Metadata.Tags))}");
+            Console.WriteLine($"  Weather: {layout.Weather}");
+            Console.WriteLine($"  Ambience: {layout.Ambience}");
+            Console.WriteLine($"  Default Surface: {layout.DefaultSurface}");
+            Console.WriteLine($"  Default Noise: {layout.DefaultNoise}");
+            Console.WriteLine($"  Default Width: {layout.DefaultWidthMeters:0.###}m");
+            Console.WriteLine($"  Geometry Spans: {layout.Geometry.Spans.Count}");
+            Console.WriteLine($"  Sample Spacing: {layout.Geometry.SampleSpacingMeters:0.###}m");
+            Console.WriteLine($"  Enforce Closure: {layout.Geometry.EnforceClosure}");
+            Console.WriteLine($"  Graph: nodes={layout.Graph.Nodes.Count}, edges={layout.Graph.Edges.Count}, routes={layout.Graph.Routes.Count}");
+            Console.WriteLine($"  Primary Route: {layout.PrimaryRoute.Id} (loop={layout.PrimaryRoute.IsLoop})");
+            Console.WriteLine($"  Primary Route Edges: {string.Join(", ", layout.PrimaryRoute.EdgeIds)}");
+
+            Console.WriteLine("[Verbose] Nodes:");
+            foreach (var node in layout.Graph.Nodes)
+            {
+                Console.WriteLine($"  Node {node.Id} name={node.Name ?? "(none)"} short={node.ShortName ?? "(none)"} metadata={node.Metadata.Count}");
+                if (node.Intersection != null)
+                {
+                    PrintIntersection(node.Id, node.Intersection, verbosity);
+                }
+            }
+
+            Console.WriteLine("[Verbose] Edges:");
+            foreach (var edge in layout.Graph.Edges)
+            {
+                Console.WriteLine($"  Edge {edge.Id} from={edge.FromNodeId} to={edge.ToNodeId} length={edge.LengthMeters:0.###}m");
+                Console.WriteLine($"    Name={edge.Name ?? "(none)"} short={edge.ShortName ?? "(none)"} turn={edge.TurnDirection} connectors_from={edge.ConnectorFromEdgeIds.Count}");
+                Console.WriteLine($"    Defaults: surface={edge.Profile.DefaultSurface}, noise={edge.Profile.DefaultNoise}, width={edge.Profile.DefaultWidthMeters:0.###}m, weather={edge.Profile.DefaultWeather}, ambience={edge.Profile.DefaultAmbience}");
+                PrintGeometrySpans(edge.Geometry.Spans);
+                PrintEdgeProfile(edge.Profile, verbosity);
+            }
+        }
+
+        private static void PrintIntersection(string nodeId, TrackIntersectionProfile intersection, int verbosity)
+        {
+            Console.WriteLine($"    Intersection shape={intersection.Shape} control={intersection.Control} priority={intersection.Priority}");
+            Console.WriteLine($"      Radii: outer={intersection.OuterRadiusMeters:0.###}m inner={intersection.InnerRadiusMeters:0.###}m radius={intersection.RadiusMeters:0.###}m");
+            Console.WriteLine($"      Lanes: entry={intersection.EntryLanes} exit={intersection.ExitLanes} turn={intersection.TurnLanes}");
+            Console.WriteLine($"      SpeedLimit: {intersection.SpeedLimitKph:0.###} kph");
+            Console.WriteLine($"      Legs={intersection.Legs.Count}, Connectors={intersection.Connectors.Count}, Lanes={intersection.Lanes.Count}, LaneLinks={intersection.LaneLinks.Count}, Areas={intersection.Areas.Count}");
+
+            if (verbosity < 1)
+                return;
+
+            for (var i = 0; i < intersection.Legs.Count; i++)
+            {
+                var leg = intersection.Legs[i];
+                Console.WriteLine($"      Leg[{i}] id={leg.Id} edge={leg.EdgeId} type={leg.LegType} lanes={leg.LaneCount} width={leg.WidthMeters:0.###}m approach={leg.ApproachLengthMeters:0.###}m heading={leg.HeadingDegrees:0.###} offset=({leg.OffsetXMeters:0.###},{leg.OffsetZMeters:0.###}) elev={leg.ElevationMeters:0.###}m speed={leg.SpeedLimitKph:0.###} kph priority={leg.Priority}");
+            }
+
+            for (var i = 0; i < intersection.Connectors.Count; i++)
+            {
+                var connector = intersection.Connectors[i];
+                Console.WriteLine($"      Connector[{i}] id={connector.Id} from={connector.FromLegId} to={connector.ToLegId} turn={connector.TurnDirection} lanes={connector.LaneCount} radius={connector.RadiusMeters:0.###}m length={connector.LengthMeters:0.###}m speed={connector.SpeedLimitKph:0.###} kph bank={connector.BankDegrees:0.###} cross={connector.CrossSlopeDegrees:0.###} priority={connector.Priority}");
+                if (verbosity > 1)
+                {
+                    PrintPointList("        Path", connector.PathPoints);
+                    PrintProfileList("        Profile", connector.Profile);
+                }
+            }
+
+            for (var i = 0; i < intersection.Lanes.Count; i++)
+            {
+                var lane = intersection.Lanes[i];
+                Console.WriteLine($"      Lane[{i}] id={lane.Id} owner={lane.OwnerKind}:{lane.OwnerId} index={lane.Index} width={lane.WidthMeters:0.###}m offset={lane.CenterOffsetMeters:0.###}m shoulders=({lane.ShoulderLeftMeters:0.###},{lane.ShoulderRightMeters:0.###}) type={lane.LaneType} dir={lane.Direction} markings=({lane.MarkingLeft},{lane.MarkingRight}) entry={lane.EntryHeadingDegrees:0.###} exit={lane.ExitHeadingDegrees:0.###} bank={lane.BankDegrees:0.###} cross={lane.CrossSlopeDegrees:0.###} speed={lane.SpeedLimitKph:0.###} kph surface={lane.Surface} priority={lane.Priority}");
+                if (verbosity > 1)
+                {
+                    PrintPointList("        Centerline", lane.CenterlinePoints);
+                    PrintPointList("        LeftEdge", lane.LeftEdgePoints);
+                    PrintPointList("        RightEdge", lane.RightEdgePoints);
+                    PrintProfileList("        Profile", lane.Profile);
+                }
+            }
+
+            for (var i = 0; i < intersection.LaneLinks.Count; i++)
+            {
+                var link = intersection.LaneLinks[i];
+                Console.WriteLine($"      LaneLink[{i}] id={link.Id} from={link.FromLaneId} to={link.ToLaneId} turn={link.TurnDirection} lane_change={link.AllowsLaneChange} change_len={link.ChangeLengthMeters:0.###}m priority={link.Priority}");
+            }
+
+            for (var i = 0; i < intersection.Areas.Count; i++)
+            {
+                var area = intersection.Areas[i];
+                Console.WriteLine($"      Area[{i}] id={area.Id} shape={area.Shape} kind={area.Kind} radius={area.RadiusMeters:0.###}m size=({area.WidthMeters:0.###}x{area.LengthMeters:0.###}) offset=({area.OffsetXMeters:0.###},{area.OffsetZMeters:0.###}) heading={area.HeadingDegrees:0.###} elev={area.ElevationMeters:0.###}m surface={area.Surface}");
+                if (verbosity > 1)
+                {
+                    PrintPointList("        Points", area.Points);
+                }
+            }
+        }
+
+        private static void PrintGeometrySpans(IReadOnlyList<TrackGeometrySpan> spans)
+        {
+            Console.WriteLine($"    Geometry spans={spans.Count}");
+            for (var i = 0; i < spans.Count; i++)
+            {
+                var span = spans[i];
+                Console.WriteLine($"      Span[{i}] kind={span.Kind} len={span.LengthMeters:0.###}m dir={span.Direction} radius={span.RadiusMeters:0.###}m start_radius={span.StartRadiusMeters:0.###}m end_radius={span.EndRadiusMeters:0.###}m elev_delta={span.ElevationDeltaMeters:0.###}m slope=({span.StartSlope:0.###}->{span.EndSlope:0.###}) bank=({span.BankStartDegrees:0.###}->{span.BankEndDegrees:0.###}) severity={(span.CurveSeverity?.ToString() ?? "none")}");
+            }
+        }
+
+        private static void PrintEdgeProfile(TrackEdgeProfile profile, int verbosity)
+        {
+            Console.WriteLine($"    Zones: surface={profile.SurfaceZones.Count}, noise={profile.NoiseZones.Count}, width={profile.WidthZones.Count}, speed={profile.SpeedLimitZones.Count}, weather={profile.WeatherZones.Count}, ambience={profile.AmbienceZones.Count}, hazards={profile.Hazards.Count}, checkpoints={profile.Checkpoints.Count}, hit_lanes={profile.HitLanes.Count}, emitters={profile.Emitters.Count}, triggers={profile.Triggers.Count}, boundaries={profile.BoundaryZones.Count}, markers={profile.Markers.Count}");
+
+            if (verbosity < 1)
+                return;
+
+            for (var i = 0; i < profile.WidthZones.Count; i++)
+            {
+                var zone = profile.WidthZones[i];
+                Console.WriteLine($"      Width[{i}] {zone.StartMeters:0.###}-{zone.EndMeters:0.###}m width={zone.WidthMeters:0.###}m shoulder=({zone.ShoulderLeftMeters:0.###},{zone.ShoulderRightMeters:0.###})");
+            }
+
+            for (var i = 0; i < profile.SurfaceZones.Count; i++)
+            {
+                var zone = profile.SurfaceZones[i];
+                Console.WriteLine($"      Surface[{i}] {zone.StartMeters:0.###}-{zone.EndMeters:0.###}m value={zone.Value}");
+            }
+
+            for (var i = 0; i < profile.NoiseZones.Count; i++)
+            {
+                var zone = profile.NoiseZones[i];
+                Console.WriteLine($"      Noise[{i}] {zone.StartMeters:0.###}-{zone.EndMeters:0.###}m value={zone.Value}");
+            }
+
+            for (var i = 0; i < profile.SpeedLimitZones.Count; i++)
+            {
+                var zone = profile.SpeedLimitZones[i];
+                Console.WriteLine($"      Speed[{i}] {zone.StartMeters:0.###}-{zone.EndMeters:0.###}m max={zone.MaxSpeedKph:0.###} kph");
+            }
+
+            for (var i = 0; i < profile.Markers.Count; i++)
+            {
+                var marker = profile.Markers[i];
+                Console.WriteLine($"      Marker[{i}] {marker.Name} at {marker.PositionMeters:0.###}m");
+            }
+
+            if (verbosity > 1)
+            {
+                PrintWeatherZones(profile.WeatherZones);
+                PrintAmbienceZones(profile.AmbienceZones);
+                PrintHazardZones(profile.Hazards);
+                PrintCheckpoints(profile.Checkpoints);
+                PrintHitLanes(profile.HitLanes);
+                PrintEmitters(profile.Emitters);
+                PrintTriggers(profile.Triggers);
+                PrintBoundaryZones(profile.BoundaryZones);
+                if (profile.AllowedVehicles.Count > 0)
+                    Console.WriteLine($"      AllowedVehicles: {string.Join(", ", profile.AllowedVehicles)}");
+            }
+        }
+
+        private static void PrintWeatherZones(IReadOnlyList<TrackWeatherZone> zones)
+        {
+            for (var i = 0; i < zones.Count; i++)
+            {
+                var zone = zones[i];
+                Console.WriteLine($"      Weather[{i}] {zone.StartMeters:0.###}-{zone.EndMeters:0.###}m {zone.Weather}");
+            }
+        }
+
+        private static void PrintAmbienceZones(IReadOnlyList<TrackAmbienceZone> zones)
+        {
+            for (var i = 0; i < zones.Count; i++)
+            {
+                var zone = zones[i];
+                Console.WriteLine($"      Ambience[{i}] {zone.StartMeters:0.###}-{zone.EndMeters:0.###}m {zone.Ambience}");
+            }
+        }
+
+        private static void PrintHazardZones(IReadOnlyList<TrackHazardZone> zones)
+        {
+            for (var i = 0; i < zones.Count; i++)
+            {
+                var zone = zones[i];
+                Console.WriteLine($"      Hazard[{i}] {zone.StartMeters:0.###}-{zone.EndMeters:0.###}m type={zone.HazardType} severity={zone.Severity:0.###} name={zone.Name ?? "(none)"}");
+            }
+        }
+
+        private static void PrintCheckpoints(IReadOnlyList<TrackCheckpoint> checkpoints)
+        {
+            for (var i = 0; i < checkpoints.Count; i++)
+            {
+                var checkpoint = checkpoints[i];
+                Console.WriteLine($"      Checkpoint[{i}] id={checkpoint.Id} at {checkpoint.PositionMeters:0.###}m name={checkpoint.Name ?? "(none)"}");
+            }
+        }
+
+        private static void PrintHitLanes(IReadOnlyList<TrackHitLaneZone> lanes)
+        {
+            for (var i = 0; i < lanes.Count; i++)
+            {
+                var lane = lanes[i];
+                Console.WriteLine($"      HitLane[{i}] {lane.StartMeters:0.###}-{lane.EndMeters:0.###}m lanes={string.Join(",", lane.LaneIndices)} effect={lane.Effect ?? "(none)"}");
+            }
+        }
+
+        private static void PrintEmitters(IReadOnlyList<TrackAudioEmitter> emitters)
+        {
+            for (var i = 0; i < emitters.Count; i++)
+            {
+                var emitter = emitters[i];
+                Console.WriteLine($"      Emitter[{i}] id={emitter.Id} at {emitter.PositionMeters:0.###}m radius={emitter.RadiusMeters:0.###}m sound={emitter.SoundKey ?? "(none)"} volume={emitter.Volume:0.###} loop={emitter.Loop}");
+            }
+        }
+
+        private static void PrintTriggers(IReadOnlyList<TrackTriggerZone> triggers)
+        {
+            for (var i = 0; i < triggers.Count; i++)
+            {
+                var trigger = triggers[i];
+                Console.WriteLine($"      Trigger[{i}] {trigger.StartMeters:0.###}-{trigger.EndMeters:0.###}m id={trigger.Id} action={trigger.Action ?? "(none)"} payload={trigger.Payload ?? "(none)"}");
+            }
+        }
+
+        private static void PrintBoundaryZones(IReadOnlyList<TrackBoundaryZone> boundaries)
+        {
+            for (var i = 0; i < boundaries.Count; i++)
+            {
+                var boundary = boundaries[i];
+                Console.WriteLine($"      Boundary[{i}] {boundary.StartMeters:0.###}-{boundary.EndMeters:0.###}m side={boundary.Side} type={boundary.BoundaryType} offset={boundary.OffsetMeters:0.###}m width={boundary.WidthMeters:0.###}m height={boundary.HeightMeters:0.###}m solid={boundary.IsSolid} severity={boundary.Severity:0.###}");
+            }
+        }
+
+        private static void PrintPointList(string label, IReadOnlyList<TrackPoint3> points)
+        {
+            if (points.Count == 0)
+                return;
+
+            Console.WriteLine($"{label} points={points.Count}");
+            for (var i = 0; i < points.Count; i++)
+            {
+                var point = points[i];
+                Console.WriteLine($"{label}[{i}] ({point.X:0.###},{point.Y:0.###},{point.Z:0.###})");
+            }
+        }
+
+        private static void PrintProfileList(string label, IReadOnlyList<TrackProfilePoint> points)
+        {
+            if (points.Count == 0)
+                return;
+
+            Console.WriteLine($"{label} points={points.Count}");
+            for (var i = 0; i < points.Count; i++)
+            {
+                var point = points[i];
+                Console.WriteLine($"{label}[{i}] s={point.SMeters:0.###} elev={point.ElevationMeters:0.###} bank={point.BankDegrees:0.###} cross={point.CrossSlopeDegrees:0.###}");
+            }
         }
     }
 }

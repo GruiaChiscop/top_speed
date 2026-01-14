@@ -1,0 +1,183 @@
+# Intersection-heavy stress test track
+[meta]
+name="Intersection Stress"
+author=TopSpeed
+version=1.0
+tags=stress,intersection
+
+[environment]
+weather=sunny
+ambience=noambience
+default_surface=asphalt
+default_noise=nonoise
+default_width=12
+sample_spacing=0.5
+enforce_closure=true
+primary_route=main_loop
+
+[nodes]
+id=hub_a
+id=hub_b
+id=hub_c
+id=spur_d
+
+[edges]
+id=e_ab from=hub_a to=hub_b
+id=e_bc from=hub_b to=hub_c
+id=e_ca from=hub_c to=hub_a
+id=e_bd from=hub_b to=spur_d
+id=e_db from=spur_d to=hub_b
+
+[routes]
+id=main_loop edges=e_ab,e_bc,e_ca is_loop=true
+id=spur_loop edges=e_bd,e_db is_loop=true
+
+[node hub_a.intersection]
+shape=Circle radius=12 entry_lanes=2 exit_lanes=2 turn_lanes=1 speed_limit=40 control=Yield priority=1
+
+[node hub_a.legs]
+id=leg_ca edge=e_ca type=both lanes=2 heading=90 offset=0,-20 width=7.2 approach_length=30
+id=leg_ab edge=e_ab type=both lanes=2 heading=270 offset=0,20 width=7.2 approach_length=30
+
+[node hub_a.connectors]
+id=c_ca_ab from=leg_ca to=leg_ab turn=straight radius=20 length=30 lanes=2 points="0,-20|0,0|0,20"
+
+[node hub_b.intersection]
+shape=Cross radius=18 entry_lanes=4 exit_lanes=4 turn_lanes=2 speed_limit=50 control=Signal priority=2
+
+[node hub_b.legs]
+id=leg_ab edge=e_ab type=both lanes=2 heading=180 offset=-30,0 width=7.2 approach_length=40
+id=leg_bc edge=e_bc type=both lanes=2 heading=0 offset=30,0 width=7.2 approach_length=40
+id=leg_bd edge=e_bd type=both lanes=2 heading=90 offset=0,30 width=7.2 approach_length=40
+id=leg_db edge=e_db type=both lanes=2 heading=270 offset=0,-30 width=7.2 approach_length=40
+
+[node hub_b.connectors]
+id=c_ab_bc from=leg_ab to=leg_bc turn=straight radius=50 length=40 lanes=2 points="-30,0|-10,0|10,0|30,0"
+id=c_ab_bd from=leg_ab to=leg_bd turn=right radius=35 length=35 lanes=1 points="-30,0|-20,10|-10,20|0,30"
+id=c_db_bc from=leg_db to=leg_bc turn=left radius=35 length=35 lanes=1 points="0,-30|10,-20|20,-10|30,0"
+id=c_db_bd from=leg_db to=leg_bd turn=straight radius=40 length=40 lanes=2 points="0,-30|0,-10|0,10|0,30"
+id=c_bc_ab from=leg_bc to=leg_ab turn=straight radius=50 length=40 lanes=2 points="30,0|10,0|-10,0|-30,0"
+id=c_bd_ab from=leg_bd to=leg_ab turn=left radius=35 length=35 lanes=1 points="0,30|-10,20|-20,10|-30,0"
+
+[node hub_b.lanes]
+id=lane_ab_0 leg=leg_ab index=0 width=3.6 center_offset=-1.8 direction=forward marking_left=solid marking_right=dashed centerline=-30,0|-10,0
+id=lane_ab_1 leg=leg_ab index=1 width=3.6 center_offset=1.8 direction=forward marking_left=dashed marking_right=solid centerline=-30,-1.5|-10,-1.5
+id=lane_bc_0 leg=leg_bc index=0 width=3.6 center_offset=-1.8 direction=forward marking_left=solid marking_right=dashed centerline=30,0|10,0
+id=lane_bc_1 leg=leg_bc index=1 width=3.6 center_offset=1.8 direction=forward marking_left=dashed marking_right=solid centerline=30,1.5|10,1.5
+id=lane_bd_0 leg=leg_bd index=0 width=3.6 center_offset=-1.8 direction=forward marking_left=solid marking_right=dashed centerline=0,30|0,10
+id=lane_bd_1 leg=leg_bd index=1 width=3.6 center_offset=1.8 direction=forward marking_left=dashed marking_right=solid centerline=-1.5,30|-1.5,10
+id=lane_db_0 leg=leg_db index=0 width=3.6 center_offset=-1.8 direction=forward marking_left=solid marking_right=dashed centerline=0,-30|0,-10
+id=lane_db_1 leg=leg_db index=1 width=3.6 center_offset=1.8 direction=forward marking_left=dashed marking_right=solid centerline=1.5,-30|1.5,-10
+
+[node hub_b.lane_links]
+id=link_ab_bc_0 from=lane_ab_0 to=lane_bc_0 turn=straight lane_change=true change_length=20
+id=link_ab_bd_1 from=lane_ab_1 to=lane_bd_1 turn=right lane_change=true change_length=15
+id=link_db_bc_0 from=lane_db_0 to=lane_bc_0 turn=left lane_change=true change_length=15
+id=link_db_bd_1 from=lane_db_1 to=lane_bd_1 turn=straight lane_change=true change_length=20
+id=link_bc_ab_0 from=lane_bc_0 to=lane_ab_0 turn=straight lane_change=true change_length=20
+id=link_bd_ab_0 from=lane_bd_0 to=lane_ab_0 turn=left lane_change=true change_length=15
+
+[node hub_b.areas]
+id=core shape=circle kind=core radius=12
+id=island shape=box kind=island width=6 length=10 offset=0,0
+id=crosswalk_n shape=polygon kind=crosswalk points="-5,8|5,8|5,10|-5,10"
+
+[node hub_c.intersection]
+shape=Box radius=10 entry_lanes=2 exit_lanes=2 turn_lanes=1 speed_limit=45 control=Stop priority=1
+
+[node hub_c.legs]
+id=leg_bc edge=e_bc type=both lanes=2 heading=180 offset=-20,0 width=7.2 approach_length=30
+id=leg_ca edge=e_ca type=both lanes=2 heading=0 offset=20,0 width=7.2 approach_length=30
+
+[node hub_c.connectors]
+id=c_bc_ca from=leg_bc to=leg_ca turn=straight radius=25 length=30 lanes=2 points="-20,0|0,0|20,0"
+
+[node spur_d.intersection]
+shape=Circle radius=10 entry_lanes=1 exit_lanes=1 turn_lanes=1 speed_limit=30 control=Yield priority=1
+
+[node spur_d.legs]
+id=leg_bd edge=e_bd type=both lanes=1 heading=180 offset=-15,0 width=6.5 approach_length=25
+id=leg_db edge=e_db type=both lanes=1 heading=0 offset=15,0 width=6.5 approach_length=25
+
+[node spur_d.connectors]
+id=c_bd_db from=leg_bd to=leg_db turn=straight radius=15 length=20 lanes=1 points="-15,0|0,0|15,0"
+
+[edge e_ab]
+from=hub_a
+to=hub_b
+default_surface=asphalt
+default_noise=nonoise
+default_width=12
+default_weather=sunny
+default_ambience=noambience
+
+[edge e_ab.geometry]
+kind=straight length=200
+kind=clothoid length=30 start=0 end=150 direction=right severity=normal
+kind=arc length=80 radius=150 direction=right severity=normal bank=6
+kind=clothoid length=30 start=150 end=0 direction=right severity=normal
+kind=straight length=100
+
+[edge e_bc]
+from=hub_b
+to=hub_c
+default_surface=asphalt
+default_noise=nonoise
+default_width=12
+default_weather=sunny
+default_ambience=noambience
+
+[edge e_bc.geometry]
+kind=straight length=180
+kind=clothoid length=30 start=0 end=120 direction=left severity=normal
+kind=arc length=90 radius=120 direction=left severity=normal bank=5
+kind=clothoid length=30 start=120 end=0 direction=left severity=normal
+kind=straight length=120
+
+[edge e_ca]
+from=hub_c
+to=hub_a
+default_surface=asphalt
+default_noise=nonoise
+default_width=12
+default_weather=sunny
+default_ambience=noambience
+
+[edge e_ca.geometry]
+kind=straight length=160
+kind=clothoid length=35 start=0 end=140 direction=right severity=medium
+kind=arc length=90 radius=140 direction=right severity=medium bank=6
+kind=clothoid length=35 start=140 end=0 direction=right severity=medium
+kind=straight length=140
+
+[edge e_bd]
+from=hub_b
+to=spur_d
+default_surface=asphalt
+default_noise=nonoise
+default_width=10
+default_weather=sunny
+default_ambience=noambience
+
+[edge e_bd.geometry]
+kind=straight length=140
+kind=clothoid length=25 start=0 end=100 direction=left severity=easy
+kind=arc length=70 radius=100 direction=left severity=easy bank=4
+kind=clothoid length=25 start=100 end=0 direction=left severity=easy
+kind=straight length=90
+
+[edge e_db]
+from=spur_d
+to=hub_b
+default_surface=asphalt
+default_noise=nonoise
+default_width=10
+default_weather=sunny
+default_ambience=noambience
+
+[edge e_db.geometry]
+kind=straight length=160
+kind=clothoid length=25 start=0 end=90 direction=right severity=easy
+kind=arc length=70 radius=90 direction=right severity=easy bank=4
+kind=clothoid length=25 start=90 end=0 direction=right severity=easy
+kind=straight length=90

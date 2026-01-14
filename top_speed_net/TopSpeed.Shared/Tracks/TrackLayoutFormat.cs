@@ -2805,6 +2805,8 @@ namespace TopSpeed.Tracks.Geometry
         {
             if (value.Equals("easy", StringComparison.OrdinalIgnoreCase))
                 return TrackCurveSeverity.Easy;
+            if (value.Equals("medium", StringComparison.OrdinalIgnoreCase))
+                return TrackCurveSeverity.Normal;
             if (value.Equals("normal", StringComparison.OrdinalIgnoreCase))
                 return TrackCurveSeverity.Normal;
             if (value.Equals("hard", StringComparison.OrdinalIgnoreCase))
@@ -3655,6 +3657,13 @@ namespace TopSpeed.Tracks.Geometry
             var content = trimmed.Substring(1, trimmed.Length - 2).Trim();
             if (string.IsNullOrWhiteSpace(content))
                 return false;
+
+            if (content.Equals("edges", StringComparison.OrdinalIgnoreCase) ||
+                content.Equals("nodes", StringComparison.OrdinalIgnoreCase))
+            {
+                section = new SectionInfo(content.ToLowerInvariant(), null, null, null);
+                return true;
+            }
 
             if (content.StartsWith("edge", StringComparison.OrdinalIgnoreCase))
             {
