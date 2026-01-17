@@ -14,6 +14,7 @@ namespace TopSpeed.Tracks.Topology
             float width = 0f,
             float height = 0f,
             float radius = 0f,
+            float ringWidth = 0f,
             IReadOnlyList<Vector2>? points = null)
         {
             if (string.IsNullOrWhiteSpace(id))
@@ -26,6 +27,7 @@ namespace TopSpeed.Tracks.Topology
             Width = width;
             Height = height;
             Radius = radius;
+            RingWidth = ringWidth;
             Points = points ?? Array.Empty<Vector2>();
         }
 
@@ -36,6 +38,7 @@ namespace TopSpeed.Tracks.Topology
         public float Width { get; }
         public float Height { get; }
         public float Radius { get; }
+        public float RingWidth { get; }
         public IReadOnlyList<Vector2> Points { get; }
     }
 }

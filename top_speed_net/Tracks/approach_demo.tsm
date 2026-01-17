@@ -125,17 +125,35 @@ z=0
 width=250
 height=250
 
-[shape: safe_zone_circle]
-type=circle
-x=125
-z=125
-radius=200
+[shape: safe_zone_ring]
+type=ring
+x=0
+z=0
+width=250
+height=250
+ring_width=50
+
+[shape: outer_grass_ring]
+type=ring
+x=-50
+z=-50
+width=350
+height=350
+ring_width=100
+
 
 [shape: beacon_zone]
 type=circle
 x=125
 z=125
 radius=2
+
+[shape: intersection_zone]
+type=rectangle
+x=118
+z=118
+width=14
+height=14
 
 # Areas
 [area: loop_area]
@@ -144,12 +162,30 @@ shape=loop_shape
 surface=asphalt
 noise=nonoise
 
+[area: outer_grass]
+type=boundary
+name=Outer grass ring
+shape=outer_grass_ring
+surface=sand
+noise=nonoise
+
 [area: safe_zone]
 type=safezone
-shape=safe_zone_circle
+name=Safe zone ring
+shape=safe_zone_ring
 surface=gravel
 noise=trackside
-flags=safezone
+flags=safe
+
+
+[area: main_intersection]
+type=intersection
+name=Intersection
+shape=intersection_zone
+surface=asphalt
+noise=trackside
+intersection_width=20
+intersection_length=20
 
 # Sector (track-native)
 [sector: main_loop]

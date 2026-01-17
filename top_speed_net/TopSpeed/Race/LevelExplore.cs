@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using SharpDX.DirectInput;
@@ -7,7 +8,9 @@ using TopSpeed.Core;
 using TopSpeed.Data;
 using TopSpeed.Input;
 using TopSpeed.Speech;
+using TopSpeed.Tracks.Areas;
 using TopSpeed.Tracks.Map;
+using TopSpeed.Tracks.Topology;
 
 namespace TopSpeed.Race
 {
@@ -30,6 +33,7 @@ namespace TopSpeed.Race
         private MapDirection _mapHeading = MapDirection.North;
         private MapMovementState _mapState;
         private MapSnapshot _mapSnapshot;
+        private TrackAreaManager? _areaManager;
 
         private Vector3 _lastListenerPosition;
         private bool _listenerInitialized;
@@ -60,7 +64,8 @@ namespace TopSpeed.Race
             _mapState = MapMovement.CreateStart(_map);
             _mapHeading = _mapState.Heading;
             _worldPosition = _mapState.WorldPosition;
-            _mapSnapshot = BuildMapSnapshot(_mapState.CellX, _mapState.CellZ);
+            _areaManager = _map.BuildAreaManager();
+            _mapSnapshot = BuildMapSnapshot(_mapState.CellX, _mapState.CellZ, _mapHeading);
             _speech.Speak($"Track {FormatTrackName(_map.Name)}.");
             _speech.Speak($"Step {StepSizes[_stepIndex]:0.#} meters.");
             _initialized = true;
@@ -152,7 +157,7 @@ namespace TopSpeed.Race
             _listenerForward = MapMovement.DirectionVector(direction);
 
             var previous = _mapSnapshot;
-            var current = BuildMapSnapshot(_mapState.CellX, _mapState.CellZ);
+            var current = BuildMapSnapshot(_mapState.CellX, _mapState.CellZ, _mapHeading);
             AnnounceMapChanges(previous, current);
             _mapSnapshot = current;
         }
@@ -173,7 +178,7 @@ namespace TopSpeed.Race
             _audio.UpdateListener(position, forward, up, velocityMeters);
         }
 
-        private MapSnapshot BuildMapSnapshot(int x, int z)
+        private MapSnapshot BuildMapSnapshot(int x, int z, MapDirection heading)
         {
             if (!_map.TryGetCell(x, z, out var cell))
             {
@@ -188,7 +193,7 @@ namespace TopSpeed.Race
                 };
             }
 
-            return new MapSnapshot
+            var snapshot = new MapSnapshot
             {
                 Surface = cell.Surface,
                 Noise = cell.Noise,
@@ -197,6 +202,92 @@ namespace TopSpeed.Race
                 Zone = cell.Zone ?? string.Empty,
                 Exits = cell.Exits
             };
+
+            var worldPosition = _map.CellToWorld(x, z);
+            ApplyAreaSnapshotOverrides(new Vector2(worldPosition.X, worldPosition.Z), heading, ref snapshot);
+            return snapshot;
+        }
+
+        private void ApplyAreaSnapshotOverrides(Vector2 position, MapDirection heading, ref MapSnapshot snapshot)
+        {
+            if (_areaManager == null)
+                return;
+
+            var areas = _areaManager.FindAreasContaining(position);
+            if (areas.Count == 0)
+                return;
+
+            var area = areas[areas.Count - 1];
+            if (area.Surface.HasValue)
+                snapshot.Surface = area.Surface.Value;
+            if (area.Noise.HasValue)
+                snapshot.Noise = area.Noise.Value;
+            if (area.WidthMeters.HasValue)
+                snapshot.WidthMeters = Math.Max(0.5f, area.WidthMeters.Value);
+            if (area.Type == TrackAreaType.SafeZone || (area.Flags & TrackAreaFlags.SafeZone) != 0)
+                snapshot.IsSafeZone = true;
+
+            if (!string.IsNullOrWhiteSpace(area.Name))
+                snapshot.Zone = area.Name!;
+            else if (!string.IsNullOrWhiteSpace(area.Id))
+                snapshot.Zone = area.Id;
+
+            if (!TryApplyAreaWidthFromMetadata(area, ref snapshot.WidthMeters))
+                TryApplyAreaWidthFromShape(area, heading, ref snapshot.WidthMeters);
+        }
+
+        private static bool TryApplyAreaWidthFromMetadata(TrackAreaDefinition area, ref float widthMeters)
+        {
+            if (area.Metadata == null || area.Metadata.Count == 0)
+                return false;
+
+            if (TryGetMetadataFloat(area.Metadata, out var widthValue, "intersection_width", "width", "lane_width"))
+            {
+                widthMeters = Math.Max(0.5f, widthValue);
+                return true;
+            }
+
+            return false;
+        }
+
+        private void TryApplyAreaWidthFromShape(TrackAreaDefinition area, MapDirection heading, ref float widthMeters)
+        {
+            if (_areaManager == null)
+                return;
+            if (!_areaManager.TryGetShape(area.ShapeId, out var shape))
+                return;
+
+            switch (shape.Type)
+            {
+                case ShapeType.Rectangle:
+                    var rectWidth = Math.Abs(shape.Width);
+                    var rectHeight = Math.Abs(shape.Height);
+                    if (rectWidth <= 0f || rectHeight <= 0f)
+                        return;
+                    widthMeters = heading == MapDirection.East || heading == MapDirection.West
+                        ? Math.Max(widthMeters, rectHeight)
+                        : Math.Max(widthMeters, rectWidth);
+                    break;
+                case ShapeType.Circle:
+                    widthMeters = Math.Max(widthMeters, shape.Radius * 2f);
+                    break;
+            }
+        }
+
+        private static bool TryGetMetadataFloat(
+            IReadOnlyDictionary<string, string> metadata,
+            out float value,
+            params string[] keys)
+        {
+            value = 0f;
+            foreach (var key in keys)
+            {
+                if (!metadata.TryGetValue(key, out var raw))
+                    continue;
+                if (float.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value))
+                    return true;
+            }
+            return false;
         }
 
         private void AnnounceMapChanges(MapSnapshot previous, MapSnapshot current)

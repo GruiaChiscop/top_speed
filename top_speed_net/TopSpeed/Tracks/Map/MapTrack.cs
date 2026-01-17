@@ -1,10 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using TopSpeed.Audio;
 using TopSpeed.Core;
 using TopSpeed.Data;
+using TopSpeed.Tracks.Areas;
 using TopSpeed.Tracks.Geometry;
+using TopSpeed.Tracks.Sectors;
+using TopSpeed.Tracks.Topology;
 using TS.Audio;
 
 namespace TopSpeed.Tracks.Map
@@ -15,6 +19,9 @@ namespace TopSpeed.Tracks.Map
 
         private readonly AudioManager _audio;
         private readonly TrackMap _map;
+        private readonly TrackAreaManager _areaManager;
+        private readonly TrackSectorManager _sectorManager;
+        private readonly TrackPortalManager _portalManager;
         private readonly string _trackName;
         private readonly bool _userDefined;
         private TrackNoise _currentNoise;
@@ -43,6 +50,9 @@ namespace TopSpeed.Tracks.Map
             _audio = audio ?? throw new ArgumentNullException(nameof(audio));
             _userDefined = userDefined;
             _currentNoise = TrackNoise.NoNoise;
+            _areaManager = map.BuildAreaManager();
+            _portalManager = map.BuildPortalManager();
+            _sectorManager = new TrackSectorManager(map.Sectors, _areaManager, _portalManager);
             InitializeSounds();
         }
 
@@ -120,14 +130,21 @@ namespace TopSpeed.Tracks.Map
                 return BuildDefaultRoad();
 
             var width = Math.Max(0.5f, cell.WidthMeters);
+            var length = _map.CellSizeMeters;
+            var surface = cell.Surface;
+            var noise = cell.Noise;
+            var safeZone = cell.IsSafeZone;
+
+            ApplyAreaOverrides(state.WorldPosition, state.Heading, ref width, ref length, ref surface, ref noise, ref safeZone);
+
             return new TrackRoad
             {
                 Left = -width * 0.5f,
                 Right = width * 0.5f,
-                Surface = cell.Surface,
+                Surface = surface,
                 Type = ResolveCurveType(cell.Exits, state.Heading),
-                Length = _map.CellSizeMeters,
-                IsSafeZone = cell.IsSafeZone,
+                Length = length,
+                IsSafeZone = safeZone,
                 IsOutOfBounds = false
             };
         }
@@ -201,6 +218,11 @@ namespace TopSpeed.Tracks.Map
                 return;
 
             var noise = cell.Noise;
+            var surface = cell.Surface;
+            var safeZone = cell.IsSafeZone;
+            var length = _map.CellSizeMeters;
+            var width = Math.Max(0.5f, cell.WidthMeters);
+            ApplyAreaOverrides(state.WorldPosition, state.Heading, ref width, ref length, ref surface, ref noise, ref safeZone);
             if (noise != _currentNoise)
             {
                 StopNoise(_currentNoise);
@@ -272,6 +294,151 @@ namespace TopSpeed.Tracks.Map
                 Type = TrackType.Straight,
                 Length = _map.CellSizeMeters
             };
+        }
+
+        private void ApplyAreaOverrides(
+            Vector3 worldPosition,
+            MapDirection heading,
+            ref float width,
+            ref float length,
+            ref TrackSurface surface,
+            ref TrackNoise noise,
+            ref bool safeZone)
+        {
+            var position = new Vector2(worldPosition.X, worldPosition.Z);
+            ApplySectorOverrides(position, heading, ref width, ref length, ref surface, ref noise, ref safeZone);
+
+            if (_areaManager == null)
+                return;
+
+            var areas = _areaManager.FindAreasContaining(position);
+            if (areas.Count == 0)
+                return;
+
+            var area = areas[areas.Count - 1];
+            if (area.Surface.HasValue)
+                surface = area.Surface.Value;
+            if (area.Noise.HasValue)
+                noise = area.Noise.Value;
+            if (area.WidthMeters.HasValue)
+                width = Math.Max(0.5f, area.WidthMeters.Value);
+            if (area.Type == TrackAreaType.SafeZone || (area.Flags & TrackAreaFlags.SafeZone) != 0)
+                safeZone = true;
+
+            if (!TryApplyMetadataDimensions(area.Metadata, ref width, ref length))
+                TryApplyShapeDimensions(area, heading, ref width, ref length);
+        }
+
+        private void ApplySectorOverrides(
+            Vector2 position,
+            MapDirection heading,
+            ref float width,
+            ref float length,
+            ref TrackSurface surface,
+            ref TrackNoise noise,
+            ref bool safeZone)
+        {
+            if (_sectorManager == null)
+                return;
+
+            var sectors = _sectorManager.FindSectorsContaining(position);
+            if (sectors.Count == 0)
+                return;
+
+            var sector = sectors[sectors.Count - 1];
+            if (sector.Surface.HasValue)
+                surface = sector.Surface.Value;
+            if (sector.Noise.HasValue)
+                noise = sector.Noise.Value;
+            if ((sector.Flags & TrackSectorFlags.SafeZone) != 0)
+                safeZone = true;
+
+            TryApplyMetadataDimensions(sector.Metadata, ref width, ref length);
+        }
+
+        private static bool TryApplyMetadataDimensions(
+            IReadOnlyDictionary<string, string> metadata,
+            ref float width,
+            ref float length)
+        {
+            if (metadata == null || metadata.Count == 0)
+                return false;
+
+            var hadAny = false;
+            if (TryGetMetadataFloat(metadata, out var widthValue, "intersection_width", "width", "lane_width"))
+            {
+                width = Math.Max(0.5f, widthValue);
+                hadAny = true;
+            }
+            if (TryGetMetadataFloat(metadata, out var lengthValue, "intersection_length", "length"))
+            {
+                length = Math.Max(0.1f, lengthValue);
+                hadAny = true;
+            }
+            return hadAny;
+        }
+
+        private void TryApplyShapeDimensions(
+            TrackAreaDefinition area,
+            MapDirection heading,
+            ref float width,
+            ref float length)
+        {
+            if (!_areaManager.TryGetShape(area.ShapeId, out var shape))
+                return;
+
+            switch (shape.Type)
+            {
+                case ShapeType.Rectangle:
+                    ApplyRectangleDimensions(shape, heading, ref width, ref length);
+                    break;
+                case ShapeType.Circle:
+                    width = Math.Max(width, shape.Radius * 2f);
+                    length = Math.Max(length, shape.Radius * 2f);
+                    break;
+            }
+        }
+
+        private static void ApplyRectangleDimensions(
+            ShapeDefinition shape,
+            MapDirection heading,
+            ref float width,
+            ref float length)
+        {
+            var rectWidth = Math.Abs(shape.Width);
+            var rectHeight = Math.Abs(shape.Height);
+            if (rectWidth <= 0f || rectHeight <= 0f)
+                return;
+
+            switch (heading)
+            {
+                case MapDirection.North:
+                case MapDirection.South:
+                    width = Math.Max(width, rectWidth);
+                    length = Math.Max(length, rectHeight);
+                    break;
+                case MapDirection.East:
+                case MapDirection.West:
+                    width = Math.Max(width, rectHeight);
+                    length = Math.Max(length, rectWidth);
+                    break;
+            }
+        }
+
+        private static bool TryGetMetadataFloat(
+            IReadOnlyDictionary<string, string> metadata,
+            out float value,
+            params string[] keys)
+        {
+            value = 0f;
+            foreach (var key in keys)
+            {
+                if (!metadata.TryGetValue(key, out var raw))
+                    continue;
+                if (float.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value))
+                    return true;
+            }
+            return false;
         }
 
         private static TrackType ResolveCurveType(MapExits exits, MapDirection heading)

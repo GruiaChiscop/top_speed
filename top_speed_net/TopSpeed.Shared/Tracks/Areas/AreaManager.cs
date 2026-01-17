@@ -101,6 +101,8 @@ namespace TopSpeed.Tracks.Areas
                     return ContainsRectangle(shape, position);
                 case ShapeType.Circle:
                     return ContainsCircle(shape, position);
+                case ShapeType.Ring:
+                    return ContainsRing(shape, position);
                 case ShapeType.Polygon:
                     return ContainsPolygon(shape.Points, position);
                 case ShapeType.Polyline:
@@ -125,6 +127,52 @@ namespace TopSpeed.Tracks.Areas
             var dx = position.X - shape.X;
             var dz = position.Y - shape.Z;
             return (dx * dx + dz * dz) <= (shape.Radius * shape.Radius);
+        }
+
+        private static bool ContainsRing(ShapeDefinition shape, Vector2 position)
+        {
+            var ringWidth = Math.Abs(shape.RingWidth);
+            if (ringWidth <= 0f)
+                return false;
+
+            if (shape.Radius > 0f)
+                return ContainsRingCircle(shape, position, ringWidth);
+
+            return ContainsRingRectangle(shape, position, ringWidth);
+        }
+
+        private static bool ContainsRingCircle(ShapeDefinition shape, Vector2 position, float ringWidth)
+        {
+            var dx = position.X - shape.X;
+            var dz = position.Y - shape.Z;
+            var distSq = dx * dx + dz * dz;
+            var inner = Math.Abs(shape.Radius);
+            var outer = inner + ringWidth;
+            return distSq >= (inner * inner) && distSq <= (outer * outer);
+        }
+
+        private static bool ContainsRingRectangle(ShapeDefinition shape, Vector2 position, float ringWidth)
+        {
+            var innerMinX = shape.X;
+            var innerMinZ = shape.Z;
+            var innerMaxX = shape.X + shape.Width;
+            var innerMaxZ = shape.Z + shape.Height;
+            if (innerMaxX <= innerMinX || innerMaxZ <= innerMinZ)
+                return false;
+
+            var outerMinX = innerMinX - ringWidth;
+            var outerMinZ = innerMinZ - ringWidth;
+            var outerMaxX = innerMaxX + ringWidth;
+            var outerMaxZ = innerMaxZ + ringWidth;
+
+            var insideOuter = position.X >= outerMinX && position.X <= outerMaxX &&
+                              position.Y >= outerMinZ && position.Y <= outerMaxZ;
+            if (!insideOuter)
+                return false;
+
+            var insideInner = position.X >= innerMinX && position.X <= innerMaxX &&
+                              position.Y >= innerMinZ && position.Y <= innerMaxZ;
+            return !insideInner;
         }
 
         private static bool ContainsPolygon(IReadOnlyList<Vector2> points, Vector2 position)

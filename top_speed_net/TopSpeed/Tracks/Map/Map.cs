@@ -152,6 +152,31 @@ namespace TopSpeed.Tracks.Map
             return new TrackAreaManager(_shapes, _areas);
         }
 
+        public bool TryGetBounds(out int minX, out int minZ, out int maxX, out int maxZ)
+        {
+            minX = 0;
+            minZ = 0;
+            maxX = 0;
+            maxZ = 0;
+            if (_cells.Count == 0)
+                return false;
+
+            minX = int.MaxValue;
+            minZ = int.MaxValue;
+            maxX = int.MinValue;
+            maxZ = int.MinValue;
+
+            foreach (var key in _cells.Keys)
+            {
+                if (key.X < minX) minX = key.X;
+                if (key.Z < minZ) minZ = key.Z;
+                if (key.X > maxX) maxX = key.X;
+                if (key.Z > maxZ) maxZ = key.Z;
+            }
+
+            return true;
+        }
+
         public TrackPortalManager BuildPortalManager()
         {
             return new TrackPortalManager(_portals, _links);

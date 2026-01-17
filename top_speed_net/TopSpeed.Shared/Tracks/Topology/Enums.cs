@@ -5,6 +5,7 @@ namespace TopSpeed.Tracks.Topology
         Undefined = 0,
         Rectangle,
         Circle,
+        Ring,
         Polygon,
         Polyline
     }

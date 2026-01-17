@@ -82,6 +82,16 @@ namespace TopSpeed.Tracks.Map
         public int StartX { get; set; }
         public int StartZ { get; set; }
         public MapDirection StartHeading { get; set; } = MapDirection.North;
+        public float SafeZoneRingMeters { get; set; }
+        public TrackSurface SafeZoneSurface { get; set; } = TrackSurface.Gravel;
+        public TrackNoise SafeZoneNoise { get; set; } = TrackNoise.NoNoise;
+        public string? SafeZoneName { get; set; }
+        public float OuterRingMeters { get; set; }
+        public TrackSurface OuterRingSurface { get; set; } = TrackSurface.Gravel;
+        public TrackNoise OuterRingNoise { get; set; } = TrackNoise.NoNoise;
+        public string? OuterRingName { get; set; }
+        public TrackAreaType OuterRingType { get; set; } = TrackAreaType.Boundary;
+        public TrackAreaFlags OuterRingFlags { get; set; } = TrackAreaFlags.None;
     }
 
     public sealed class TrackMapCellDefinition
@@ -517,6 +527,58 @@ namespace TopSpeed.Tracks.Map
 
             if (TryGetValue(block, "start_heading", out var headingRaw) && TryDirection(headingRaw, out var heading))
                 metadata.StartHeading = heading;
+
+            if (TryGetValue(block, "safe_zone_ring", out var ringRaw) ||
+                TryGetValue(block, "safe_zone_ring_meters", out ringRaw) ||
+                TryGetValue(block, "safe_zone_band", out ringRaw))
+            {
+                if (TryFloat(ringRaw, out var ringMeters))
+                    metadata.SafeZoneRingMeters = Math.Max(0f, ringMeters);
+            }
+
+            if (TryGetValue(block, "safe_zone_surface", out var safeSurface) &&
+                Enum.TryParse(safeSurface, true, out TrackSurface safeSurfaceValue))
+                metadata.SafeZoneSurface = safeSurfaceValue;
+
+            if (TryGetValue(block, "safe_zone_noise", out var safeNoise) &&
+                Enum.TryParse(safeNoise, true, out TrackNoise safeNoiseValue))
+                metadata.SafeZoneNoise = safeNoiseValue;
+
+            if (TryGetValue(block, "safe_zone_name", out var safeName))
+            {
+                var trimmedName = safeName?.Trim();
+                metadata.SafeZoneName = string.IsNullOrWhiteSpace(trimmedName) ? null : trimmedName;
+            }
+
+            if (TryGetValue(block, "outer_ring", out var outerRingRaw) ||
+                TryGetValue(block, "outer_ring_meters", out outerRingRaw) ||
+                TryGetValue(block, "outer_ring_band", out outerRingRaw))
+            {
+                if (TryFloat(outerRingRaw, out var ringMeters))
+                    metadata.OuterRingMeters = Math.Max(0f, ringMeters);
+            }
+
+            if (TryGetValue(block, "outer_ring_surface", out var outerSurface) &&
+                Enum.TryParse(outerSurface, true, out TrackSurface outerSurfaceValue))
+                metadata.OuterRingSurface = outerSurfaceValue;
+
+            if (TryGetValue(block, "outer_ring_noise", out var outerNoise) &&
+                Enum.TryParse(outerNoise, true, out TrackNoise outerNoiseValue))
+                metadata.OuterRingNoise = outerNoiseValue;
+
+            if (TryGetValue(block, "outer_ring_name", out var outerName))
+            {
+                var trimmedName = outerName?.Trim();
+                metadata.OuterRingName = string.IsNullOrWhiteSpace(trimmedName) ? null : trimmedName;
+            }
+
+            if (TryGetValue(block, "outer_ring_type", out var outerTypeRaw) &&
+                Enum.TryParse(outerTypeRaw, true, out TrackAreaType outerType))
+                metadata.OuterRingType = outerType;
+
+            if (TryGetValue(block, "outer_ring_flags", out var outerFlagsRaw) &&
+                TryParseAreaFlags(outerFlagsRaw, out var outerFlags))
+                metadata.OuterRingFlags = outerFlags;
         }
 
         private static void ApplyCell(
@@ -737,6 +799,14 @@ namespace TopSpeed.Tracks.Map
                 return;
             }
 
+            if (TryGetValue(block, "invert", out _) ||
+                TryGetValue(block, "outside", out _) ||
+                TryGetValue(block, "outside_of", out _))
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Area invert/outside is not supported. Use a ring shape with ring_width.", block.StartLine));
+                return;
+            }
+
             var name = TryGetValue(block, "name", out var nameValue) ? nameValue : null;
             var surface = TrySurface(block, "surface", out var surfaceValue) ? surfaceValue : (TrackSurface?)null;
             var noise = TryNoise(block, "noise", out var noiseValue) ? noiseValue : (TrackNoise?)null;
@@ -796,6 +866,44 @@ namespace TopSpeed.Tracks.Map
                         return;
                     }
                     shapes.Add(new ShapeDefinition(id, shapeType, circleX, circleZ, radius: radius));
+                    break;
+                case ShapeType.Ring:
+                    if (!TryFloat(block, "ring_width", out var ringWidth) &&
+                        !TryFloat(block, "ringwidth", out ringWidth))
+                    {
+                        issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Ring requires ring_width.", block.StartLine));
+                        return;
+                    }
+                    ringWidth = Math.Abs(ringWidth);
+                    if (ringWidth <= 0f)
+                    {
+                        issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Ring requires a positive ring_width.", block.StartLine));
+                        return;
+                    }
+
+                    var hasRadius = TryFloat(block, "radius", out var ringRadius) && ringRadius > 0f;
+                    if (hasRadius)
+                    {
+                        if (!TryFloat(block, "x", out var ringX) ||
+                            !TryFloat(block, "z", out var ringZ))
+                        {
+                            issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Ring circle requires x, z, radius, ring_width.", block.StartLine));
+                            return;
+                        }
+                        shapes.Add(new ShapeDefinition(id, shapeType, ringX, ringZ, radius: ringRadius, ringWidth: ringWidth));
+                        break;
+                    }
+
+                    if (!TryFloat(block, "x", out var ringRectX) ||
+                        !TryFloat(block, "z", out var ringRectZ) ||
+                        !TryFloat(block, "width", out var ringRectWidth) ||
+                        !TryFloat(block, "height", out var ringRectHeight) ||
+                        ringRectWidth <= 0f || ringRectHeight <= 0f)
+                    {
+                        issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Ring rectangle requires x, z, width, height, ring_width.", block.StartLine));
+                        return;
+                    }
+                    shapes.Add(new ShapeDefinition(id, shapeType, ringRectX, ringRectZ, ringRectWidth, ringRectHeight, ringWidth: ringWidth));
                     break;
                 case ShapeType.Polygon:
                 case ShapeType.Polyline:
@@ -1427,6 +1535,10 @@ namespace TopSpeed.Tracks.Map
                     return true;
                 case "circle":
                     type = ShapeType.Circle;
+                    return true;
+                case "ring":
+                case "band":
+                    type = ShapeType.Ring;
                     return true;
                 case "polygon":
                 case "poly":
