@@ -13,6 +13,7 @@ namespace TopSpeed.Tracks.Map
                 CellX = map.StartX,
                 CellZ = map.StartZ,
                 Heading = map.StartHeading,
+                HeadingDegrees = HeadingDegrees(map.StartHeading),
                 WorldPosition = position,
                 DistanceMeters = 0f,
                 PendingMeters = 0f
@@ -107,6 +108,7 @@ namespace TopSpeed.Tracks.Map
             state.CellX = x;
             state.CellZ = z;
             state.Heading = heading;
+            state.HeadingDegrees = HeadingDegrees(heading);
             state.WorldPosition = map.CellToWorld(x, z);
             state.DistanceMeters += steps * map.CellSizeMeters * sign;
             return true;
@@ -151,6 +153,18 @@ namespace TopSpeed.Tracks.Map
                 MapDirection.South => (x, z - 1),
                 MapDirection.West => (x - 1, z),
                 _ => (x, z)
+            };
+        }
+
+        private static float HeadingDegrees(MapDirection heading)
+        {
+            return heading switch
+            {
+                MapDirection.North => 0f,
+                MapDirection.East => 90f,
+                MapDirection.South => 180f,
+                MapDirection.West => 270f,
+                _ => 0f
             };
         }
     }

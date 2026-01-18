@@ -6,6 +6,7 @@ using TopSpeed.Audio;
 using TopSpeed.Core;
 using TopSpeed.Data;
 using TopSpeed.Tracks.Areas;
+using TopSpeed.Tracks.Guidance;
 using TopSpeed.Tracks.Geometry;
 using TopSpeed.Tracks.Sectors;
 using TopSpeed.Tracks.Topology;
@@ -22,6 +23,8 @@ namespace TopSpeed.Tracks.Map
         private readonly TrackAreaManager _areaManager;
         private readonly TrackSectorManager _sectorManager;
         private readonly TrackPortalManager _portalManager;
+        private readonly TrackApproachBeacon _approachBeacon;
+        private readonly TrackPathManager _pathManager;
         private readonly string _trackName;
         private readonly bool _userDefined;
         private TrackNoise _currentNoise;
@@ -42,6 +45,8 @@ namespace TopSpeed.Tracks.Map
         private AudioSourceHandle? _soundRiver;
         private AudioSourceHandle? _soundHelicopter;
         private AudioSourceHandle? _soundOwl;
+        private AudioSourceHandle? _soundBeacon;
+        private float _beaconCooldown;
 
         private MapTrack(string trackName, TrackMap map, AudioManager audio, bool userDefined)
         {
@@ -53,6 +58,8 @@ namespace TopSpeed.Tracks.Map
             _areaManager = map.BuildAreaManager();
             _portalManager = map.BuildPortalManager();
             _sectorManager = new TrackSectorManager(map.Sectors, _areaManager, _portalManager);
+            _approachBeacon = new TrackApproachBeacon(map);
+            _pathManager = new TrackPathManager(map.Paths, map.Shapes, _portalManager, map.DefaultWidthMeters);
             InitializeSounds();
         }
 
@@ -102,6 +109,7 @@ namespace TopSpeed.Tracks.Map
                 CellX = x,
                 CellZ = z,
                 Heading = heading,
+                HeadingDegrees = HeadingDegrees(heading),
                 WorldPosition = _map.CellToWorld(x, z),
                 DistanceMeters = 0f,
                 PendingMeters = 0f
@@ -127,7 +135,23 @@ namespace TopSpeed.Tracks.Map
         public TrackRoad RoadAt(MapMovementState state)
         {
             if (!_map.TryGetCell(state.CellX, state.CellZ, out var cell))
-                return BuildDefaultRoad();
+            {
+                var defaultRoad = BuildDefaultRoad();
+                var defaultSafeZone = false;
+                var defaultLength = _map.CellSizeMeters;
+                var defaultWidth = Math.Max(0.5f, _map.DefaultWidthMeters);
+                var defaultSurface = _map.DefaultSurface;
+                var defaultNoise = _map.DefaultNoise;
+                ApplyPathWidth(state.WorldPosition, ref defaultWidth);
+                ApplyAreaOverrides(state.WorldPosition, state.Heading, ref defaultWidth, ref defaultLength, ref defaultSurface, ref defaultNoise, ref defaultSafeZone);
+                defaultRoad.Left = -defaultWidth * 0.5f;
+                defaultRoad.Right = defaultWidth * 0.5f;
+                defaultRoad.Length = defaultLength;
+                defaultRoad.Surface = defaultSurface;
+                defaultRoad.IsSafeZone = defaultSafeZone;
+                defaultRoad.IsOutOfBounds = !IsWithinTrackInternal(state.WorldPosition, defaultSafeZone);
+                return defaultRoad;
+            }
 
             var width = Math.Max(0.5f, cell.WidthMeters);
             var length = _map.CellSizeMeters;
@@ -135,6 +159,7 @@ namespace TopSpeed.Tracks.Map
             var noise = cell.Noise;
             var safeZone = cell.IsSafeZone;
 
+            ApplyPathWidth(state.WorldPosition, ref width);
             ApplyAreaOverrides(state.WorldPosition, state.Heading, ref width, ref length, ref surface, ref noise, ref safeZone);
 
             return new TrackRoad
@@ -145,7 +170,7 @@ namespace TopSpeed.Tracks.Map
                 Type = ResolveCurveType(cell.Exits, state.Heading),
                 Length = length,
                 IsSafeZone = safeZone,
-                IsOutOfBounds = false
+                IsOutOfBounds = !IsWithinTrackInternal(state.WorldPosition, safeZone)
             };
         }
 
@@ -210,9 +235,10 @@ namespace TopSpeed.Tracks.Map
         public void Initialize()
         {
             _currentNoise = TrackNoise.NoNoise;
+            _beaconCooldown = 0f;
         }
 
-        public void Run(MapMovementState state)
+        public void Run(MapMovementState state, float elapsed)
         {
             if (!_map.TryGetCell(state.CellX, state.CellZ, out var cell))
                 return;
@@ -230,6 +256,7 @@ namespace TopSpeed.Tracks.Map
             }
 
             UpdateNoiseLoop(noise);
+            UpdateApproachBeacon(state, elapsed);
 
             if (_map.Weather == TrackWeather.Rain)
                 PlayIfNotPlaying(_soundRain);
@@ -281,6 +308,7 @@ namespace TopSpeed.Tracks.Map
             DisposeSound(_soundRiver);
             DisposeSound(_soundHelicopter);
             DisposeSound(_soundOwl);
+            DisposeSound(_soundBeacon);
         }
 
         private TrackRoad BuildDefaultRoad()
@@ -518,6 +546,22 @@ namespace TopSpeed.Tracks.Map
             _soundRiver = CreateLoop(root, "river.wav");
             _soundHelicopter = CreateLoop(root, "helicopter.wav");
             _soundOwl = CreateLoop(root, "owl.wav");
+            _soundBeacon = CreateSpatial(root, "beacon.wav");
+        }
+
+        private void ApplyPathWidth(Vector3 worldPosition, ref float width)
+        {
+            if (_pathManager == null || !_pathManager.HasPaths)
+                return;
+
+            var position = new Vector2(worldPosition.X, worldPosition.Z);
+            var paths = _pathManager.FindPathsContaining(position);
+            if (paths.Count == 0)
+                return;
+
+            var path = paths[paths.Count - 1];
+            if (path.WidthMeters > 0f)
+                width = Math.Max(0.5f, path.WidthMeters);
         }
 
         private AudioSourceHandle? CreateLoop(string root, string file)
@@ -526,6 +570,14 @@ namespace TopSpeed.Tracks.Map
             if (!File.Exists(path))
                 return null;
             return _audio.CreateLoopingSource(path);
+        }
+
+        private AudioSourceHandle? CreateSpatial(string root, string file)
+        {
+            var path = Path.Combine(root, file);
+            if (!File.Exists(path))
+                return null;
+            return _audio.CreateSpatialSource(path, streamFromDisk: true, allowHrtf: true);
         }
 
         private void UpdateNoiseLoop(TrackNoise noise)
@@ -614,6 +666,85 @@ namespace TopSpeed.Tracks.Map
                 sound.Play(loop: true);
         }
 
+        private void UpdateApproachBeacon(MapMovementState state, float elapsed)
+        {
+            if (_soundBeacon == null)
+                return;
+
+            var headingDegrees = state.HeadingDegrees;
+            if (_approachBeacon.TryGetCue(state.WorldPosition, headingDegrees, out var cue) && !cue.Passed)
+            {
+                var position = AudioWorld.ToMeters(new Vector3(cue.PortalPosition.X, 0f, cue.PortalPosition.Y));
+                _soundBeacon.SetPosition(position);
+                _soundBeacon.SetVelocity(Vector3.Zero);
+                _beaconCooldown -= elapsed;
+                if (_beaconCooldown <= 0f)
+                {
+                    _soundBeacon.Stop();
+                    _soundBeacon.SeekToStart();
+                    _soundBeacon.Play(loop: false);
+                    _beaconCooldown = 1.5f;
+                }
+                return;
+            }
+
+            _beaconCooldown = 0f;
+            StopSound(_soundBeacon);
+        }
+
+        public bool IsWithinTrack(Vector3 worldPosition)
+        {
+            var position = new Vector2(worldPosition.X, worldPosition.Z);
+            var safeZone = IsSafeZone(position);
+            var (cellX, cellZ) = _map.WorldToCell(worldPosition);
+            if (_map.TryGetCell(cellX, cellZ, out var cell) && cell.IsSafeZone)
+                safeZone = true;
+            return IsWithinTrackInternal(worldPosition, safeZone);
+        }
+
+        private bool IsWithinTrackInternal(Vector3 worldPosition, bool isSafeZone)
+        {
+            var position = new Vector2(worldPosition.X, worldPosition.Z);
+            if (_pathManager.HasPaths)
+            {
+                if (_pathManager.ContainsAny(position))
+                    return true;
+                return isSafeZone;
+            }
+
+            var (cellX, cellZ) = _map.WorldToCell(worldPosition);
+            return _map.TryGetCell(cellX, cellZ, out _);
+        }
+
+        private bool IsSafeZone(Vector2 position)
+        {
+            if (_areaManager == null)
+                return false;
+
+            var areas = _areaManager.FindAreasContaining(position);
+            if (areas.Count == 0)
+                return false;
+
+            foreach (var area in areas)
+            {
+                if (area.Type == TrackAreaType.SafeZone || (area.Flags & TrackAreaFlags.SafeZone) != 0)
+                    return true;
+            }
+            return false;
+        }
+
+        private static float HeadingDegrees(MapDirection heading)
+        {
+            return heading switch
+            {
+                MapDirection.North => 0f,
+                MapDirection.East => 90f,
+                MapDirection.South => 180f,
+                MapDirection.West => 270f,
+                _ => 0f
+            };
+        }
+
         private static void StopSound(AudioSourceHandle? sound)
         {
             if (sound == null)
@@ -639,6 +770,7 @@ namespace TopSpeed.Tracks.Map
             StopSound(_soundRiver);
             StopSound(_soundHelicopter);
             StopSound(_soundOwl);
+            StopSound(_soundBeacon);
         }
 
         private static void DisposeSound(AudioSourceHandle? sound)

@@ -899,17 +899,34 @@ namespace TopSpeed.Vehicles
                 var heading = MapMovement.DirectionFromYaw(_dynamicsState.Yaw);
                 var distanceMeters = (_speed / 3.6f) * elapsed;
                 var previousPosition = _worldPosition;
-                _track.TryMove(ref _mapState, distanceMeters, heading, out _, out var boundaryHit);
-                if (boundaryHit)
+
+                var yaw = _dynamicsState.Yaw;
+                var forward = new Vector3((float)Math.Sin(yaw), 0f, (float)Math.Cos(yaw));
+                var right = new Vector3(forward.Z, 0f, -forward.X);
+                var velocity = (forward * _dynamicsState.VelLong) + (right * _dynamicsState.VelLat);
+                var nextPosition = _worldPosition + (velocity * elapsed);
+
+                if (_track.IsWithinTrack(nextPosition))
+                {
+                    _worldPosition = nextPosition;
+                    _mapState.WorldPosition = _worldPosition;
+                    var (cellX, cellZ) = _track.Map.WorldToCell(_worldPosition);
+                    _mapState.CellX = cellX;
+                    _mapState.CellZ = cellZ;
+                    _mapState.Heading = heading;
+                    _mapState.HeadingDegrees = HeadingDegrees;
+                    _mapState.DistanceMeters += distanceMeters;
+                }
+                else
                 {
                     _speed = 0f;
                     _dynamicsState.VelLong = 0f;
                     _dynamicsState.VelLat = 0f;
                 }
-                _worldPosition = _mapState.WorldPosition;
+
                 _positionY = _mapState.DistanceMeters;
                 var worldVelocity = elapsed > 0f ? (_worldPosition - previousPosition) / elapsed : Vector3.Zero;
-                _worldForward = MapMovement.DirectionVector(heading);
+                _worldForward = forward.LengthSquared() > 0.0001f ? Vector3.Normalize(forward) : Vector3.UnitZ;
                 _worldUp = Vector3.UnitY;
                 _worldVelocity = worldVelocity;
                 UpdateTurnTick();

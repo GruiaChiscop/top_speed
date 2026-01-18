@@ -203,7 +203,7 @@ namespace TopSpeed.Race
 
             UpdatePositions();
             _car.Run(elapsed);
-            _track.Run(_car.MapState);
+            _track.Run(_car.MapState, elapsed);
 
             var road = _track.RoadAt(_car.MapState);
             _car.Evaluate(road);

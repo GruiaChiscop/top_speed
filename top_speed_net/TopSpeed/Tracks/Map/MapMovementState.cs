@@ -7,6 +7,7 @@ namespace TopSpeed.Tracks.Map
         public int CellX;
         public int CellZ;
         public MapDirection Heading;
+        public float HeadingDegrees;
         public Vector3 WorldPosition;
         public float DistanceMeters;
         public float PendingMeters;

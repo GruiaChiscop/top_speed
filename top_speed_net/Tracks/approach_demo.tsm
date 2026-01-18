@@ -125,6 +125,10 @@ z=0
 width=250
 height=250
 
+[shape: loop_path_shape]
+type=polyline
+points=0,0|250,0|250,250|0,250|0,0
+
 [shape: safe_zone_ring]
 type=ring
 x=0
@@ -140,6 +144,50 @@ z=-50
 width=350
 height=350
 ring_width=100
+
+[curve: corner_se]
+name=South east corner
+center_x=240
+center_z=10
+radius=10
+width=12
+entry_heading=east
+exit_heading=north
+turn=left
+sector=main_loop
+
+[curve: corner_ne]
+name=North east corner
+center_x=240
+center_z=240
+radius=10
+width=12
+entry_heading=north
+exit_heading=west
+turn=left
+sector=main_loop
+
+[curve: corner_nw]
+name=North west corner
+center_x=10
+center_z=240
+radius=10
+width=12
+entry_heading=west
+exit_heading=south
+turn=left
+sector=main_loop
+
+[curve: corner_sw]
+name=South west corner
+center_x=10
+center_z=10
+radius=10
+width=12
+entry_heading=south
+exit_heading=east
+turn=left
+sector=main_loop
 
 
 [shape: beacon_zone]
@@ -217,6 +265,7 @@ dir=oneway
 
 [path: loop_path]
 type=road
+shape=loop_path_shape
 from=p_loop_entry
 to=p_loop_exit
 width=12

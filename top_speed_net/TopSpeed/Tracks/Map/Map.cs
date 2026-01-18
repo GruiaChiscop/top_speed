@@ -182,6 +182,11 @@ namespace TopSpeed.Tracks.Map
             return new TrackPortalManager(_portals, _links);
         }
 
+        public TrackPathManager BuildPathManager()
+        {
+            return new TrackPathManager(_paths, _shapes, BuildPortalManager(), DefaultWidthMeters);
+        }
+
         public TrackSectorManager BuildSectorManager()
         {
             return new TrackSectorManager(_sectors, BuildAreaManager(), BuildPortalManager());

@@ -343,6 +343,9 @@ namespace TopSpeed.Tracks.Map
                     case "approach":
                         ApplyApproach(approaches, block, issues);
                         break;
+                    case "curve":
+                        ApplyCurve(shapes, areas, portals, paths, approaches, block, issues);
+                        break;
                 }
             }
 
@@ -1181,6 +1184,153 @@ namespace TopSpeed.Tracks.Map
                 metadata));
         }
 
+        private static void ApplyCurve(
+            List<ShapeDefinition> shapes,
+            List<TrackAreaDefinition> areas,
+            List<PortalDefinition> portals,
+            List<PathDefinition> paths,
+            List<TrackApproachDefinition> approaches,
+            SectionBlock block,
+            List<TrackMapIssue> issues)
+        {
+            if (!TryReadId(block, out var id))
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Curve requires an id.", block.StartLine));
+                return;
+            }
+
+            if (!TryFloat(block, "x", out var centerX) && !TryFloat(block, "center_x", out centerX) && !TryFloat(block, "centerx", out centerX))
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Curve requires center x.", block.StartLine));
+                return;
+            }
+
+            if (!TryFloat(block, "z", out var centerZ) && !TryFloat(block, "center_z", out centerZ) && !TryFloat(block, "centerz", out centerZ))
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Curve requires center z.", block.StartLine));
+                return;
+            }
+
+            if (!TryFloat(block, "radius", out var radius) || radius <= 0f)
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Curve requires a positive radius.", block.StartLine));
+                return;
+            }
+
+            if (!TryFloat(block, "width", out var width) || width <= 0f)
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Curve requires a positive width.", block.StartLine));
+                return;
+            }
+
+            if (!TryReadHeading(block, "entry", out var entryHeading))
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Curve requires entry_heading.", block.StartLine));
+                return;
+            }
+
+            if (!TryReadHeading(block, "exit", out var exitHeading))
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Curve requires exit_heading.", block.StartLine));
+                return;
+            }
+
+            var turnRight = ResolveCurveTurn(block, entryHeading, exitHeading);
+            var center = new Vector2(centerX, centerZ);
+            var entryPos = ResolveCurvePoint(center, entryHeading, radius, turnRight);
+            var exitPos = ResolveCurvePoint(center, exitHeading, radius, turnRight);
+
+            if (Vector2.DistanceSquared(entryPos, exitPos) <= 0.0001f)
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Curve entry and exit points are identical.", block.StartLine));
+                return;
+            }
+
+            var stepDegrees = ResolveCurveStepDegrees(block, radius);
+            var points = BuildCurvePoints(center, entryPos, exitPos, turnRight, stepDegrees);
+            if (points.Count < 2)
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, "Curve requires at least 2 arc points.", block.StartLine));
+                return;
+            }
+
+            var shapeId = $"curve_{id}_shape";
+            var areaId = $"curve_{id}_area";
+            var pathId = $"curve_{id}_path";
+
+            if (shapes.Any(s => string.Equals(s.Id, shapeId, StringComparison.OrdinalIgnoreCase)))
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, $"Curve '{id}' generated duplicate shape id '{shapeId}'.", block.StartLine));
+                return;
+            }
+            if (areas.Any(a => string.Equals(a.Id, areaId, StringComparison.OrdinalIgnoreCase)))
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, $"Curve '{id}' generated duplicate area id '{areaId}'.", block.StartLine));
+                return;
+            }
+            if (paths.Any(p => string.Equals(p.Id, pathId, StringComparison.OrdinalIgnoreCase)))
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, $"Curve '{id}' generated duplicate path id '{pathId}'.", block.StartLine));
+                return;
+            }
+
+            var name = TryGetValue(block, "name", out var nameValue) ? nameValue : null;
+            var surface = TrySurface(block, "surface", out var surfaceValue) ? surfaceValue : (TrackSurface?)null;
+            var noise = TryNoise(block, "noise", out var noiseValue) ? noiseValue : (TrackNoise?)null;
+            var flags = TryAreaFlags(block, out var areaFlags) ? areaFlags : TrackAreaFlags.None;
+            var sectorId = TryGetValue(block, "sector", out var sectorValue) && !string.IsNullOrWhiteSpace(sectorValue)
+                ? sectorValue.Trim()
+                : id;
+            var approachId = TryGetValue(block, "approach_id", out var approachValue) && !string.IsNullOrWhiteSpace(approachValue)
+                ? approachValue.Trim()
+                : (TryGetValue(block, "approach", out approachValue) && !string.IsNullOrWhiteSpace(approachValue)
+                    ? approachValue.Trim()
+                    : $"{id}_approach");
+            var areaType = TryGetValue(block, "area_type", out var areaTypeRaw) && Enum.TryParse(areaTypeRaw, true, out TrackAreaType parsedAreaType)
+                ? parsedAreaType
+                : TrackAreaType.Curve;
+
+            shapes.Add(new ShapeDefinition(shapeId, ShapeType.Polyline, points: points));
+            areas.Add(new TrackAreaDefinition(areaId, areaType, shapeId, name, surface, noise, width, flags));
+            paths.Add(new PathDefinition(pathId, PathType.Curve, shapeId, null, null, width, name));
+
+            var entryPortalId = TryGetValue(block, "entry_portal", out var entryPortalValue) && !string.IsNullOrWhiteSpace(entryPortalValue)
+                ? entryPortalValue.Trim()
+                : $"{id}_entry";
+            var exitPortalId = TryGetValue(block, "exit_portal", out var exitPortalValue) && !string.IsNullOrWhiteSpace(exitPortalValue)
+                ? exitPortalValue.Trim()
+                : $"{id}_exit";
+
+            if (portals.Any(p => string.Equals(p.Id, entryPortalId, StringComparison.OrdinalIgnoreCase)) ||
+                portals.Any(p => string.Equals(p.Id, exitPortalId, StringComparison.OrdinalIgnoreCase)))
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, $"Curve '{id}' generated duplicate portal id.", block.StartLine));
+                return;
+            }
+
+            portals.Add(new PortalDefinition(entryPortalId, sectorId, entryPos.X, entryPos.Y, width, entryHeading, null, PortalRole.Entry));
+            portals.Add(new PortalDefinition(exitPortalId, sectorId, exitPos.X, exitPos.Y, width, null, exitHeading, PortalRole.Exit));
+
+            var length = TryFloat(block, "length", out var lengthValue)
+                ? Math.Max(0.1f, lengthValue)
+                : EstimateArcLength(center, entryPos, exitPos, turnRight, radius);
+            var tolerance = TryFloat(block, "tolerance", out var toleranceValue)
+                ? Math.Max(0f, toleranceValue)
+                : (float?)null;
+
+            if (approaches.Any(a => string.Equals(a.SectorId, approachId, StringComparison.OrdinalIgnoreCase)))
+            {
+                issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, $"Curve '{id}' generated duplicate approach id '{approachId}'.", block.StartLine));
+                return;
+            }
+
+            var curveMetadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["curve"] = "true"
+            };
+            approaches.Add(new TrackApproachDefinition(approachId, name, entryPortalId, exitPortalId, entryHeading, exitHeading, width, length, tolerance, curveMetadata));
+        }
+
         private static bool TryGetValue(SectionBlock block, string key, out string value)
         {
             value = string.Empty;
@@ -1471,6 +1621,129 @@ namespace TopSpeed.Tracks.Map
                     return true;
             }
             return false;
+        }
+
+        private static bool ResolveCurveTurn(SectionBlock block, float entryHeading, float exitHeading)
+        {
+            foreach (var raw in GetValues(block, "turn", "turn_dir", "curve_turn", "curve_dir", "side"))
+            {
+                if (string.IsNullOrWhiteSpace(raw))
+                    continue;
+                var trimmed = raw.Trim().ToLowerInvariant();
+                switch (trimmed)
+                {
+                    case "right":
+                    case "r":
+                    case "cw":
+                    case "clockwise":
+                        return true;
+                    case "left":
+                    case "l":
+                    case "ccw":
+                    case "anticlockwise":
+                    case "counterclockwise":
+                        return false;
+                }
+            }
+
+            var delta = NormalizeDegrees(exitHeading - entryHeading);
+            if (delta > 180f)
+                delta -= 360f;
+            return delta > 0f;
+        }
+
+        private static Vector2 ResolveCurvePoint(Vector2 center, float headingDegrees, float radius, bool turnRight)
+        {
+            var forward = HeadingVector(headingDegrees);
+            var right = new Vector2(forward.Y, -forward.X);
+            return turnRight
+                ? center - (right * radius)
+                : center + (right * radius);
+        }
+
+        private static List<Vector2> BuildCurvePoints(
+            Vector2 center,
+            Vector2 entryPos,
+            Vector2 exitPos,
+            bool turnRight,
+            float stepDegrees)
+        {
+            var points = new List<Vector2>();
+            var startAngle = AngleFromCenter(center, entryPos);
+            var endAngle = AngleFromCenter(center, exitPos);
+            var step = Math.Max(1f, Math.Abs(stepDegrees));
+
+            if (turnRight)
+            {
+                if (startAngle < endAngle)
+                    startAngle += 360f;
+                for (var angle = startAngle; angle >= endAngle; angle -= step)
+                    points.Add(PointOnCircle(center, angle));
+            }
+            else
+            {
+                if (endAngle < startAngle)
+                    endAngle += 360f;
+                for (var angle = startAngle; angle <= endAngle; angle += step)
+                    points.Add(PointOnCircle(center, angle));
+            }
+
+            if (points.Count == 0 || Vector2.DistanceSquared(points[points.Count - 1], exitPos) > 0.0001f)
+                points.Add(exitPos);
+
+            return points;
+        }
+
+        private static float ResolveCurveStepDegrees(SectionBlock block, float radius)
+        {
+            if (TryFloat(block, "step_degrees", out var stepDegrees) || TryFloat(block, "step_deg", out stepDegrees))
+                return Math.Max(1f, stepDegrees);
+
+            if (TryFloat(block, "step_meters", out var stepMeters) || TryFloat(block, "step", out stepMeters))
+            {
+                stepMeters = Math.Max(0.5f, stepMeters);
+                return Math.Max(1f, (stepMeters / (float)(2.0 * Math.PI * radius)) * 360f);
+            }
+
+            var defaultMeters = Math.Max(2f, Math.Min(6f, radius * 0.2f));
+            return Math.Max(1f, (defaultMeters / (float)(2.0 * Math.PI * radius)) * 360f);
+        }
+
+        private static float EstimateArcLength(Vector2 center, Vector2 entryPos, Vector2 exitPos, bool turnRight, float radius)
+        {
+            var startAngle = AngleFromCenter(center, entryPos);
+            var endAngle = AngleFromCenter(center, exitPos);
+            var sweep = turnRight ? NormalizeDegrees(startAngle - endAngle) : NormalizeDegrees(endAngle - startAngle);
+            return (float)(Math.PI * radius * (sweep / 180f));
+        }
+
+        private static Vector2 HeadingVector(float headingDegrees)
+        {
+            var radians = headingDegrees * (float)Math.PI / 180f;
+            return new Vector2((float)Math.Sin(radians), (float)Math.Cos(radians));
+        }
+
+        private static float AngleFromCenter(Vector2 center, Vector2 point)
+        {
+            var dx = point.X - center.X;
+            var dz = point.Y - center.Y;
+            var radians = Math.Atan2(dz, dx);
+            var degrees = (float)(radians * 180.0 / Math.PI);
+            return NormalizeDegrees(degrees);
+        }
+
+        private static Vector2 PointOnCircle(Vector2 center, float angleDegrees)
+        {
+            var radians = angleDegrees * (float)Math.PI / 180f;
+            return new Vector2(center.X + (float)Math.Cos(radians), center.Y + (float)Math.Sin(radians));
+        }
+
+        private static float NormalizeDegrees(float degrees)
+        {
+            var result = degrees % 360f;
+            if (result < 0f)
+                result += 360f;
+            return result;
         }
 
         private static bool TryParsePoints(SectionBlock block, out List<Vector2> points)
@@ -2238,7 +2511,7 @@ namespace TopSpeed.Tracks.Map
 
             foreach (var approach in map.Approaches)
             {
-                if (sectorIds.Count > 0 && !sectorIds.Contains(approach.SectorId))
+                if (sectorIds.Count > 0 && !sectorIds.Contains(approach.SectorId) && !IsCurveApproach(approach))
                     issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Warning, $"Approach references missing sector '{approach.SectorId}'."));
                 if (!string.IsNullOrWhiteSpace(approach.EntryPortalId) && !portalIds.Contains(approach.EntryPortalId!))
                     issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, $"Approach '{approach.SectorId}' references missing entry portal '{approach.EntryPortalId}'."));
@@ -2251,6 +2524,20 @@ namespace TopSpeed.Tracks.Map
                 if (approach.AlignmentToleranceDegrees.HasValue && approach.AlignmentToleranceDegrees.Value < 0f)
                     issues.Add(new TrackMapIssue(TrackMapIssueSeverity.Error, $"Approach '{approach.SectorId}' tolerance must be non-negative."));
             }
+        }
+
+        private static bool IsCurveApproach(TrackApproachDefinition approach)
+        {
+            if (approach == null)
+                return false;
+            var metadata = approach.Metadata;
+            if (metadata == null || metadata.Count == 0)
+                return false;
+            if (!metadata.TryGetValue("curve", out var raw))
+                return false;
+            return string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(raw, "1", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(raw, "yes", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

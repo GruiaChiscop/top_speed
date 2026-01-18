@@ -9,8 +9,10 @@ using TopSpeed.Data;
 using TopSpeed.Input;
 using TopSpeed.Speech;
 using TopSpeed.Tracks.Areas;
+using TopSpeed.Tracks.Guidance;
 using TopSpeed.Tracks.Map;
 using TopSpeed.Tracks.Topology;
+using TS.Audio;
 
 namespace TopSpeed.Race
 {
@@ -18,6 +20,8 @@ namespace TopSpeed.Race
     {
         private static readonly float[] StepSizes = { 1f, 5f, 10f, 20f, 30f, 50f, 100f };
         private const float WidthAnnounceThreshold = 0.5f;
+        private const float ApproachBeaconRangeMeters = 50f;
+        private const float DefaultApproachToleranceDegrees = 10f;
 
         private readonly AudioManager _audio;
         private readonly SpeechService _speech;
@@ -34,6 +38,12 @@ namespace TopSpeed.Race
         private MapMovementState _mapState;
         private MapSnapshot _mapSnapshot;
         private TrackAreaManager? _areaManager;
+        private TrackApproachBeacon? _approachBeacon;
+        private AudioSourceHandle? _soundBeacon;
+        private string? _lastApproachPortalId;
+        private string? _lastApproachHeading;
+        private TrackPathManager? _pathManager;
+        private float _beaconCooldown;
 
         private Vector3 _lastListenerPosition;
         private bool _listenerInitialized;
@@ -62,9 +72,15 @@ namespace TopSpeed.Race
         public void Initialize()
         {
             _mapState = MapMovement.CreateStart(_map);
-            _mapHeading = _mapState.Heading;
+            _mapHeading = MapDirection.North;
+            _mapState.Heading = _mapHeading;
+            _mapState.HeadingDegrees = 0f;
             _worldPosition = _mapState.WorldPosition;
+            _listenerForward = Vector3.UnitZ;
             _areaManager = _map.BuildAreaManager();
+            _pathManager = _map.BuildPathManager();
+            _approachBeacon = new TrackApproachBeacon(_map, ApproachBeaconRangeMeters);
+            InitializeBeacon();
             _mapSnapshot = BuildMapSnapshot(_mapState.CellX, _mapState.CellZ, _mapHeading);
             _speech.Speak($"Track {FormatTrackName(_map.Name)}.");
             _speech.Speak($"Step {StepSizes[_stepIndex]:0.#} meters.");
@@ -82,11 +98,17 @@ namespace TopSpeed.Race
             HandleStepAdjust();
             HandleCoordinateKeys();
             HandleMovement();
+            UpdateApproachGuidance(elapsed);
             UpdateAudioListener(elapsed);
         }
 
         public void Dispose()
         {
+            if (_soundBeacon != null)
+            {
+                _soundBeacon.Stop();
+                _soundBeacon.Dispose();
+            }
         }
 
         private void HandleStepAdjust()
@@ -145,19 +167,26 @@ namespace TopSpeed.Race
 
         private void AttemptMoveMap(float distanceMeters, MapDirection direction)
         {
-            var moved = MapMovement.TryMove(_map, ref _mapState, distanceMeters, direction, out _, out var boundaryHit);
-            if (boundaryHit)
+            var delta = MapMovement.DirectionVector(direction) * distanceMeters;
+            var nextWorld = _worldPosition + delta;
+            var (nextCellX, nextCellZ) = _map.WorldToCell(nextWorld);
+            if (!IsWithinTrack(nextWorld))
+            {
                 _speech.Speak("Track boundary.");
-            if (!moved)
                 return;
+            }
 
-            _worldPosition = _mapState.WorldPosition;
-            _mapHeading = direction;
-            _mapState.Heading = direction;
-            _listenerForward = MapMovement.DirectionVector(direction);
+            _worldPosition = nextWorld;
+            _mapState.CellX = nextCellX;
+            _mapState.CellZ = nextCellZ;
+            _mapState.WorldPosition = nextWorld;
+            _mapHeading = MapDirection.North;
+            _mapState.Heading = _mapHeading;
+            _mapState.HeadingDegrees = 0f;
+            _listenerForward = Vector3.UnitZ;
 
             var previous = _mapSnapshot;
-            var current = BuildMapSnapshot(_mapState.CellX, _mapState.CellZ, _mapHeading);
+            var current = BuildMapSnapshot(nextCellX, nextCellZ, _mapHeading);
             AnnounceMapChanges(previous, current);
             _mapSnapshot = current;
         }
@@ -204,6 +233,7 @@ namespace TopSpeed.Race
             };
 
             var worldPosition = _map.CellToWorld(x, z);
+            ApplyPathWidthSnapshot(new Vector2(worldPosition.X, worldPosition.Z), ref snapshot.WidthMeters);
             ApplyAreaSnapshotOverrides(new Vector2(worldPosition.X, worldPosition.Z), heading, ref snapshot);
             return snapshot;
         }
@@ -331,6 +361,122 @@ namespace TopSpeed.Race
                 else
                     _speech.Speak("Leaving intersection.");
             }
+        }
+
+        private void ApplyPathWidthSnapshot(Vector2 position, ref float widthMeters)
+        {
+            if (_pathManager == null || !_pathManager.HasPaths)
+                return;
+
+            var paths = _pathManager.FindPathsContaining(position);
+            if (paths.Count == 0)
+                return;
+
+            var path = paths[paths.Count - 1];
+            if (path.WidthMeters > 0f)
+                widthMeters = Math.Max(0.5f, path.WidthMeters);
+        }
+
+        private void InitializeBeacon()
+        {
+            var path = Path.Combine(AssetPaths.SoundsRoot, "Legacy", "beacon.wav");
+            if (!File.Exists(path))
+                return;
+            _soundBeacon = _audio.CreateSpatialSource(path, streamFromDisk: true, allowHrtf: true);
+        }
+
+        private void UpdateApproachGuidance(float elapsed)
+        {
+            if (_approachBeacon == null || _soundBeacon == null)
+                return;
+
+            var headingDegrees = 0f;
+            if (_approachBeacon.TryGetCue(_worldPosition, headingDegrees, out var cue) && !cue.Passed)
+            {
+                var position = AudioWorld.ToMeters(new Vector3(cue.PortalPosition.X, 0f, cue.PortalPosition.Y));
+                _soundBeacon.SetPosition(position);
+                _soundBeacon.SetVelocity(Vector3.Zero);
+                _beaconCooldown -= elapsed;
+                if (_beaconCooldown <= 0f)
+                {
+                    _soundBeacon.Stop();
+                    _soundBeacon.SeekToStart();
+                    _soundBeacon.Play(loop: false);
+                    _beaconCooldown = 1.5f;
+                }
+
+                var tolerance = cue.ToleranceDegrees ?? DefaultApproachToleranceDegrees;
+                var headingText = FormatHeadingShort(cue.TargetHeadingDegrees);
+                if (cue.DeltaDegrees > tolerance)
+                {
+                    if (!string.Equals(_lastApproachPortalId, cue.PortalId, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(_lastApproachHeading, headingText, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _speech.Speak($"Turn {headingText}.");
+                        _lastApproachPortalId = cue.PortalId;
+                        _lastApproachHeading = headingText;
+                    }
+                }
+
+                return;
+            }
+
+            _beaconCooldown = 0f;
+            if (_soundBeacon.IsPlaying)
+                _soundBeacon.Stop();
+            _lastApproachPortalId = null;
+            _lastApproachHeading = null;
+        }
+
+        private bool IsWithinTrack(Vector3 worldPosition)
+        {
+            var position = new Vector2(worldPosition.X, worldPosition.Z);
+            var (cellX, cellZ) = _map.WorldToCell(worldPosition);
+            var safeZone = IsSafeZone(position);
+            if (_map.TryGetCell(cellX, cellZ, out var cell) && cell.IsSafeZone)
+                safeZone = true;
+
+            if (_pathManager != null && _pathManager.HasPaths)
+            {
+                if (_pathManager.ContainsAny(position))
+                    return true;
+                return safeZone;
+            }
+
+            return _map.TryGetCell(cellX, cellZ, out _);
+        }
+
+        private bool IsSafeZone(Vector2 position)
+        {
+            if (_areaManager == null)
+                return false;
+
+            var areas = _areaManager.FindAreasContaining(position);
+            if (areas.Count == 0)
+                return false;
+
+            foreach (var area in areas)
+            {
+                if (area.Type == TrackAreaType.SafeZone || (area.Flags & TrackAreaFlags.SafeZone) != 0)
+                    return true;
+            }
+            return false;
+        }
+
+
+        private static string FormatHeadingShort(float degrees)
+        {
+            var normalized = degrees % 360f;
+            if (normalized < 0f)
+                normalized += 360f;
+
+            if (normalized >= 315f || normalized < 45f)
+                return "north";
+            if (normalized >= 45f && normalized < 135f)
+                return "east";
+            if (normalized >= 135f && normalized < 225f)
+                return "south";
+            return "west";
         }
 
         private static bool IsIntersection(MapExits exits)
