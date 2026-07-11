@@ -73,6 +73,7 @@ namespace TopSpeed.Drive.Single
         private readonly Source?[] _soundPlayerNrInfo;
         private readonly Source?[] _soundFinished;
         private Source? _soundFinishedLast;
+        private Source? _soundPositionLast;
         private readonly Dictionary<int, int> _finishTimesMs;
         private readonly List<int> _finishOrder;
 
