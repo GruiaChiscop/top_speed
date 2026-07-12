@@ -166,6 +166,12 @@ Alias values:
 - `1`: `desert`
 - `2`: `airport`
 
+`pit_area`
+This controls whether the track has a pit area where cars can stop to refuel and change tires when fuel consumption or tire wear is enabled. It is optional and defaults to true, so every track has a pit area unless you turn it off here.
+Allowed values:
+- Omitted, or any value other than the false tokens below: the track has a pit area. If you do not define pit entry/exit segments (see section 6.4), the pit area falls back to the start/finish line.
+- `false` (also `0`, `no`, `off`): the track has no pit area. Any pit entry/exit segment markers are ignored, and a validation warning is reported. Players cannot pit on such a track, so do not pair it with fuel consumption or tire wear.
+
 <a id="sec-6-2-weather-section"></a>
 ## 6.2 Weather Profile Sections
 
@@ -568,6 +574,22 @@ Alias keys:
 This is an alias key for `sound_sources`.
 Allowed values:
 - Same as `sound_sources`.
+
+`pit`
+This marks the segment as the pit entry, the pit exit, or both, defining where pit road connects to the track. It only matters when the track has a pit area (see `pit_area` in section 6.1). A single segment can carry both markers by using two `pit` lines in any order.
+Allowed values:
+- `pit_entry` (also accepted as `pitentry`)
+  Cars leave the track and enter pit road at the start of this segment.
+- `pit_exit` (also accepted as `pitexit`)
+  Cars rejoin the track at this segment, at the position described below.
+
+If you do not mark any pit entry or exit segments, the pit area falls back to the start/finish line.
+
+Pit entry and exit behavior:
+- Cars always enter pit road at the start of the pit-entry segment.
+- If the pit-exit segment is the same segment as the pit-entry segment, or comes later in the lap, cars rejoin at the end of the pit-exit segment on the same lap.
+- As a special case of the above, if the pit-exit segment is the last segment on the lap, cars rejoin at its end, which sits right at the start/finish line. They therefore cross it immediately and begin the next lap, so this layout effectively advances the lap on exit as well.
+- If the pit-exit segment comes earlier in the lap than the pit-entry segment, a car that pits drives all the way through the pit and rejoins at the start of the pit-exit segment on the next lap. The car's lap count advances as it comes out, which is expected. Use this layout deliberately when you want the pit lane to carry cars across the start/finish line.
 
 Additional segment note:
 Room numeric keys and room override keys can appear directly in segment sections.
