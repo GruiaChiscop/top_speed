@@ -208,6 +208,11 @@ namespace TopSpeed.Drive.Single
             _soundPause = LoadLanguageSound("race\\pause");
             _soundResume = LoadLanguageSound("race\\unpause");
             _soundTurnEndDing = LoadLegacySound("ding.ogg");
+            _soundLetsPit = TryLoadLanguageSound("race\\letspit", allowFallback: false);
+            _soundRightTires = TryLoadPitSound("tirechangeright.ogg");
+            _soundLeftTires = TryLoadPitSound("tirechangeleft.ogg");
+            _soundFuelingUp = TryLoadPitSound("refueling.ogg");
+            _soundExitPitRoad = TryLoadLanguageSound("race\\exitpitroad", allowFallback: false);
             _soundTheme.SetVolumePercent((int)Math.Round(_settings.MusicVolume * 100f));
         }
 
@@ -297,6 +302,14 @@ namespace TopSpeed.Drive.Single
                 throw new FileNotFoundException($"Missing legacy sound {fileName}.");
 
             return LoadBusSource(path, AudioEngineOptions.CopilotBusName, streamFromDisk: false);
+        }
+
+        private Source? TryLoadPitSound(string fileName)
+        {
+            var path = AssetPaths.ResolvePitSoundPath(fileName);
+            if (path != null)
+                return LoadBusSource(path, AudioEngineOptions.CopilotBusName, streamFromDisk: false);
+            return null;
         }
 
         private Source LoadBusSource(string path, string busName, bool streamFromDisk)
