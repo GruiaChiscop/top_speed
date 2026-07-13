@@ -128,7 +128,7 @@ Weather behavior also has two layers:
 ## 6. Detailed Key Reference
 
 <a id="sec-6-1-meta-section"></a>
-## 6.1 Meta Section
+### 6.1 Meta Section
 
 Header syntax for this section is `[meta]`.
 
@@ -173,7 +173,7 @@ Allowed values:
 - `false` (also `0`, `no`, `off`): the track has no pit area. Any pit entry/exit segment markers are ignored, and a validation warning is reported. Players cannot pit on such a track, so do not pair it with fuel consumption or tire wear.
 
 <a id="sec-6-2-weather-section"></a>
-## 6.2 Weather Profile Sections
+### 6.2 Weather Profile Sections
 
 Header syntax is `[weather:<id>]`, for example `[weather:clear]`.
 
@@ -279,7 +279,7 @@ When a segment sets `weather = some_id`, runtime blends toward that profile.
 Blend speed is controlled by segment key `weather_transition_seconds`.
 
 <a id="sec-6-3-room-section"></a>
-## 6.3 Room Sections
+### 6.3 Room Sections
 
 Header syntax is `[room:<id>]`, for example `[room:tunnel_a]`.
 
@@ -408,7 +408,7 @@ A segment can reference a room section id or preset id.
 If segment-level room overrides are present, those apply after the selected room baseline.
 
 <a id="sec-6-4-segment-section"></a>
-## 6.4 Segment Sections
+### 6.4 Segment Sections
 
 Header syntax is `[segment:<id>]`, for example `[segment:s12]`.
 
@@ -604,7 +604,7 @@ Simple shaping strategy:
 5. Add sounds last.
 
 <a id="sec-6-5-soundid-and-soundtypeid-sections"></a>
-## 6.5 Sound Source Sections
+### 6.5 Sound Source Sections
 
 Header syntax supports two forms:
 
@@ -848,7 +848,7 @@ If `global = true`, source is active without area/segment checks.
 Otherwise activation depends on segment assignment, area spans, and start/end trigger conditions.
 
 <a id="sec-6-6-value-parsing-and-token-rules"></a>
-## 6.6 Value Parsing and Token Rules
+### 6.6 Value Parsing and Token Rules
 
 Numeric parsing is invariant-culture, so decimals must use `.`.  
 Enum parsing is case-insensitive and tolerant of spaces/hyphens/underscores in token text.  
@@ -863,7 +863,7 @@ Cross-reference validation runs after parse and ensures referenced weather ids, 
 ## 7. Room Reverb Model and Full Preset Catalog
 
 <a id="sec-7-1-reverb-parameter-meanings"></a>
-## 7.1 Reverb Parameter Meanings
+### 7.1 Reverb Parameter Meanings
 
 This section explains each room parameter in plain language.
 
@@ -879,7 +879,7 @@ This section explains each room parameter in plain language.
 | `transmission_scale` | How much sound passes through walls/structures. | More through-boundary sound leakage is audible. |
 
 <a id="sec-7-2-full-built-in-room-presets-all-66"></a>
-## 7.2 Full Built-In Room Presets
+### 7.2 Full Built-In Room Presets
 
 This table uses separate columns for every reverb parameter so values are directly comparable without tuple shorthand.
 
