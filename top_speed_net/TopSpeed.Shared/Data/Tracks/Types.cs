@@ -164,7 +164,7 @@ namespace TopSpeed.Data
         public IReadOnlyDictionary<string, TrackSoundSourceDefinition> SoundSources { get; }
         public string? SourcePath { get; }
         public int Length => Definitions.Length;
-        public byte Laps { get; set; }
+        public int Laps { get; set; }
 
         /// <summary>
         /// Whether this track has a pit area. True unless the <c>[meta]</c> section explicitly sets
@@ -196,7 +196,7 @@ namespace TopSpeed.Data
             TrackWeather weather,
             TrackAmbience ambience,
             TrackDefinition[] definitions,
-            byte laps = 0,
+            int laps = 0,
             string? name = null,
             string? version = null,
             IReadOnlyDictionary<string, string>? metadata = null,
@@ -228,7 +228,7 @@ namespace TopSpeed.Data
             IReadOnlyDictionary<string, TrackWeatherProfile>? weatherProfiles,
             TrackAmbience ambience,
             TrackDefinition[] definitions,
-            byte laps = 0,
+            int laps = 0,
             string? name = null,
             string? version = null,
             IReadOnlyDictionary<string, string>? metadata = null,
@@ -276,7 +276,7 @@ namespace TopSpeed.Data
                 : TrackWeatherProfile.CreatePreset(TrackWeatherProfile.DefaultProfileId, TrackWeather.Sunny);
         }
 
-        public TrackData WithLaps(byte laps)
+        public TrackData WithLaps(int laps)
         {
             return new TrackData(
                 UserDefined,

@@ -32,7 +32,7 @@ namespace TopSpeed.Drive.Multiplayer
     internal sealed partial class MultiplayerSession
     {
         private const int MaxPlayers = ProtocolConstants.MaxPlayers;
-        private const int MaxLaps = 16;
+        private const int MaxLaps = 500;
         private const int MaxUnkeys = 12;
         private const int RandomSoundGroups = 16;
         private const int RandomSoundMax = 32;
@@ -71,7 +71,7 @@ namespace TopSpeed.Drive.Multiplayer
         private readonly SnapshotState _snapshots;
         private readonly RuntimeState _runtime;
         private readonly AudioSource?[] _soundNumbers;
-        private readonly AudioSource[] _soundLaps;
+        private readonly AudioSource?[] _soundLaps;
         private readonly AudioSource?[][] _randomSounds;
         private readonly string?[] _randomSoundBaseNames;
         private readonly int[] _totalRandomSounds;
