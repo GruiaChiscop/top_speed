@@ -1,7 +1,8 @@
 {
-  "version": "2026.7.12.1",
-  "serverVersion": "2026.7.12.1",
+  "version": "2026.7.13.1",
+  "serverVersion": "2026.7.13.1",
   "changes": [
+    "Added support for up to 500 laps",
     "Cars now consume fuel over the course of a race. Press X to hear how much fuel you have left, and a low-fuel warning alerts you when you are running low. Be careful not to run out, or you won't be able to finish the race.",
     "Tires now heat up, wear down, and lose grip as a race goes on. Press B to hear their current condition: cold, warming up, optimal temperature, hot, or overheated.",
     "You can now make a pit stop to refuel and/or change tires. Press I to request a stop, then choose Refuel, Tires, or Both from the menu the next time you reach the pit entry area, or press 1, 2, or 3 to quickly pick the service you want.",
@@ -18,6 +19,7 @@
     "On Android, the game now prefers the Android text-to-speech voice first (including in automatic mode) and clears leftover update files on startup."
   ],
   "serverChanges": [
+    "Added support for up to 500 laps",
     "Added support for the fuel consumption and tire wear race rules, broadcasting the effective rules for each race so clients set up their cars correctly.",
     "Updated the network protocol for the fuel, tire wear, and pit stop features. Clients and servers must both be on this release to play together."
   ]
