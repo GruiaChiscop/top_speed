@@ -564,6 +564,8 @@ engine_braking=0.35
 mass_kg=1500
 drivetrain_efficiency=0.88
 launch_rpm=1800
+fuel=72
+engine_displacement_l=2.0
 
 [torque]
 engine_braking_torque=220
@@ -946,6 +948,8 @@ Allowed range is 20 to 10000.
 
 Higher mass reduces acceleration for the same net force and usually makes the vehicle feel calmer but heavier. Lower mass increases responsiveness and acceleration. Mass also influences some handling feel indirectly.
 
+When fuel consumption is enabled, this is treated as the vehicle's mass with a full tank. Fuel weighs about 0.745 kg per liter, so the car gets gradually lighter as fuel burns off and heavier again after refueling. See `fuel` in this section.
+
 ### `drivetrain_efficiency`
 
 Drivetrain efficiency multiplier representing power loss through the drivetrain.
@@ -961,6 +965,22 @@ Launch RPM assist floor under throttle at low speed.
 Allowed range is 0 to 18000, and it must not exceed `rev_limiter`.
 
 Higher values can make launch feel stronger and reduce bogging. Lower values can calm launches.
+
+### `fuel`
+
+Fuel tank capacity in liters. Optional; defaults to 72.
+
+Allowed range is 1 to 300.
+
+This sets how much fuel the vehicle starts a race with when fuel consumption is enabled, which determines how long it can run between pit stops. Fuel also has weight (about 0.745 kg per liter): `mass_kg` is treated as the car's mass with a full tank, and as fuel burns the car gets gradually lighter, which slightly improves acceleration late in a stint. Because `mass_kg` already represents the full-tank mass, a larger tank does not make the car heavier at the start; it just means there is more fuel weight to shed as the tank drains. Tank size does not change how quickly fuel is burned, and it has no effect when fuel consumption is turned off.
+
+### `engine_displacement_l`
+
+Engine displacement in liters. Optional; defaults to 2.0.
+
+Allowed range is 0.2 to 12.
+
+This currently affects only fuel consumption: a larger displacement burns fuel faster for the same driving, so pairing a big engine with a small `fuel` tank shortens the range between pit stops. It has no effect when fuel consumption is turned off, and it does not change power, torque, or any handling behavior.
 
 <a id="sec-4-4-1-torque-section"></a>
 ## 4.4.1 `[torque]` Section
