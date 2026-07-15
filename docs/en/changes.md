@@ -5,6 +5,20 @@ This file tracks new changes to the game for both client and server to make it e
 The game versioning follows a specific pattern by using year.month.day.revision, where revision is an incremental number if there is more than one release in a single day.
 
 
+## 2026.7.15.1
+### Game Changes
+- Fixed a single race bug where the computer cars could still bump into you after you had already finished the race, such as while waiting on the finish line with your engine running. Being hit could leave your car sliding out of your control and could delay the end of the race.
+- Removed some unused sound files that were bundled with the non-English language packs.
+
+
+## 2026.7.13.1
+### Game Changes
+- Added support for up to 500 laps.
+
+### Server Changes
+- Updated the network protocol to support the higher lap count.
+
+
 ## 2026.7.12.1
 ### Game Changes
 - Cars now consume fuel over the course of a race. Press X to hear how much fuel you have left, and a low-fuel warning alerts you when you are running low. Be careful not to run out, or you won't be able to finish the race.
