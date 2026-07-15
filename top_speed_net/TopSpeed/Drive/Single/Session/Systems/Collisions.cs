@@ -33,6 +33,7 @@ namespace TopSpeed.Drive.Single.Session.Systems
         private readonly Func<int> _getPlayerNumber;
         private readonly Func<int> _getPlayerCount;
         private readonly Func<bool> _isInPitStop;
+        private readonly Func<bool> _isFinished;
         private readonly HashSet<ulong> _activePairs = new HashSet<ulong>();
 
         public Collisions(
@@ -43,7 +44,8 @@ namespace TopSpeed.Drive.Single.Session.Systems
             ComputerPlayer?[] players,
             Func<int> getPlayerNumber,
             Func<int> getPlayerCount,
-            Func<bool> isInPitStop)
+            Func<bool> isInPitStop,
+            Func<bool> isFinished)
             : base(name, order)
         {
             _track = track ?? throw new ArgumentNullException(nameof(track));
@@ -52,6 +54,7 @@ namespace TopSpeed.Drive.Single.Session.Systems
             _getPlayerNumber = getPlayerNumber ?? throw new ArgumentNullException(nameof(getPlayerNumber));
             _getPlayerCount = getPlayerCount ?? throw new ArgumentNullException(nameof(getPlayerCount));
             _isInPitStop = isInPitStop ?? throw new ArgumentNullException(nameof(isInPitStop));
+            _isFinished = isFinished ?? throw new ArgumentNullException(nameof(isFinished));
         }
 
         public override void Update(TopSpeed.Drive.Session.SessionContext context, float elapsed)
@@ -60,7 +63,10 @@ namespace TopSpeed.Drive.Single.Session.Systems
             var actors = new List<Actor>(_getPlayerCount() + 1);
             var activePairs = new HashSet<ulong>();
 
-            if (_car.State == Vehicles.CarState.Running && !_isInPitStop())
+            // A finished or pitting (ghosted) player is untouchable; otherwise the player is a
+            // collision target regardless of engine state. Sitting still with the engine off, coasting,
+            // stalled, or crashed and not yet restarted all remain hittable by bots still racing.
+            if (!_isInPitStop() && !_isFinished())
                 actors.Add(new Actor((uint)_getPlayerNumber(), isPlayer: true, bot: null));
 
             for (var i = 0; i < _getPlayerCount(); i++)

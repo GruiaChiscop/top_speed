@@ -291,7 +291,7 @@ namespace TopSpeed.Drive.Single
                 value => _positionComment = value,
                 SpeakIfLoaded,
                 Speak);
-            _collisions = new CollisionsSubsystem("collisions", 150, _track, _car, _computerPlayers, () => _playerNumber, () => _nComputerPlayers, () => _pitStop!.IsGhosted);
+            _collisions = new CollisionsSubsystem("collisions", 150, _track, _car, _computerPlayers, () => _playerNumber, () => _nComputerPlayers, () => _pitStop!.IsGhosted, () => _finished);
             _pitStop = new PitStopSubsystem(
                 "pitStop",
                 135,
