@@ -10,6 +10,9 @@ The game versioning follows a specific pattern by using year.month.day.revision,
 - Fixed a single race bug where the computer cars could still bump into you after you had already finished the race, such as while waiting on the finish line with your engine running. Being hit could leave your car sliding out of your control and could delay the end of the race.
 - Removed some unused sound files that were bundled with the non-English language packs.
 
+### Server Changes
+- Raised the minimum supported network protocol to the 500-lap update, so game clients older than that update are now rejected at connection instead of mis-reading race data. This corrects an oversight where the 500-lap protocol change did not raise the minimum.
+
 
 ## 2026.7.13.1
 ### Game Changes

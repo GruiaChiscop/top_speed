@@ -1,9 +1,11 @@
 {
   "version": "2026.7.15.1",
-  "serverVersion": "2026.7.13.1",
+  "serverVersion": "2026.7.15.1",
   "changes": [
     "Fixed a single race bug where the computer cars could still bump into you after you had already finished the race, such as while waiting on the finish line with your engine running. Being hit could leave your car sliding out of your control and could delay the end of the race.",
     "Removed some unused sound files that were bundled with the non-English language packs."
   ],
-  "serverChanges": []
+  "serverChanges": [
+    "Raised the minimum supported network protocol to the 500-lap update. Game clients older than that update are now rejected when they connect, instead of mis-reading race data. Clients and servers must both be on the 500-lap update or newer to play together."
+  ]
 }
